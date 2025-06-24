@@ -9,7 +9,7 @@
 	let time = $state('12:00');
 	let endTime = $state('01:00');
 	let routers = $state({
-		'cc_ir1-gw': false,
+		'cc-ir1-gw': false,
 		'oh-ir1-gw': false
 	});
 
@@ -77,7 +77,7 @@
 				'&endTime=' +
 				endTime.replace(':', '') +
 				'&routers=' +
-				(routers['cc_ir1-gw'] ? 'cc_ir1-gw' : '') +
+				(routers['cc-ir1-gw'] ? 'cc-ir1-gw' : '') +
 				',' +
 				(routers['oh-ir1-gw'] ? 'oh-ir1-gw' : ''),
 			{
@@ -91,7 +91,7 @@
 		if (response.ok) {
 			const res = await response.json();
 			results = res.result;
-
+			console.log(results); 	
 			// Update chart with new data
 			if (chart) {
 				chart.data.labels = results.map(
@@ -137,7 +137,7 @@
 					'rgb(0, 255, 0)',
 					'rgb(128, 128, 0)',
 					'rgb(0, 0, 128)',
-					'rgb(255, 140, 0)',	
+					'rgb(255, 140, 0)',
 					'rgb(34, 139, 34)',
 					'rgb(139, 0, 0)'
 				];
@@ -181,12 +181,20 @@
 			<span class="mx-2 text-white">from</span>
 			<label>
 				<span class="hidden">Choose date:</span>
-				<input class="m-1 w-48 bg-slate-300 hover:cursor-pointer" type="date" bind:value={startDate} />
+				<input
+					class="m-1 w-48 bg-slate-300 hover:cursor-pointer"
+					type="date"
+					bind:value={startDate}
+				/>
 			</label>
 			<span class="mx-2 text-white">to</span>
 			<label>
 				<span class="hidden">Choose date:</span>
-				<input class="m-1 w-48 bg-slate-300 hover:cursor-pointer" type="date" bind:value={endDate} />
+				<input
+					class="m-1 w-48 bg-slate-300 hover:cursor-pointer"
+					type="date"
+					bind:value={endDate}
+				/>
 			</label>
 		</div>
 		<div class="flex flex-row items-center">
@@ -194,7 +202,7 @@
 			<label>
 				<span class="hidden">Choose start time:</span>
 				<input
-					class="m-1 w-48 bg-slate-300 hover:cursor-pointer disabled:brightness-50 disabled:cursor-not-allowed"
+					class="m-1 w-48 bg-slate-300 hover:cursor-pointer disabled:cursor-not-allowed disabled:brightness-50"
 					type="time"
 					bind:value={time}
 					step="300"
@@ -205,10 +213,10 @@
 				<span class="mx-2 text-white">full day</span>
 			</label>
 		</div>
-		<label class="flex flex-row items-center mb-2">
+		<label class="mb-2 flex flex-row items-center">
 			<span class="mx-2 text-white">On routers:</span>
-			<input type="checkbox" bind:checked={routers['cc_ir1-gw']} />
-			<span class="mx-2 text-white">cc_ir1-gw</span>
+			<input type="checkbox" bind:checked={routers['cc-ir1-gw']} />
+			<span class="mx-2 text-white">cc-ir1-gw</span>
 			<input type="checkbox" bind:checked={routers['oh-ir1-gw']} />
 			<span class="mx-2 text-white">oh-ir1-gw</span>
 		</label>

@@ -5,24 +5,21 @@ import { promisify } from 'node:util';
 
 const execPromise = promisify(exec);
 
-
-async function loadDataFullDay(startDate: string, endDate: string, path: string): Promise<{ time: string; data: string }[]> {
+async function loadDataFullDay(
+	startDate: string,
+	endDate: string,
+	path: string
+): Promise<Array<{ time: string; data: string }>> {
 	const momentDate = moment(startDate, 'YYYYMMDD');
 	const end = moment(endDate, 'YYYYMMDD').set({ hour: 23, minute: 59 });
 
-	const allResults: { time: string; data: string }[] = [];
-
+	const allResults: Array<{ time: string; data: string }> = [];
 
 	for (let currentTime = momentDate; currentTime <= end; currentTime.add(1, 'days')) {
 		const timeStr = currentTime.format('YYYYMMDDHHmm');
 
 		const fileToRead =
-			path +
-			timeStr.slice(0, 4) +
-			'/' +
-			timeStr.slice(4, 6) +
-			'/' +
-			timeStr.slice(6, 8);
+			path + timeStr.slice(0, 4) + '/' + timeStr.slice(4, 6) + '/' + timeStr.slice(6, 8);
 
 		console.log('reading file ' + fileToRead);
 
@@ -37,14 +34,19 @@ async function loadDataFullDay(startDate: string, endDate: string, path: string)
 	return allResults;
 }
 
-async function loadDataAtTime(startDate: string, endDate: string, time: string, path: string): Promise<{ time: string; data: string }[]> {
+async function loadDataAtTime(
+	startDate: string,
+	endDate: string,
+	time: string,
+	path: string
+): Promise<{ time: string; data: string }[]> {
 	const momentDate = moment(startDate, 'YYYYMMDD');
 	const momentTime = moment(time, 'HHmm');
 
 	const start = momentDate.clone().set({ hour: momentTime.hour(), minute: momentTime.minute() });
 	const end = moment(endDate, 'YYYYMMDD').set({ hour: 23, minute: 59 });
 
-	const allResults: { time: string; data: string }[] = [];
+	const allResults: Array<{ time: string; data: string }> = [];
 
 	for (let currentTime = start; currentTime <= end; currentTime.add(1, 'days')) {
 		// console.log(currentTime.format('YYYYMMDDHHmm'));
@@ -100,26 +102,46 @@ export async function GET({ url }) {
 		}
 		console.log(routers);
 
-		let allResultsOH: { time: string; data: string }[] = [];
-		let allResultsCC: { time: string; data: string }[] = [];
+		let allResultsOH: Array<{ time: string; data: string }> = [];
+		let allResultsCC: Array<{ time: string; data: string }> = [];
 
 		if (fullDay === 'true') {
-			if (routers.includes('cc_ir1-gw')) {
-				allResultsCC = await loadDataFullDay(startDate, endDate, '/research/tango_cis/uonet-in/cc_ir1-gw/');
+			if (routers.includes('cc-ir1-gw')) {
+				allResultsCC = await loadDataFullDay(
+					startDate,
+					endDate,
+					'/research/tango_cis/uonet-in/cc-ir1-gw/'
+				);
 			}
 			if (routers.includes('oh-ir1-gw')) {
-				allResultsOH = await loadDataFullDay(startDate, endDate, '/research/tango_cis/uonet-in/oh-ir1-gw/');
+				allResultsOH = await loadDataFullDay(
+					startDate,
+					endDate,
+					'/research/tango_cis/uonet-in/oh-ir1-gw/'
+				);
 			}
-		}
-		else {
-			if (routers.includes('cc_ir1-gw')) {
-				allResultsCC = await loadDataAtTime(startDate, endDate, time, '/research/tango_cis/uonet-in/cc_ir1-gw/');
+		} else {
+			if (routers.includes('cc-ir1-gw')) {
+				allResultsCC = await loadDataAtTime(
+					startDate,
+					endDate,
+					time,
+					'/research/tango_cis/uonet-in/cc-ir1-gw/'
+				);
 			}
 			if (routers.includes('oh-ir1-gw')) {
-				allResultsOH = await loadDataAtTime(startDate, endDate, time, '/research/tango_cis/uonet-in/oh-ir1-gw/');
+				allResultsOH = await loadDataAtTime(
+					startDate,
+					endDate,
+					time,
+					'/research/tango_cis/uonet-in/oh-ir1-gw/'
+				);
 			}
 		}
-
+		console.log('allResultsCC');
+		console.log(allResultsCC);
+		console.log('allResultsOH');
+		console.log(allResultsOH);
 		// Combine and aggregate results from both routers
 		const allResults = allResultsCC.map((ccResult, index) => {
 			const ohResult = allResultsOH[index];
@@ -133,7 +155,7 @@ export async function GET({ url }) {
 			// Add any remaining OH results
 			allResults.push(...allResultsOH.slice(allResultsCC.length));
 		}
-
+		console.log(allResults);
 		return json({ result: allResults });
 	} catch (error) {
 		console.error(`exec error: ${error}`);
