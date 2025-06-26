@@ -9,17 +9,20 @@ NetFlow Analysis is a web-based network flow analysis tool that visualizes netwo
 ## Architecture
 
 **Data Flow:**
+
 1. Netflow data files stored in `/research/tango_cis/uonet-in/{router}/YYYY/MM/DD/` directories
 2. SvelteKit API endpoint (`src/routes/data/+server.ts`) executes `nfdump` commands to extract statistics
 3. Frontend visualizes data using Chart.js with interactive date/time controls
 4. SQLite database (`netflow-db/flowStats.db`) exists but is not used in current data flow
 
 **Key Components:**
+
 - `netflow-webapp/` - SvelteKit application with TailwindCSS and TypeScript
 - `netflow-db/` - Python SQLite setup (experimental, not actively used)
 - Data processing happens real-time via `nfdump` rather than database queries
 
 **Supported Routers:**
+
 - `cc-ir1-gw` and `oh-ir1-gw` with data aggregation across multiple sources
 
 ## Development Commands
@@ -39,11 +42,13 @@ npm run lint         # Run ESLint and Prettier checks
 ## File Structure Patterns
 
 **Netflow Data Files:**
+
 - Path: `/research/tango_cis/uonet-in/{router}/YYYY/MM/DD/nfcapd.YYYYMMDDHHmm`
 - Routers: `cc-ir1-gw`, `oh-ir1-gw`
 
 **Database Schema** (from `netflow-db/db.py`):
-- Table: `flow_summaries` with 20+ columns tracking flows, packets, bytes by protocol
+
+- Table: `netflow_stats` with 20+ columns tracking flows, packets, bytes by protocol
 - Currently unused in main application flow
 
 ## Technical Stack
@@ -56,6 +61,7 @@ npm run lint         # Run ESLint and Prettier checks
 ## Data Visualization Features
 
 The main interface (`src/routes/+page.svelte`) supports:
+
 - Date range selection with router filtering
 - 20 different network metrics (flows, packets, bytes by protocol)
 - Logarithmic scale visualization
