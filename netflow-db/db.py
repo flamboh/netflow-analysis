@@ -3,9 +3,19 @@ import subprocess
 from datetime import datetime, timedelta
 import os
 
+# Set to True to drop the table and start from scratch
+FIRST_RUN = False
+
 def main():
     conn = sqlite3.connect("flowStats.db")
     cursor = conn.cursor()
+
+    global FIRST_RUN
+
+    if FIRST_RUN:
+        cursor.execute("""
+        DROP TABLE IF EXISTS netflow_stats
+        """)
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS netflow_stats (
@@ -50,8 +60,28 @@ def main():
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_file_path ON netflow_stats (file_path)
     """)
-    # Start from May 1, 2025 at 00:00
-    start_time = datetime(2025, 5, 1, 0, 0)
+    if FIRST_RUN:
+        # nfcapd starts at 2024-03-01 00:00:00
+        start_time = datetime(2024, 3, 1)
+    else:
+        # Get the last processed file from the database
+        last_file = cursor.execute("""
+        SELECT file_path FROM netflow_stats ORDER BY timestamp DESC LIMIT 1
+        """).fetchone()
+        if last_file:
+            last_file_path = last_file[0]
+            timestamp_str = last_file_path.split('/')[-1].split('.')[1]
+            year = timestamp_str[:4]
+            month = timestamp_str[4:6]
+            day = timestamp_str[6:8]
+            hour = timestamp_str[8:10]
+            minute = timestamp_str[10:12]
+            last_file_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
+            start_time = last_file_time + timedelta(minutes=5)
+            print(f"Starting from {start_time}")
+        else:
+            raise Exception("Failure to find last processed file")
+
     current_time = start_time
 
     # Process files in 5-minute intervals

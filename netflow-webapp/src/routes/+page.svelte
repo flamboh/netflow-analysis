@@ -5,7 +5,7 @@
 
 	let today = new Date().toJSON().slice(0, 10);
 
-	let startDate = $state('2025-05-01');
+	let startDate = $state('2024-03-01');
 	let endDate = $state(today);
 	let routers = $state({
 		'cc-ir1-gw': true,
@@ -85,7 +85,7 @@
 	onMount(() => {
 		// Load settings first
 		loadSettings();
-		
+
 		// Initialize empty chart
 		chart = new Chart(chartCanvas, {
 			type: 'line',
@@ -192,6 +192,17 @@
 						title: {
 							display: true,
 							text: 'Value (Log Scale)'
+						},
+						ticks: {
+							callback: function (value: any) {
+								const num = Number(value);
+								if (num >= 1e15) return (num / 1e15).toFixed(0) + ' quadrillion';
+								if (num >= 1e12) return (num / 1e12).toFixed(0) + ' trillion';
+								if (num >= 1e9) return (num / 1e9).toFixed(0) + ' billion';
+								if (num >= 1e6) return (num / 1e6).toFixed(0) + ' million';
+								if (num >= 1e3) return (num / 1e3).toFixed(0) + ' thousand';
+								return num.toString();
+							}
 						}
 					}
 				};
