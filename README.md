@@ -9,7 +9,7 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 - **Multiple Metrics**: Track 15 different network statistics including flows, packets, and bytes by protocol
 - **Router Filtering**: Support for `cc-ir1-gw` and `oh-ir1-gw` routers
 - **Date Range Selection**: Query specific time periods with intuitive controls
-- **Dynamic X-Axis**: Automatically formats labels based on selected grouping (YYYY-MM, MM/DD/YY, HH:MM)
+- **Dynamic X-Axis**: Automatically formats labels based on selected grouping (YYYY-MM, MM/DD/YY, DD:HH)
 
 ## Architecture
 
@@ -44,7 +44,7 @@ SQLite database (`flowStats.db`) with `netflow_stats` table containing:
 1. **Clone the repository**
 
    ```bash
-   git clone <repository-url>
+   git clone https://gitlab.com/onrg/netflow-analysis
    cd netflow-analysis
    ```
 

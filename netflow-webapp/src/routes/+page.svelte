@@ -1,35 +1,80 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Chart } from 'chart.js/auto';
+	import { browser } from '$app/environment';
 
 	let today = new Date().toJSON().slice(0, 10);
+
 	let startDate = $state('2025-05-01');
 	let endDate = $state(today);
-	let fullDay = $state(true);
-	let time = $state('12:00');
-	let endTime = $state('01:00');
 	let routers = $state({
 		'cc-ir1-gw': true,
 		'oh-ir1-gw': true
 	});
 	let groupBy = $state('date');
 
+	// Load settings from localStorage
+	function loadSettings() {
+		if (browser) {
+			const saved = localStorage.getItem('netflow-settings');
+			if (saved) {
+				try {
+					const settings = JSON.parse(saved);
+					startDate = settings.startDate || startDate;
+					endDate = settings.endDate || endDate;
+					routers = { ...routers, ...settings.routers };
+					groupBy = settings.groupBy || groupBy;
+					if (settings.dataOptions) {
+						dataOptions.forEach((option, index) => {
+							if (settings.dataOptions[index] !== undefined) {
+								option.checked = settings.dataOptions[index];
+							}
+						});
+					}
+				} catch (e) {
+					console.warn('Failed to load settings from localStorage:', e);
+				}
+			}
+		}
+	}
+
+	// Save settings to localStorage
+	function saveSettings() {
+		if (browser) {
+			const settings = {
+				startDate,
+				endDate,
+				routers,
+				groupBy,
+				dataOptions: dataOptions.map((option) => option.checked)
+			};
+			localStorage.setItem('netflow-settings', JSON.stringify(settings));
+		}
+	}
+
+	// Watch for changes and save settings
+	$effect(() => {
+		if (browser) {
+			saveSettings();
+		}
+	});
+
 	let results = $state<{ time: string; data: string }[]>([]);
 	let chartCanvas: HTMLCanvasElement;
 	let chart: Chart;
 
 	let dataOptions: { label: string; index: number; checked: boolean }[] = $state([
-		{ label: 'Flows', index: 0, checked: false },
+		{ label: 'Flows', index: 0, checked: true },
 		{ label: 'Flows TCP', index: 1, checked: false },
 		{ label: 'Flows UDP', index: 2, checked: false },
 		{ label: 'Flows ICMP', index: 3, checked: false },
 		{ label: 'Flows Other', index: 4, checked: false },
-		{ label: 'Packets', index: 5, checked: false },
+		{ label: 'Packets', index: 5, checked: true },
 		{ label: 'Packets TCP', index: 6, checked: false },
 		{ label: 'Packets UDP', index: 7, checked: false },
 		{ label: 'Packets ICMP', index: 8, checked: false },
 		{ label: 'Packets Other', index: 9, checked: false },
-		{ label: 'Bytes', index: 10, checked: false },
+		{ label: 'Bytes', index: 10, checked: true },
 		{ label: 'Bytes TCP', index: 11, checked: false },
 		{ label: 'Bytes UDP', index: 12, checked: false },
 		{ label: 'Bytes ICMP', index: 13, checked: false },
@@ -38,6 +83,9 @@
 	]);
 
 	onMount(() => {
+		// Load settings first
+		loadSettings();
+		
 		// Initialize empty chart
 		chart = new Chart(chartCanvas, {
 			type: 'line',
@@ -75,12 +123,6 @@
 				Math.floor(new Date(startDate).getTime() / 1000) +
 				'&endDate=' +
 				Math.floor(new Date(endDate).getTime() / 1000) +
-				'&fullDay=' +
-				fullDay +
-				'&time=' +
-				time.replace(':', '') +
-				'&endTime=' +
-				endTime.replace(':', '') +
 				'&routers=' +
 				(routers['cc-ir1-gw'] ? 'cc-ir1-gw' : '') +
 				',' +
@@ -100,7 +142,6 @@
 		if (response.ok) {
 			const res = await response.json();
 			results = res.result;
-			console.log('hello');
 			// Update chart with new data
 			if (chart) {
 				// Format labels and title based on groupBy selection
@@ -125,8 +166,10 @@
 				} else {
 					// hour
 					labels = results.map((item) => {
+						const month = item.time.slice(4, 6);
+						const day = item.time.slice(6, 8);
 						const hour = item.time.slice(9, 11);
-						return `${hour}`;
+						return `${month}/${day} ${hour}:00`;
 					});
 					xAxisTitle = 'Hour';
 				}
@@ -209,7 +252,7 @@
 </script>
 
 <div class="flex min-h-screen w-screen flex-col justify-center bg-slate-600">
-	<p class="m-4 text-center text-4xl text-white">nfdump data line graph</p>
+	<p class="m-4 text-center text-4xl text-white">NetFlow Analysis and Visualization</p>
 	<form onsubmit={handleSubmit} class="flex flex-col items-center justify-center">
 		<div class="flex flex-row items-center">
 			<span class="mx-2 text-white">from</span>
@@ -229,22 +272,6 @@
 					type="date"
 					bind:value={endDate}
 				/>
-			</label>
-		</div>
-		<div class="flex flex-row items-center">
-			<span class="mx-2 text-white">at</span>
-			<label>
-				<span class="hidden">Choose start time:</span>
-				<input
-					class="m-1 w-48 bg-slate-300 hover:cursor-pointer disabled:cursor-not-allowed disabled:brightness-50"
-					type="time"
-					bind:value={time}
-					step="300"
-					disabled={fullDay}
-				/>
-				<span class="mx-2 text-white">or</span>
-				<input type="checkbox" bind:checked={fullDay} />
-				<span class="mx-2 text-white">full day</span>
 			</label>
 		</div>
 		<label class="mb-2 flex flex-row items-center">
@@ -307,15 +334,17 @@
 	</form>
 	<div class="flex flex-col items-center justify-center">
 		<button
-			class="m-4 rounded-lg bg-slate-300 p-2 text-center text-4xl text-black"
+			class="mb-12 mt-4 rounded-lg bg-slate-300 p-2 text-center text-4xl text-black"
 			onclick={loadData}
 		>
 			Load
 		</button>
-		<div class="text-white">NFDUMP data at {time} from {startDate} onward</div>
 	</div>
-
-	<div class="mx-auto w-full max-w-4xl rounded-lg bg-white p-4 py-8">
+	<div class="mx-auto w-full max-w-7xl flex-col rounded-lg bg-white p-4">
+		<div class="text-2xl text-black">
+			NetFlow data from {startDate} to {endDate} on {routers['cc-ir1-gw'] ? 'cc-ir1-gw' : ''}
+			{routers['oh-ir1-gw'] ? ' and oh-ir1-gw' : ''} grouped by {groupBy}
+		</div>
 		<canvas bind:this={chartCanvas}></canvas>
 	</div>
 </div>
