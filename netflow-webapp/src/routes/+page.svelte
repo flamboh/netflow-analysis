@@ -172,6 +172,17 @@
 				chart.data.labels = labels;
 				chart.data.datasets = []; // Clear existing datasets
 
+				// Determine if selected metrics are all of the same type
+				const selectedOptions = dataOptions.filter((option) => option.checked);
+				const metricTypes = selectedOptions.map((option) => {
+					if (option.label.includes('Flows')) return 'flows';
+					if (option.label.includes('Packets')) return 'packets';
+					if (option.label.includes('Bytes')) return 'bytes';
+					return 'other';
+				});
+				const isHomogeneousType =
+					metricTypes.length > 0 && metricTypes.every((type) => type === metricTypes[0]);
+
 				const newScales: any = {
 					x: {
 						title: {
@@ -179,27 +190,49 @@
 							text: xAxisTitle
 						}
 					},
-					y: {
-						display: true,
-						type: 'logarithmic',
-						beginAtZero: true,
-						min: 1, // Avoid log(0) issues
-						title: {
-							display: true,
-							text: 'Value (Log Scale)'
-						},
-						ticks: {
-							callback: function (value: any) {
-								const num = Number(value);
-								if (num >= 1e15) return (num / 1e15).toFixed(0) + ' quadrillion';
-								if (num >= 1e12) return (num / 1e12).toFixed(0) + ' trillion';
-								if (num >= 1e9) return (num / 1e9).toFixed(0) + ' billion';
-								if (num >= 1e6) return (num / 1e6).toFixed(0) + ' million';
-								if (num >= 1e3) return (num / 1e3).toFixed(0) + ' thousand';
-								return num.toString();
+					y: isHomogeneousType
+						? {
+								display: true,
+								type: 'linear',
+								stacked: true,
+								beginAtZero: true,
+								title: {
+									display: true,
+									text: 'Value'
+								},
+								ticks: {
+									callback: function (value: any) {
+										const num = Number(value);
+										if (num >= 1e15) return (num / 1e15).toFixed(0) + ' quadrillion';
+										if (num >= 1e12) return (num / 1e12).toFixed(0) + ' trillion';
+										if (num >= 1e9) return (num / 1e9).toFixed(0) + ' billion';
+										if (num >= 1e6) return (num / 1e6).toFixed(0) + ' million';
+										if (num >= 1e3) return (num / 1e3).toFixed(0) + ' thousand';
+										return num.toString();
+									}
+								}
 							}
-						}
-					}
+						: {
+								display: true,
+								type: 'logarithmic',
+								beginAtZero: true,
+								min: 1,
+								title: {
+									display: true,
+									text: 'Value (Log Scale)'
+								},
+								ticks: {
+									callback: function (value: any) {
+										const num = Number(value);
+										if (num >= 1e15) return (num / 1e15).toFixed(0) + ' quadrillion';
+										if (num >= 1e12) return (num / 1e12).toFixed(0) + ' trillion';
+										if (num >= 1e9) return (num / 1e9).toFixed(0) + ' billion';
+										if (num >= 1e6) return (num / 1e6).toFixed(0) + ' million';
+										if (num >= 1e3) return (num / 1e3).toFixed(0) + ' thousand';
+										return num.toString();
+									}
+								}
+							}
 				};
 
 				const predefinedColors = [
@@ -238,6 +271,10 @@
 							label: option.label,
 							data: data,
 							borderColor: color,
+							backgroundColor: isHomogeneousType
+								? color.replace('rgb', 'rgba').replace(')', ', 0.6)')
+								: color,
+							fill: isHomogeneousType ? 'origin' : false,
 							tension: 0.1
 						});
 					}
@@ -256,9 +293,23 @@
 		loadData();
 	}
 
-	$effect(() => {
-		loadData();
-	});
+	function selectAllFlows() {
+		dataOptions.forEach((option) => {
+			option.checked = option.label.includes('Flows');
+		});
+	}
+
+	function selectAllPackets() {
+		dataOptions.forEach((option) => {
+			option.checked = option.label.includes('Packets');
+		});
+	}
+
+	function selectAllBytes() {
+		dataOptions.forEach((option) => {
+			option.checked = option.label.includes('Bytes');
+		});
+	}
 
 	onMount(() => {
 		loadData();
@@ -290,29 +341,56 @@
 		</div>
 		<label class="mb-2 flex flex-row items-center">
 			<span class="mx-2 text-white">On routers:</span>
-			<input type="checkbox" bind:checked={routers['cc-ir1-gw']} />
+			<input type="checkbox" bind:checked={routers['cc-ir1-gw']} onchange={loadData} />
 			<span class="mx-2 text-white">cc-ir1-gw</span>
-			<input type="checkbox" bind:checked={routers['oh-ir1-gw']} />
+			<input type="checkbox" bind:checked={routers['oh-ir1-gw']} onchange={loadData} />
 			<span class="mx-2 text-white">oh-ir1-gw</span>
 		</label>
 		<div class="flex flex-row items-center">
 			<div class="flex flex-col items-center justify-center">
 				<div class="grid grid-cols-3 gap-4">
-					{#each dataOptions.reduce((acc, curr, i) => {
-							const colIndex = Math.floor(i / 5);
-							if (!acc[colIndex]) acc[colIndex] = [];
-							acc[colIndex].push(curr);
-							return acc;
-						}, [] as (typeof dataOptions)[]) as column}
-						<div class="flex flex-col gap-2">
-							{#each column as option}
-								<label class="flex items-center gap-2">
-									<input type="checkbox" bind:checked={option.checked} />
-									<span class="text-white">{option.label}</span>
-								</label>
-							{/each}
-						</div>
-					{/each}
+					<div class="flex flex-col gap-2">
+						<button
+							class="mb-2 rounded bg-blue-500 px-2 py-1 text-sm text-white hover:bg-blue-600"
+							onclick={selectAllFlows}
+						>
+							All Flows
+						</button>
+						{#each dataOptions.slice(0, 5) as option}
+							<label class="flex items-center gap-2">
+								<input type="checkbox" bind:checked={option.checked} onchange={loadData} />
+								<span class="text-white">{option.label}</span>
+							</label>
+						{/each}
+					</div>
+					<div class="flex flex-col gap-2">
+						<button
+							class="mb-2 rounded bg-green-500 px-2 py-1 text-sm text-white hover:bg-green-600"
+							onclick={selectAllPackets}
+						>
+							All Packets
+						</button>
+						{#each dataOptions.slice(5, 10) as option}
+							<label class="flex items-center gap-2">
+								<input type="checkbox" bind:checked={option.checked} onchange={loadData} />
+								<span class="text-white">{option.label}</span>
+							</label>
+						{/each}
+					</div>
+					<div class="flex flex-col gap-2">
+						<button
+							class="mb-2 rounded bg-red-500 px-2 py-1 text-sm text-white hover:bg-red-600"
+							onclick={selectAllBytes}
+						>
+							All Bytes
+						</button>
+						{#each dataOptions.slice(10, 15) as option}
+							<label class="flex items-center gap-2">
+								<input type="checkbox" bind:checked={option.checked} onchange={loadData} />
+								<span class="text-white">{option.label}</span>
+							</label>
+						{/each}
+					</div>
 				</div>
 			</div>
 		</div>
@@ -325,6 +403,7 @@
 					name="groupBy"
 					value="month"
 					checked={groupBy === 'month'}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">month</span>
 				<input
@@ -333,6 +412,7 @@
 					name="groupBy"
 					value="date"
 					checked={groupBy === 'date'}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">date</span>
 				<input
@@ -341,6 +421,7 @@
 					name="groupBy"
 					value="hour"
 					checked={groupBy === 'hour'}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">hour</span>
 			</div>
