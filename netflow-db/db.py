@@ -85,7 +85,7 @@ def main():
     current_time = start_time
 
     # Process files in 5-minute intervals
-    routers = ['cc-ir1-gw', 'oh-ir1-gw']
+    routers = ['cc-ir1-gw', 'oh-ir1-gw']    
     base_path = '/research/tango_cis/uonet-in'
 
     processed_count = 0

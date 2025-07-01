@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Chart } from 'chart.js/auto';
-	import { browser } from '$app/environment';
+	import { getRelativePosition } from 'chart.js/helpers';
 
 	let today = new Date().toJSON().slice(0, 10);
 
@@ -12,52 +12,6 @@
 		'oh-ir1-gw': true
 	});
 	let groupBy = $state('date');
-
-	// Load settings from localStorage
-	function loadSettings() {
-		if (browser) {
-			const saved = localStorage.getItem('netflow-settings');
-			if (saved) {
-				try {
-					const settings = JSON.parse(saved);
-					startDate = settings.startDate || startDate;
-					endDate = settings.endDate || endDate;
-					routers = { ...routers, ...settings.routers };
-					groupBy = settings.groupBy || groupBy;
-					if (settings.dataOptions) {
-						dataOptions.forEach((option, index) => {
-							if (settings.dataOptions[index] !== undefined) {
-								option.checked = settings.dataOptions[index];
-							}
-						});
-					}
-				} catch (e) {
-					console.warn('Failed to load settings from localStorage:', e);
-				}
-			}
-		}
-	}
-
-	// Save settings to localStorage
-	function saveSettings() {
-		if (browser) {
-			const settings = {
-				startDate,
-				endDate,
-				routers,
-				groupBy,
-				dataOptions: dataOptions.map((option) => option.checked)
-			};
-			localStorage.setItem('netflow-settings', JSON.stringify(settings));
-		}
-	}
-
-	// Watch for changes and save settings
-	$effect(() => {
-		if (browser) {
-			saveSettings();
-		}
-	});
 
 	let results = $state<{ time: string; data: string }[]>([]);
 	let chartCanvas: HTMLCanvasElement;
@@ -83,9 +37,6 @@
 	]);
 
 	onMount(() => {
-		// Load settings first
-		loadSettings();
-
 		// Initialize empty chart
 		chart = new Chart(chartCanvas, {
 			type: 'line',
@@ -94,6 +45,29 @@
 				datasets: [] // Start with no datasets
 			},
 			options: {
+				onClick: (e, activeElements) => {
+					if (activeElements.length > 0) {
+						const element = activeElements[0];
+						const datasetIndex = element.datasetIndex;
+						const index = element.index;
+						const dataset = chart.data.datasets[datasetIndex];
+						const label = chart.data.labels?.[index];
+						const value = dataset.data[index];
+						
+						console.log('Clicked point:', {
+							dataset: dataset.label,
+							label: label,
+							value: value,
+							datasetIndex: datasetIndex,
+							index: index
+						});
+					} else {
+						const canvasPosition = getRelativePosition(e, chart);
+						const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+						const dataY = chart.scales.y.getValueForPixel(canvasPosition.y);
+						console.log('Clicked coordinates:', { x: dataX, y: dataY });
+					}
+				},
 				responsive: true,
 				scales: {
 					x: {
