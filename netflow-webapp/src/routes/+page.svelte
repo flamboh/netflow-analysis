@@ -11,7 +11,7 @@
 		'cc-ir1-gw': true,
 		'oh-ir1-gw': true
 	});
-	let groupBy = $state('date');
+	let groupBy = $state('month');
 
 	let results = $state<{ time: string; data: string }[]>([]);
 	let chartCanvas: HTMLCanvasElement;
@@ -36,6 +36,18 @@
 		// { label: 'Sequence Failures', index: 15, checked: false }
 	]);
 
+	function getClickedElement(activeElements: any) {
+		if (activeElements.length > 0) {
+			const element = activeElements[0];
+			const datasetIndex = element.datasetIndex;
+			const index = element.index;
+			const dataset = chart.data.datasets[datasetIndex];
+			const label = chart.data.labels?.[index];
+			const value = dataset.data[index];
+			return { dataset, label, value, datasetIndex, index };
+		}
+	}
+
 	onMount(() => {
 		// Initialize empty chart
 		chart = new Chart(chartCanvas, {
@@ -46,21 +58,30 @@
 			},
 			options: {
 				onClick: (e, activeElements) => {
-					if (activeElements.length > 0) {
-						const element = activeElements[0];
-						const datasetIndex = element.datasetIndex;
-						const index = element.index;
-						const dataset = chart.data.datasets[datasetIndex];
-						const label = chart.data.labels?.[index];
-						const value = dataset.data[index];
-						
+					const clickedElement: any = getClickedElement(activeElements);
+					if (clickedElement) {
 						console.log('Clicked point:', {
-							dataset: dataset.label,
-							label: label,
-							value: value,
-							datasetIndex: datasetIndex,
-							index: index
+							dataset: clickedElement.dataset.label,
+							label: clickedElement.label,
+							value: clickedElement.value,
+							datasetIndex: clickedElement.datasetIndex,
+							index: clickedElement.index
 						});
+						if (groupBy === 'month') {
+							groupBy = 'date';
+							startDate = clickedElement.label + '-01';
+							endDate = clickedElement.label + '-31';
+						} else if (groupBy === 'date') {
+							groupBy = 'hour';
+							const date = new Date(clickedElement.label);
+							startDate = date.toISOString().slice(0, 10);
+							endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+						} else {
+							groupBy = 'month';
+							startDate = '2024-03-01';
+							endDate = today;
+						}
+						loadData();
 					} else {
 						const canvasPosition = getRelativePosition(e, chart);
 						const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
@@ -131,10 +152,10 @@
 					xAxisTitle = 'Month';
 				} else if (groupBy === 'date') {
 					labels = results.map((item) => {
-						const year = item.time.slice(2, 4);
+						const year = item.time.slice(0, 4);
 						const month = item.time.slice(4, 6);
 						const day = item.time.slice(6, 8);
-						return `${month}/${day}/${year}`;
+						return `${year}-${month}-${day}`;
 					});
 					xAxisTitle = 'Date';
 				} else {
@@ -143,7 +164,7 @@
 						const month = item.time.slice(4, 6);
 						const day = item.time.slice(6, 8);
 						const hour = item.time.slice(9, 11);
-						return `${month}/${day} ${hour}:00`;
+						return `${month}-${day} ${hour}:00`;
 					});
 					xAxisTitle = 'Hour';
 				}
@@ -234,6 +255,14 @@
 		e.preventDefault();
 		loadData();
 	}
+
+	$effect(() => {
+		loadData();
+	});
+
+	onMount(() => {
+		loadData();
+	});
 </script>
 
 <div class="flex min-h-screen w-screen flex-col justify-center bg-slate-600">
@@ -317,14 +346,14 @@
 			</div>
 		</div>
 	</form>
-	<div class="flex flex-col items-center justify-center">
-		<button
+	<!-- <div class="flex flex-col items-center justify-center">
+		 <button
 			class="mb-12 mt-4 rounded-lg bg-slate-300 p-2 text-center text-4xl text-black"
 			onclick={loadData}
 		>
 			Load
 		</button>
-	</div>
+	</div> -->
 	<div class="mx-auto w-full max-w-7xl flex-col rounded-lg bg-white p-4">
 		<div class="text-2xl text-black">
 			NetFlow data from {startDate} to {endDate} on {routers['cc-ir1-gw'] ? 'cc-ir1-gw' : ''}
