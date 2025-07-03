@@ -275,7 +275,10 @@
 								? color.replace('rgb', 'rgba').replace(')', ', 0.6)')
 								: color,
 							fill: isHomogeneousType ? 'origin' : false,
-							tension: 0.1
+							tension: 0.1,
+							radius: 0,
+							hitRadius: 2,
+							hoverRadius: 5
 						});
 					}
 				}
