@@ -73,20 +73,31 @@
 						if (groupBy === 'date') {
 							groupBy = 'hour';
 							const date = new Date(clickedElement.label);
-							startDate = date.toISOString().slice(0, 10);
-							endDate = new Date(date.getTime() + 24 * 60 * 60 * 31 * 1000)
-								.toISOString()
-								.slice(0, 10);
+							// Set 1 month span around clicked date
+							const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+							const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+							startDate = startOfMonth.toISOString().slice(0, 10);
+							endDate = endOfMonth.toISOString().slice(0, 10);
 						} else if (groupBy === 'hour') {
+							groupBy = '30min';
+							const hourLabel = clickedElement.label; // Format: "YYYY-MM-DD HH:00"
+							const [datePart, timePart] = hourLabel.split(' ');
+							const date = new Date(datePart);
+							// Set 1 week span around clicked date
+							const startOfWeek = new Date(date.getTime() - 3 * 24 * 60 * 60 * 1000);
+							const endOfWeek = new Date(date.getTime() + 4 * 24 * 60 * 60 * 1000);
+							startDate = startOfWeek.toISOString().slice(0, 10);
+							endDate = endOfWeek.toISOString().slice(0, 10);
+						} else if (groupBy === '30min') {
 							groupBy = '5min';
-							const hourLabel = clickedElement.label; // Format: "MM-DD HH:00"
-							const [yearMonthDay, hour] = hourLabel.split(' ');
-							const [year, month, day] = yearMonthDay.split('-');
-							const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+							const minuteLabel = clickedElement.label; // Format: "YYYY-MM-DD HH:MM"
+							const [datePart, timePart] = minuteLabel.split(' ');
+							const date = new Date(datePart);
+							// Set 1 day span
 							startDate = date.toISOString().slice(0, 10);
 							endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 						} else {
-							groupBy = 'month';
+							groupBy = 'date';
 							startDate = '2024-03-01';
 							endDate = today;
 						}
@@ -176,6 +187,16 @@
 						return `${year}-${month}-${day} ${hour}:00`;
 					});
 					xAxisTitle = 'Hour';
+				} else if (groupBy === '30min') {
+					labels = results.map((item) => {
+						const year = item.time.slice(0, 4);
+						const month = item.time.slice(4, 6);
+						const day = item.time.slice(6, 8);
+						const hour = item.time.slice(9, 11);
+						const minute = item.time.slice(12, 14);
+						return `${year}-${month}-${day} ${hour}:${minute}`;
+					});
+					xAxisTitle = '30 Minutes';
 				} else {
 					// 5min
 					labels = results.map((item) => {
@@ -447,6 +468,15 @@
 					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">hour</span>
+				<input
+					type="radio"
+					bind:group={groupBy}
+					name="groupBy"
+					value="30min"
+					checked={groupBy === '30min'}
+					onchange={loadData}
+				/>
+				<span class="mx-2 text-white">30min</span>
 				<input
 					type="radio"
 					bind:group={groupBy}

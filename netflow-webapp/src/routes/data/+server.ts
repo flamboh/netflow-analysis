@@ -30,6 +30,8 @@ function getGroupByQuery(groupBy: string) {
 		return "strftime('%Y-%m-%d', timestamp, 'unixepoch')";
 	} else if (groupBy === 'hour') {
 		return "strftime('%Y-%m-%d %H:00:00', timestamp, 'unixepoch')";
+	} else if (groupBy === '30min') {
+		return "strftime('%Y-%m-%d %H:', timestamp, 'unixepoch') || CASE WHEN CAST(strftime('%M', timestamp, 'unixepoch') AS INTEGER) < 30 THEN '00:00' ELSE '30:00' END";
 	} else if (groupBy === '5min') {
 		return "strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch')";
 	}
@@ -97,6 +99,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		query += ` GROUP BY ${groupByQuery} ORDER BY date`;
 
+		console.log(query);
 		const stmt = db.prepare(query);
 		const rows = stmt.all(...params);
 
