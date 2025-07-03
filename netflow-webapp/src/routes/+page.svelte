@@ -66,13 +66,23 @@
 							datasetIndex: clickedElement.datasetIndex,
 							index: clickedElement.index
 						});
-						if (groupBy === 'month') {
-							groupBy = 'date';
-							startDate = clickedElement.label + '-01';
-							endDate = clickedElement.label + '-31';
-						} else if (groupBy === 'date') {
+						// if (groupBy === 'month') {
+						// 	groupBy = 'date';
+						// 	startDate = clickedElement.label + '-01';
+						// 	endDate = clickedElement.label + '-31';
+						if (groupBy === 'date') {
 							groupBy = 'hour';
 							const date = new Date(clickedElement.label);
+							startDate = date.toISOString().slice(0, 10);
+							endDate = new Date(date.getTime() + 24 * 60 * 60 * 31 * 1000)
+								.toISOString()
+								.slice(0, 10);
+						} else if (groupBy === 'hour') {
+							groupBy = '5min';
+							const hourLabel = clickedElement.label; // Format: "MM-DD HH:00"
+							const [yearMonthDay, hour] = hourLabel.split(' ');
+							const [year, month, day] = yearMonthDay.split('-');
+							const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 							startDate = date.toISOString().slice(0, 10);
 							endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 						} else {
@@ -157,15 +167,26 @@
 						return `${year}-${month}-${day}`;
 					});
 					xAxisTitle = 'Date';
-				} else {
-					// hour
+				} else if (groupBy === 'hour') {
 					labels = results.map((item) => {
+						const year = item.time.slice(0, 4);
 						const month = item.time.slice(4, 6);
 						const day = item.time.slice(6, 8);
 						const hour = item.time.slice(9, 11);
-						return `${month}-${day} ${hour}:00`;
+						return `${year}-${month}-${day} ${hour}:00`;
 					});
 					xAxisTitle = 'Hour';
+				} else {
+					// 5min
+					labels = results.map((item) => {
+						const year = item.time.slice(0, 4);
+						const month = item.time.slice(4, 6);
+						const day = item.time.slice(6, 8);
+						const hour = item.time.slice(9, 11);
+						const minute = item.time.slice(12, 14);
+						return `${year}-${month}-${day} ${hour}:${minute}`;
+					});
+					xAxisTitle = '5 Minutes';
 				}
 
 				chart.data.labels = labels;
@@ -426,6 +447,15 @@
 					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">hour</span>
+				<input
+					type="radio"
+					bind:group={groupBy}
+					name="groupBy"
+					value="5min"
+					checked={groupBy === '5min'}
+					onchange={loadData}
+				/>
+				<span class="mx-2 text-white">5min</span>
 			</div>
 		</div>
 	</form>

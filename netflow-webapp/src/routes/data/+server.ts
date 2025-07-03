@@ -30,6 +30,8 @@ function getGroupByQuery(groupBy: string) {
 		return "strftime('%Y-%m-%d', timestamp, 'unixepoch')";
 	} else if (groupBy === 'hour') {
 		return "strftime('%Y-%m-%d %H:00:00', timestamp, 'unixepoch')";
+	} else if (groupBy === '5min') {
+		return "strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch')";
 	}
 }
 
