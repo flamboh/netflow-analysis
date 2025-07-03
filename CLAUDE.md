@@ -17,9 +17,11 @@ NetFlow Analysis is a web-based network flow analysis tool that visualizes netwo
 
 **Key Components:**
 
-- `netflow-webapp/` - SvelteKit application with TailwindCSS, TypeScript, and better-sqlite3
+- `netflow-webapp/` - SvelteKit application with interactive Chart.js visualization
 - `netflow-db/` - Python SQLite database setup and data processing pipeline
 - `flowStats.db` - SQLite database containing processed netflow statistics
+- `src/routes/+page.svelte` - Main interface with intelligent chart type selection
+- `src/routes/data/+server.ts` - API endpoint with binary metric encoding
 
 **Supported Routers:**
 
@@ -54,21 +56,33 @@ npm run lint         # Run ESLint and Prettier checks
 
 ## Technical Stack
 
-- **Frontend:** SvelteKit 2.x, TypeScript, TailwindCSS 4.x, Chart.js
-- **UI Components:** Shadcn-Svelte with custom calendar components
+- **Frontend:** SvelteKit 2.x, TypeScript, TailwindCSS 4.x, Chart.js 4.4.9
+- **UI Components:** Shadcn-Svelte with Lucide icons and bits-ui components
 - **Database:** SQLite with better-sqlite3 for Node.js integration
 - **Data Processing:** Python pipeline using `nfdump` to populate database
+- **Build Tools:** Vite 6.x with ESLint 9.x and Prettier formatting
 
 ## Data Visualization Features
 
 The main interface (`src/routes/+page.svelte`) supports:
 
+### Chart Types and Intelligence
+- **Stacked Area Charts**: Automatically displayed when selecting metrics of the same type (all flows, all packets, or all bytes)
+- **Logarithmic Line Charts**: Used for heterogeneous metric combinations with different scales
+- Intelligent chart type detection based on metric homogeneity
+
+### Interactive Features
+- **3-Level Drill-Down**: Click month→date→hour→reset navigation
+- **Auto-Loading**: Data loads automatically on mount and state changes
+- **Real-time Updates**: Chart responds instantly to router/metric selection changes
+- 15 different network metrics (flows, packets, bytes by protocol TCP/UDP/ICMP/Other)
+
+### Navigation and Controls
 - Date range selection with router filtering (`cc-ir1-gw`, `oh-ir1-gw`)
-- 15 different network metrics (flows, packets, bytes by protocol)
-- Logarithmic scale visualization with Chart.js
-- Time aggregation by month, date, or hour
-- Dynamic x-axis formatting based on grouping selection
-- Full-day vs. specific time analysis
+- Time aggregation by month, date, or hour with automatic date range adjustment
+- Quick selection buttons for "All Flows", "All Packets", "All Bytes"
+- Dynamic x-axis formatting and y-axis scaling (K/M/B/T/P units)
+- Responsive chart design with 20-color cycling palette
 
 ## Access Method
 

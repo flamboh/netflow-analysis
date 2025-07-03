@@ -427,14 +427,14 @@
 			</div>
 		</div>
 	</form>
-	<!-- <div class="flex flex-col items-center justify-center">
-		 <button
+	<div class="flex flex-col items-center justify-center">
+		<button
 			class="mb-12 mt-4 rounded-lg bg-slate-300 p-2 text-center text-4xl text-black"
 			onclick={loadData}
 		>
 			Load
 		</button>
-	</div> -->
+	</div>
 	<div class="mx-auto w-full max-w-7xl flex-col rounded-lg bg-white p-4">
 		<div class="text-2xl text-black">
 			NetFlow data from {startDate} to {endDate} on {routers['cc-ir1-gw'] ? 'cc-ir1-gw' : ''}
