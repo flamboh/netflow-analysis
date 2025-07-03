@@ -16,6 +16,10 @@ def main():
         cursor.execute("""
         DROP TABLE IF EXISTS netflow_stats
         """)
+    else:
+        print("--------------------------------")
+        print(f"Maintaining database at {datetime.now()}")
+        print("--------------------------------")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS netflow_stats (
@@ -78,7 +82,7 @@ def main():
             minute = timestamp_str[10:12]
             last_file_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
             start_time = last_file_time + timedelta(minutes=5)
-            print(f"Starting from {start_time}")
+            print(f"Start found at {start_time}")
         else:
             raise Exception("Failure to find last processed file")
 
