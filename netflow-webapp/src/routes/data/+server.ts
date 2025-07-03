@@ -73,7 +73,6 @@ export const GET: RequestHandler = async ({ url }) => {
 		const db = new Database(DB_PATH, { readonly: true });
 		const groupByQuery = getGroupByQuery(groupBy);
 		const dataOptions = getDataOptions(dataOptionsBinary);
-		console.log(dataOptions);
 
 		// Build query based on parameters
 		let query = `
@@ -99,7 +98,6 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		query += ` GROUP BY ${groupByQuery} ORDER BY date`;
 
-		console.log(query);
 		const stmt = db.prepare(query);
 		const rows = stmt.all(...params);
 
@@ -136,7 +134,6 @@ export const GET: RequestHandler = async ({ url }) => {
 				data: dataLines.join('\n')
 			};
 		});
-		// console.log(result);
 		return json({ result });
 	} catch (error) {
 		console.error('Database error:', error);

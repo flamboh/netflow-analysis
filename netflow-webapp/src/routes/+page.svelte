@@ -12,6 +12,7 @@
 		'oh-ir1-gw': true
 	});
 	let groupBy = $state('date');
+	let chartType = $state('stacked');
 
 	let results = $state<{ time: string; data: string }[]>([]);
 	let chartCanvas: HTMLCanvasElement;
@@ -213,16 +214,8 @@
 				chart.data.labels = labels;
 				chart.data.datasets = []; // Clear existing datasets
 
-				// Determine if selected metrics are all of the same type
-				const selectedOptions = dataOptions.filter((option) => option.checked);
-				const metricTypes = selectedOptions.map((option) => {
-					if (option.label.includes('Flows')) return 'flows';
-					if (option.label.includes('Packets')) return 'packets';
-					if (option.label.includes('Bytes')) return 'bytes';
-					return 'other';
-				});
-				const isHomogeneousType =
-					metricTypes.length > 0 && metricTypes.every((type) => type === metricTypes[0]);
+				// Use manual chart type selection
+				const isStackedChart = chartType === 'stacked';
 
 				const newScales: any = {
 					x: {
@@ -231,7 +224,7 @@
 							text: xAxisTitle
 						}
 					},
-					y: isHomogeneousType
+					y: isStackedChart
 						? {
 								display: true,
 								type: 'linear',
@@ -312,10 +305,10 @@
 							label: option.label,
 							data: data,
 							borderColor: color,
-							backgroundColor: isHomogeneousType
+							backgroundColor: isStackedChart
 								? color.replace('rgb', 'rgba').replace(')', ', 0.6)')
 								: color,
-							fill: isHomogeneousType ? 'origin' : false,
+							fill: isStackedChart ? 'origin' : false,
 							tension: 0.1,
 							radius: 0,
 							hitRadius: 2,
@@ -486,6 +479,29 @@
 					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">5min</span>
+			</div>
+		</div>
+		<div class="my-2 flex flex-row items-center justify-center">
+			<div class="flex flex-row items-center justify-center">
+				<span class="mx-2 text-white">chart type</span>
+				<input
+					type="radio"
+					bind:group={chartType}
+					name="chartType"
+					value="stacked"
+					checked={chartType === 'stacked'}
+					onchange={loadData}
+				/>
+				<span class="mx-2 text-white">stacked</span>
+				<input
+					type="radio"
+					bind:group={chartType}
+					name="chartType"
+					value="line"
+					checked={chartType === 'line'}
+					onchange={loadData}
+				/>
+				<span class="mx-2 text-white">line</span>
 			</div>
 		</div>
 	</form>
