@@ -364,6 +364,7 @@
 					class="m-1 w-48 bg-slate-300 hover:cursor-pointer"
 					type="date"
 					bind:value={startDate}
+					onchange={loadData}
 				/>
 			</label>
 			<span class="mx-2 text-white">to</span>
@@ -373,6 +374,7 @@
 					class="m-1 w-48 bg-slate-300 hover:cursor-pointer"
 					type="date"
 					bind:value={endDate}
+					onchange={loadData}
 				/>
 			</label>
 		</div>
