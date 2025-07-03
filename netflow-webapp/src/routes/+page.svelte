@@ -11,7 +11,7 @@
 		'cc-ir1-gw': true,
 		'oh-ir1-gw': true
 	});
-	let groupBy = $state('month');
+	let groupBy = $state('date');
 
 	let results = $state<{ time: string; data: string }[]>([]);
 	let chartCanvas: HTMLCanvasElement;
@@ -33,7 +33,6 @@
 		{ label: 'Bytes UDP', index: 12, checked: false },
 		{ label: 'Bytes ICMP', index: 13, checked: false },
 		{ label: 'Bytes Other', index: 14, checked: false }
-		// { label: 'Sequence Failures', index: 15, checked: false }
 	]);
 
 	function getClickedElement(activeElements: any) {
