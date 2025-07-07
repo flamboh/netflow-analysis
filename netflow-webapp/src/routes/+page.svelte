@@ -38,86 +38,6 @@
 		{ label: 'Bytes Other', index: 14, checked: false }
 	]);
 
-	// URL state synchronization functions
-	function encodeDataOptions(): number {
-		let binary = 0;
-		for (let i = 0; i < dataOptions.length; i++) {
-			if (dataOptions[i].checked) {
-				binary |= 1 << i;
-			}
-		}
-		return binary;
-	}
-
-	function decodeDataOptions(binary: number): void {
-		for (let i = 0; i < dataOptions.length; i++) {
-			dataOptions[i].checked = (binary & (1 << i)) !== 0;
-		}
-	}
-
-	function encodeRouters(): string {
-		const selectedRouters = Object.keys(routers).filter(
-			(router) => routers[router as keyof typeof routers]
-		);
-		return selectedRouters.join(',');
-	}
-
-	function decodeRouters(routerString: string): void {
-		// Reset all routers to false
-		Object.keys(routers).forEach((router) => (routers[router as keyof typeof routers] = false));
-		// Set selected routers to true
-		if (routerString) {
-			routerString.split(',').forEach((router) => {
-				if (router in routers) {
-					routers[router as keyof typeof routers] = true;
-				}
-			});
-		}
-	}
-
-	function syncStateToURL(replaceState = true): void {
-		const params = new URLSearchParams();
-		params.set('startDate', startDate);
-		params.set('endDate', endDate);
-		params.set('groupBy', groupBy);
-		params.set('chartType', chartType);
-		params.set('routers', encodeRouters());
-		params.set('dataOptions', encodeDataOptions().toString());
-
-		goto(`?${params.toString()}`, { replaceState });
-	}
-
-	function syncURLToState(searchParams: URLSearchParams): void {
-		// Update state from URL params with fallbacks to current values
-		startDate = searchParams.get('startDate') || startDate;
-		endDate = searchParams.get('endDate') || endDate;
-		groupBy = searchParams.get('groupBy') || groupBy;
-		chartType = searchParams.get('chartType') || chartType;
-
-		const routerParam = searchParams.get('routers');
-		if (routerParam !== null) {
-			decodeRouters(routerParam);
-		}
-
-		const dataParam = searchParams.get('dataOptions');
-		if (dataParam !== null) {
-			const binary = parseInt(dataParam);
-			if (!isNaN(binary)) {
-				decodeDataOptions(binary);
-			}
-		}
-	}
-
-	function handleStateChange(): void {
-		syncStateToURL(true); // Replace history for form changes
-		loadData();
-	}
-
-	function handleDrillDown(): void {
-		syncStateToURL(false); // Add to history for drill-down navigation
-		loadData();
-	}
-
 	function getClickedElement(activeElements: any) {
 		if (activeElements.length > 0) {
 			const element = activeElements[0];
@@ -184,7 +104,7 @@
 							startDate = '2024-03-01';
 							endDate = today;
 						}
-						handleDrillDown();
+						loadData();
 					} else {
 						const canvasPosition = getRelativePosition(e, chart);
 						const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
@@ -412,30 +332,13 @@
 		loadData();
 	}
 
-	function selectAllFlows() {
+	function selectAllOfType(type: string) {
 		dataOptions.forEach((option) => {
-			option.checked = option.label.includes('Flows');
+			option.checked = option.label.includes(type);
 		});
-		handleStateChange();
-	}
-
-	function selectAllPackets() {
-		dataOptions.forEach((option) => {
-			option.checked = option.label.includes('Packets');
-		});
-		handleStateChange();
-	}
-
-	function selectAllBytes() {
-		dataOptions.forEach((option) => {
-			option.checked = option.label.includes('Bytes');
-		});
-		handleStateChange();
 	}
 
 	onMount(() => {
-		// Initialize state from URL parameters (one-time only)
-		syncURLToState($page.url.searchParams);
 		loadData();
 	});
 </script>
@@ -451,7 +354,7 @@
 					class="m-1 w-48 bg-slate-300 hover:cursor-pointer"
 					type="date"
 					bind:value={startDate}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 			</label>
 			<span class="mx-2 text-white">to</span>
@@ -461,15 +364,15 @@
 					class="m-1 w-48 bg-slate-300 hover:cursor-pointer"
 					type="date"
 					bind:value={endDate}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 			</label>
 		</div>
 		<label class="mb-2 flex flex-row items-center">
 			<span class="mx-2 text-white">On routers:</span>
-			<input type="checkbox" bind:checked={routers['cc-ir1-gw']} onchange={handleStateChange} />
+			<input type="checkbox" bind:checked={routers['cc-ir1-gw']} onchange={loadData} />
 			<span class="mx-2 text-white">cc-ir1-gw</span>
-			<input type="checkbox" bind:checked={routers['oh-ir1-gw']} onchange={handleStateChange} />
+			<input type="checkbox" bind:checked={routers['oh-ir1-gw']} onchange={loadData} />
 			<span class="mx-2 text-white">oh-ir1-gw</span>
 		</label>
 		<div class="flex flex-row items-center">
@@ -478,13 +381,13 @@
 					<div class="flex flex-col gap-2">
 						<button
 							class="mb-2 rounded bg-blue-500 px-2 py-1 text-sm text-white hover:bg-blue-600"
-							onclick={selectAllFlows}
+							onclick={() => selectAllOfType('Flows')}
 						>
 							All Flows
 						</button>
 						{#each dataOptions.slice(0, 5) as option}
 							<label class="flex items-center gap-2">
-								<input type="checkbox" bind:checked={option.checked} onchange={handleStateChange} />
+								<input type="checkbox" bind:checked={option.checked} onchange={loadData} />
 								<span class="text-white">{option.label}</span>
 							</label>
 						{/each}
@@ -492,13 +395,13 @@
 					<div class="flex flex-col gap-2">
 						<button
 							class="mb-2 rounded bg-green-500 px-2 py-1 text-sm text-white hover:bg-green-600"
-							onclick={selectAllPackets}
+							onclick={() => selectAllOfType('Packets')}
 						>
 							All Packets
 						</button>
 						{#each dataOptions.slice(5, 10) as option}
 							<label class="flex items-center gap-2">
-								<input type="checkbox" bind:checked={option.checked} onchange={handleStateChange} />
+								<input type="checkbox" bind:checked={option.checked} onchange={loadData} />
 								<span class="text-white">{option.label}</span>
 							</label>
 						{/each}
@@ -506,13 +409,13 @@
 					<div class="flex flex-col gap-2">
 						<button
 							class="mb-2 rounded bg-red-500 px-2 py-1 text-sm text-white hover:bg-red-600"
-							onclick={selectAllBytes}
+							onclick={() => selectAllOfType('Bytes')}
 						>
 							All Bytes
 						</button>
 						{#each dataOptions.slice(10, 15) as option}
 							<label class="flex items-center gap-2">
-								<input type="checkbox" bind:checked={option.checked} onchange={handleStateChange} />
+								<input type="checkbox" bind:checked={option.checked} onchange={loadData} />
 								<span class="text-white">{option.label}</span>
 							</label>
 						{/each}
@@ -529,7 +432,7 @@
 					name="groupBy"
 					value="month"
 					checked={groupBy === 'month'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">month</span>
 				<input
@@ -538,7 +441,7 @@
 					name="groupBy"
 					value="date"
 					checked={groupBy === 'date'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">date</span>
 				<input
@@ -547,7 +450,7 @@
 					name="groupBy"
 					value="hour"
 					checked={groupBy === 'hour'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">hour</span>
 				<input
@@ -556,7 +459,7 @@
 					name="groupBy"
 					value="30min"
 					checked={groupBy === '30min'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">30min</span>
 				<input
@@ -565,7 +468,7 @@
 					name="groupBy"
 					value="5min"
 					checked={groupBy === '5min'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">5min</span>
 			</div>
@@ -579,7 +482,7 @@
 					name="chartType"
 					value="stacked"
 					checked={chartType === 'stacked'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">stacked</span>
 				<input
@@ -588,7 +491,7 @@
 					name="chartType"
 					value="line"
 					checked={chartType === 'line'}
-					onchange={handleStateChange}
+					onchange={loadData}
 				/>
 				<span class="mx-2 text-white">line</span>
 			</div>
