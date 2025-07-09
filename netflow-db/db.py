@@ -2,7 +2,7 @@ import sqlite3
 import subprocess
 from datetime import datetime, timedelta
 import os
-
+  
 # Set to True to drop the table and start from scratch
 FIRST_RUN = False
 
