@@ -87,3 +87,120 @@ The main interface (`src/routes/+page.svelte`) supports:
 ## Access Method
 
 Application requires SSH tunnel access as noted in README - designed for research environment use.
+
+## Svelte/SvelteKit Architecture Analysis
+
+### Current Alignment with Svelte Design Philosophy
+
+**✅ Strengths:**
+
+1. **Modern Svelte 5 Runes Usage**: The project correctly uses Svelte 5's new `$state` runes for reactive state management, replacing legacy `let` declarations with explicit reactivity
+2. **Proper File-based Routing**: Follows SvelteKit's file-based routing conventions with `+page.svelte`, `+page.server.ts`, and `+server.ts` files
+3. **Server-side Data Loading**: Uses `+page.server.ts` for database operations, keeping database logic on the server side
+4. **TypeScript Integration**: Proper use of TypeScript with SvelteKit's generated types (`$types`)
+5. **Component Structure**: Well-organized component library in `src/lib/components/ui/` following modern component patterns
+
+**⚠️ Areas for Improvement:**
+
+1. **State Management Architecture**: The main page (`+page.svelte`) contains ~500 lines with complex state logic mixed with UI. This violates Svelte's philosophy of component composition
+2. **Missing Reactive Derivations**: Heavy use of imperative effects (`onMount`, manual chart updates) instead of Svelte 5's `$derived` for computed state
+3. **Mixed Concerns**: Chart.js integration, data fetching, and UI logic are tightly coupled in a single component
+4. **Legacy Patterns**: Still uses `onMount` and imperative DOM manipulation instead of leveraging Svelte 5's reactive primitives
+5. **Type Safety**: Several `any` types and missing proper TypeScript interfaces for data structures
+
+### Recommended Refactoring for Svelte Best Practices
+
+**1. Component Decomposition:**
+```svelte
+src/routes/+page.svelte (simplified coordinator)
+src/lib/components/
+├── charts/
+│   ├── ChartContainer.svelte
+│   ├── ChartControls.svelte
+│   └── chart-utils.ts
+├── filters/
+│   ├── DateRangeFilter.svelte
+│   ├── RouterFilter.svelte
+│   └── MetricSelector.svelte
+└── netflow/
+    ├── NetflowDashboard.svelte
+    └── types.ts
+```
+
+**2. State Management with Runes:**
+```javascript
+// src/lib/stores/netflow.svelte.js
+export const chartState = $state({
+  startDate: '2024-03-01',
+  endDate: new Date().toISOString().slice(0, 10),
+  routers: { 'cc-ir1-gw': true, 'oh-ir1-gw': true },
+  groupBy: 'date'
+});
+
+export const chartData = $derived.by(async () => {
+  // Reactive data fetching based on chartState
+});
+```
+
+**3. Better Load Function Architecture:**
+```typescript
+// src/routes/+layout.server.ts
+export const load = async () => ({
+  routers: await getAvailableRouters(),
+  dateRange: await getAvailableDateRange()
+});
+
+// src/routes/+page.js (universal load)
+export const load = async ({ fetch, url, depends }) => {
+  depends('netflow:data');
+  // Handle client-side navigation and data fetching
+};
+```
+
+### REST API Recommendations
+
+The current API endpoint (`/data/+server.ts`) could be restructured to follow REST conventions:
+
+**Current:**
+- `GET /data?params...` (single endpoint with query parameters)
+
+**Proposed RESTful Structure:**
+```
+GET    /api/routers                    # List available routers
+GET    /api/routers/{id}/metrics       # Get metrics for specific router
+GET    /api/netflow/stats             # Aggregated statistics (current /data functionality)
+GET    /api/netflow/files/{slug}      # Individual file details (current /nfcapd/[slug])
+GET    /api/netflow/summary           # Dashboard summary data
+GET    /api/health                    # Service health check
+```
+
+**Benefits:**
+- Clear resource-based URLs
+- Cacheable endpoints
+- Better separation of concerns
+- Easier API documentation and testing
+- Future extensibility for additional data sources
+
+**Implementation Strategy:**
+```
+src/routes/api/
+├── routers/
+│   └── +server.ts
+├── netflow/
+│   ├── stats/+server.ts
+│   ├── files/[slug]/+server.ts
+│   └── summary/+server.ts
+└── health/+server.ts
+```
+
+### Action Items for Svelte 5 Modernization
+
+1. **Refactor Main Component**: Break down `+page.svelte` into focused, single-responsibility components
+2. **Implement Reactive Derivations**: Replace imperative effects with `$derived` for computed state
+3. **Add Proper TypeScript**: Define interfaces for all data structures and API responses
+4. **State Management**: Move shared state to `.svelte.js` files with proper rune usage
+5. **Error Boundaries**: Add `<svelte:boundary>` for better error handling
+6. **Performance**: Use `$state.raw` for large datasets that don't need deep reactivity
+7. **Testing**: Add component tests using Svelte Testing Library with runes support
+
+This refactoring would align the project with Svelte 5's design philosophy of explicit reactivity, component composition, and clear separation of concerns while maintaining the existing functionality.

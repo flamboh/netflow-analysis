@@ -5,12 +5,12 @@
 </script>
 
 <div class="container mx-auto p-6">
-	<h1 class="text-2xl font-bold mb-4">
+	<h1 class="mb-4 text-2xl font-bold">
 		NetFlow File: {data.fileInfo.filename}
 	</h1>
-	
-	<div class="mb-6 p-4 bg-gray-100 rounded-lg">
-		<h2 class="text-lg font-semibold mb-2">File Information</h2>
+
+	<div class="mb-6 rounded-lg bg-gray-100 p-4">
+		<h2 class="mb-2 text-lg font-semibold">File Information</h2>
 		<div class="grid grid-cols-3 gap-4">
 			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
@@ -20,8 +20,8 @@
 
 	<div class="space-y-4">
 		{#each data.summary as record}
-			<div class="border rounded-lg p-4">
-				<h3 class="text-lg font-semibold mb-2">Router: {record.router}</h3>
+			<div class="rounded-lg border p-4">
+				<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
 				<div class="grid grid-cols-4 gap-4 text-sm">
 					<div>
 						<h4 class="font-medium">Flows</h4>

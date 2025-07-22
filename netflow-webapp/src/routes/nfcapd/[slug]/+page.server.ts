@@ -3,6 +3,31 @@ import type { PageServerLoad } from './$types';
 import Database from 'better-sqlite3';
 import path from 'path';
 
+interface NetflowRecord {
+	router: string;
+	flows: number;
+	flows_tcp: number;
+	flows_udp: number;
+	flows_icmp: number;
+	flows_other: number;
+	packets: number;
+	packets_tcp: number;
+	packets_udp: number;
+	packets_icmp: number;
+	packets_other: number;
+	bytes: number;
+	bytes_tcp: number;
+	bytes_udp: number;
+	bytes_icmp: number;
+	bytes_other: number;
+	first_timestamp: number;
+	last_timestamp: number;
+	msec_first: number;
+	msec_last: number;
+	sequence_failures: number;
+	processed_at: string;
+}
+
 const DB_PATH = path.join(process.cwd(), '..', 'netflow-db', 'flowStats.db');
 let db: Database.Database | null = null;
 
@@ -33,10 +58,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		WHERE file_path LIKE '%' || ?
 		ORDER BY router
 	`;
-	
+
 	const database = getDb();
-	const results = database.prepare(query).all(filePattern);
-	
+	const results = database.prepare(query).all(filePattern) as NetflowRecord[];
+
 	if (results.length === 0) {
 		throw error(404, `No data found for nfcapd file: ${filePattern}`);
 	}
