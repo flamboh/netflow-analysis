@@ -70,7 +70,7 @@
 							index: clickedElement.index
 						});
 						// if (groupBy === 'month') {
-						// 	groupBy = 'date';
+						// 	groupBy = 'date';s
 						// 	startDate = clickedElement.label + '-01';
 						// 	endDate = clickedElement.label + '-31';
 						if (groupBy === 'date') {
@@ -99,10 +99,15 @@
 							// Set 1 day span
 							startDate = date.toISOString().slice(0, 10);
 							endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-						} else {
-							groupBy = 'date';
-							startDate = '2024-03-01';
-							endDate = today;
+						} else if (groupBy === '5min') {
+							// Redirect to nfcapd file page
+							const minuteLabel = clickedElement.label; // Format: "YYYY-MM-DD HH:MM"
+							const [datePart, timePart] = minuteLabel.split(' ');
+							const [year, month, day] = datePart.split('-');
+							const [hour, minute] = timePart.split(':');
+							const slug = `${year}${month}${day}${hour}${minute}`;
+							goto(`/nfcapd/${slug}`);
+							return; // Don't reload data, we're navigating away
 						}
 						loadData();
 					} else {
