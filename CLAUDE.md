@@ -202,5 +202,6 @@ src/routes/api/
 5. **Error Boundaries**: Add `<svelte:boundary>` for better error handling
 6. **Performance**: Use `$state.raw` for large datasets that don't need deep reactivity
 7. **Testing**: Add component tests using Svelte Testing Library with runes support
+8. **Environment Variables**: Add environment variables for the location of the NetFlow data
 
 This refactoring would align the project with Svelte 5's design philosophy of explicit reactivity, component composition, and clear separation of concerns while maintaining the existing functionality.

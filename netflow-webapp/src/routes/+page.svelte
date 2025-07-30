@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
 	let today = new Date().toJSON().slice(0, 10);
@@ -142,7 +141,7 @@
 
 	async function loadData() {
 		const response = await fetch(
-			'/data?startDate=' +
+			'/api/netflow/stats?startDate=' +
 				Math.floor(new Date(startDate).getTime() / 1000) +
 				'&endDate=' +
 				Math.floor(new Date(endDate).getTime() / 1000) +
@@ -348,7 +347,7 @@
 	});
 </script>
 
-<div class="flex min-h-screen w-screen flex-col justify-center bg-slate-600">
+<div class="flex flex-col justify-center">
 	<p class="m-4 text-center text-4xl text-white">NetFlow Analysis and Visualization</p>
 	<form onsubmit={handleSubmit} class="flex flex-col items-center justify-center">
 		<div class="flex flex-row items-center">

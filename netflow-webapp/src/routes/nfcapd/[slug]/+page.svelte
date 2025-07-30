@@ -5,7 +5,7 @@
 </script>
 
 <div class="container mx-auto p-6">
-	<h1 class="mb-4 text-2xl font-bold">
+	<h1 class="mb-4 text-2xl">
 		NetFlow File: {data.fileInfo.filename}
 	</h1>
 
@@ -20,8 +20,9 @@
 
 	<div class="space-y-4">
 		{#each data.summary as record}
-			<div class="rounded-lg border p-4">
+			<div class="bg-cisco-blue rounded-lg border p-4">
 				<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
+				<h3 class="text-md mb-2 font-semibold">Absolute Path: {record.file_path}</h3>
 				<div class="grid grid-cols-4 gap-4 text-sm">
 					<div>
 						<h4 class="font-medium">Flows</h4>

@@ -5,6 +5,7 @@ import path from 'path';
 
 interface NetflowRecord {
 	router: string;
+	file_path: string;
 	flows: number;
 	flows_tcp: number;
 	flows_udp: number;
