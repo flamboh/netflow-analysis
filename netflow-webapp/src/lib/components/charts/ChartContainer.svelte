@@ -3,18 +3,31 @@
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import { goto } from '$app/navigation';
-	import { formatLabels, getXAxisTitle, formatNumber, generateColors, parseClickedLabel, generateSlugFromLabel } from './chart-utils.ts';
-	import type { NetflowDataPoint, GroupByOption, ChartTypeOption, ClickedElement, ChartConfig } from '$lib/components/netflow/types.ts';
+	import {
+		formatLabels,
+		getXAxisTitle,
+		parseClickedLabel,
+		generateSlugFromLabel
+	} from './chart-utils';
+	import type {
+		NetflowDataPoint,
+		GroupByOption,
+		ChartTypeOption,
+		DataOption,
+		ClickedElement,
+		ChartConfig
+	} from '$lib/components/netflow/types.ts';
 
 	interface Props {
 		results: NetflowDataPoint[];
 		groupBy: GroupByOption;
 		chartType: ChartTypeOption;
+		dataOptions: DataOption[];
 		onDrillDown?: (newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) => void;
 		onNavigateToFile?: (slug: string) => void;
 	}
 
-	let { results, groupBy, chartType, onDrillDown, onNavigateToFile }: Props = $props();
+	let { results, groupBy, chartType, dataOptions, onDrillDown, onNavigateToFile }: Props = $props();
 
 	let chartCanvas: HTMLCanvasElement;
 	let chart: Chart;
@@ -55,12 +68,20 @@
 			const date = parseClickedLabel(clickedElement.label, groupBy);
 			const startOfMonth = new Date(date.getTime() - 15 * 24 * 60 * 60 * 1000);
 			const endOfMonth = new Date(date.getTime() + 16 * 24 * 60 * 60 * 1000);
-			onDrillDown?.('hour', startOfMonth.toISOString().slice(0, 10), endOfMonth.toISOString().slice(0, 10));
+			onDrillDown?.(
+				'hour',
+				startOfMonth.toISOString().slice(0, 10),
+				endOfMonth.toISOString().slice(0, 10)
+			);
 		} else if (groupBy === 'hour') {
 			const date = parseClickedLabel(clickedElement.label, groupBy);
 			const startOfWeek = new Date(date.getTime() - 3 * 24 * 60 * 60 * 1000);
 			const endOfWeek = new Date(date.getTime() + 4 * 24 * 60 * 60 * 1000);
-			onDrillDown?.('30min', startOfWeek.toISOString().slice(0, 10), endOfWeek.toISOString().slice(0, 10));
+			onDrillDown?.(
+				'30min',
+				startOfWeek.toISOString().slice(0, 10),
+				endOfWeek.toISOString().slice(0, 10)
+			);
 		} else if (groupBy === '30min') {
 			const date = parseClickedLabel(clickedElement.label, groupBy);
 			const endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
@@ -79,43 +100,142 @@
 		const labels = formatLabels(results, groupBy);
 		const xAxisTitle = getXAxisTitle(groupBy);
 
-		// Parse data from results
+		// Use manual chart type selection - matches original logic
+		const isStackedChart = chartType === 'stacked';
+
+		// Original predefined colors
+		const predefinedColors = [
+			'rgb(75, 192, 192)',
+			'rgb(255, 99, 132)',
+			'rgb(54, 162, 235)',
+			'rgb(255, 206, 86)',
+			'rgb(153, 102, 255)',
+			'rgb(255, 159, 64)',
+			'rgb(255, 99, 71)',
+			'rgb(0, 206, 209)',
+			'rgb(60, 179, 113)',
+			'rgb(218, 112, 214)',
+			'rgb(255, 215, 0)',
+			'rgb(128, 0, 128)',
+			'rgb(0, 128, 128)',
+			'rgb(255, 0, 255)',
+			'rgb(0, 255, 0)',
+			'rgb(128, 128, 0)',
+			'rgb(0, 0, 128)',
+			'rgb(255, 140, 0)',
+			'rgb(34, 139, 34)',
+			'rgb(139, 0, 0)'
+		];
+
+		// Parse data from results - matches original parsing logic
 		const datasets: any[] = [];
-		if (results.length > 0) {
-			// Decode binary data to extract enabled metrics
-			const sampleData = results[0].data;
-			const binaryLength = sampleData.length;
-			const colors = generateColors(binaryLength);
+		let colorIndex = 0;
 
-			const metricLabels = [
-				'Flows', 'Flows TCP', 'Flows UDP', 'Flows ICMP', 'Flows Other',
-				'Packets', 'Packets TCP', 'Packets UDP', 'Packets ICMP', 'Packets Other',
-				'Bytes', 'Bytes TCP', 'Bytes UDP', 'Bytes ICMP', 'Bytes Other'
-			];
-
-			for (let i = 0; i < binaryLength; i++) {
-				const data = results.map(item => {
-					const byte = item.data.charCodeAt(i);
-					// Convert from 8-bit unsigned to proper value
-					return byte === 255 ? 0 : byte;
-				});
+		for (const option of dataOptions) {
+			if (option.checked) {
+				// Original parsing: split by newline, get line at option.index + 1, split by space, get element [1]
+				const data = results.map((item) =>
+					parseInt(item.data.split('\n')[option.index + 1].split(' ')[1])
+				);
+				const color = predefinedColors[colorIndex % predefinedColors.length];
+				colorIndex++;
 
 				datasets.push({
-					label: metricLabels[i] || `Metric ${i}`,
+					label: option.label,
 					data: data,
-					borderColor: colors[i % colors.length],
-					backgroundColor: chartType === 'stacked' ? colors[i % colors.length] + '80' : 'transparent',
-					fill: chartType === 'stacked',
-					tension: 0.1
+					borderColor: color,
+					backgroundColor: isStackedChart
+						? color.replace('rgb', 'rgba').replace(')', ', 0.6)')
+						: color,
+					fill: isStackedChart ? 'origin' : false,
+					tension: 0.1,
+					radius: 0,
+					hitRadius: 2,
+					hoverRadius: 5
 				});
 			}
 		}
 
+		// Original scales configuration
+		const scales: any = {
+			x: {
+				title: {
+					display: true,
+					text: xAxisTitle
+				}
+			},
+			y: isStackedChart
+				? {
+						display: true,
+						type: 'linear',
+						stacked: true,
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'Value'
+						},
+						ticks: {
+							callback: function (value: any) {
+								const num = Number(value);
+								if (num >= 1e15) return (num / 1e15).toFixed(0) + ' quadrillion';
+								if (num >= 1e12) return (num / 1e12).toFixed(0) + ' trillion';
+								if (num >= 1e9) return (num / 1e9).toFixed(0) + ' billion';
+								if (num >= 1e6) return (num / 1e6).toFixed(0) + ' million';
+								if (num >= 1e3) return (num / 1e3).toFixed(0) + ' thousand';
+								return num.toString();
+							}
+						}
+					}
+				: {
+						display: true,
+						type: 'logarithmic',
+						beginAtZero: true,
+						min: 1,
+						title: {
+							display: true,
+							text: 'Value (Log Scale)'
+						},
+						ticks: {
+							callback: function (value: any) {
+								const num = Number(value);
+								if (num >= 1e15) return (num / 1e15).toFixed(0) + ' quadrillion';
+								if (num >= 1e12) return (num / 1e12).toFixed(0) + ' trillion';
+								if (num >= 1e9) return (num / 1e9).toFixed(0) + ' billion';
+								if (num >= 1e6) return (num / 1e6).toFixed(0) + ' million';
+								if (num >= 1e3) return (num / 1e3).toFixed(0) + ' thousand';
+								return num.toString();
+							}
+						}
+					}
+		};
+
 		return {
-			type: chartType === 'stacked' ? 'line' : 'line',
+			type: 'line',
 			data: {
 				labels,
 				datasets
+			},
+			options: {
+				onClick: handleChartClick,
+				responsive: true,
+				scales: scales,
+				plugins: {
+					legend: {
+						display: true,
+						position: 'top' as const
+					}
+				}
+			}
+		};
+	}
+
+	onMount(() => {
+		// Initialize empty chart (matches original)
+		chart = new Chart(chartCanvas, {
+			type: 'line',
+			data: {
+				labels: [],
+				datasets: [] // Start with no datasets
 			},
 			options: {
 				onClick: handleChartClick,
@@ -124,41 +244,12 @@
 					x: {
 						title: {
 							display: true,
-							text: xAxisTitle
-						}
-					},
-					y: {
-						title: {
-							display: true,
-							text: 'Count'
-						},
-						ticks: {
-							callback: function(value: any) {
-								return formatNumber(value);
-							}
+							text: 'Date'
 						}
 					}
-				},
-				plugins: {
-					legend: {
-						display: true,
-						position: 'top' as const
-					}
-				},
-				...(chartType === 'stacked' && {
-					elements: {
-						area: {
-							fill: true
-						}
-					}
-				})
+				}
 			}
-		};
-	}
-
-	onMount(() => {
-		const config = createChartConfig();
-		chart = new Chart(chartCanvas, config);
+		});
 
 		return () => {
 			if (chart) {
@@ -167,9 +258,9 @@
 		};
 	});
 
-	// Update chart when props change
+	// Update chart when props change (matches original loadData behavior)
 	$effect(() => {
-		if (chart) {
+		if (chart && results.length > 0) {
 			const config = createChartConfig();
 			chart.data = config.data;
 			chart.options = config.options;
@@ -179,13 +270,13 @@
 </script>
 
 <div class="chart-container">
-	<canvas bind:this={chartCanvas} class="w-full h-96"></canvas>
+	<canvas bind:this={chartCanvas} class="h-[600px] w-full"></canvas>
 </div>
 
 <style>
 	.chart-container {
 		position: relative;
-		height: 400px;
+		height: 600px;
 		width: 100%;
 	}
 </style>

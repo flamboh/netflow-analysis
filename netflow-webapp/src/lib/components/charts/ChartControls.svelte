@@ -26,14 +26,14 @@
 	}
 </script>
 
-<div class="chart-controls flex flex-wrap gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+<div class="chart-controls mb-4 flex flex-wrap gap-4 rounded-lg bg-gray-50 p-4">
 	<div class="flex items-center gap-2">
 		<label for="groupBy" class="text-sm font-medium text-gray-700">Group by:</label>
-		<select 
+		<select
 			id="groupBy"
-			value={groupBy} 
+			value={groupBy}
 			onchange={handleGroupByChange}
-			class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 		>
 			<option value="month">Month</option>
 			<option value="date">Date</option>
@@ -45,26 +45,26 @@
 
 	<div class="flex items-center gap-2">
 		<label for="chartType" class="text-sm font-medium text-gray-700">Chart type:</label>
-		<select 
+		<select
 			id="chartType"
-			value={chartType} 
+			value={chartType}
 			onchange={handleChartTypeChange}
-			class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 		>
 			<option value="stacked">Stacked Area</option>
 			<option value="line">Line Chart</option>
 		</select>
 	</div>
 
-	<button 
+	<button
 		type="button"
 		onclick={handleReset}
-		class="px-4 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+		class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
 	>
 		Reset View
 	</button>
 
-	<div class="text-sm text-gray-600 flex items-center">
+	<div class="flex items-center text-sm text-gray-600">
 		<span class="font-medium">Navigation:</span>
 		<span class="ml-1">Click data points to drill down • {groupBy} view</span>
 	</div>
