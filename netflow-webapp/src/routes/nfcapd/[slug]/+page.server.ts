@@ -43,7 +43,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	const { slug } = params;
 
 	if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
-		throw error(400, 'Invalid slug format. Expected 12 digits (YYYYMMDDHHmm)');
+		throw error(400, `Invalid slug format. Expected 12 digits (YYYYMMDDHHmm) ${slug}`);
 	}
 
 	const year = slug.slice(0, 4);

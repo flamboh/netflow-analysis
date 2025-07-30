@@ -31,28 +31,49 @@
 			{ label: 'Bytes Other', index: 14, checked: false }
 		]
 	};
+
+	let numCharts = $state(1);
+
+	function addChart(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		numCharts++;
+	}
+
+	function removeChart(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (numCharts > 1) {
+			numCharts--;
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>NetFlow Analysis</title>
-	<meta name="description" content="Network flow analysis and visualization tool" />
+	<meta name="description" content="NetFlow analysis and visualization tool" />
 </svelte:head>
 
 <div class="min-h-screen bg-gray-100">
-	<header class="border-b bg-white shadow-sm">
-		<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-			<div class="flex items-center justify-between py-6">
-				<div>
-					<h1 class="text-3xl font-bold text-gray-900">NetFlow Analysis</h1>
-					<p class="mt-1 text-sm text-gray-600">
-						University of Oregon Network Traffic Visualization
-					</p>
-				</div>
-			</div>
+	<main class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
+		{#each Array(numCharts) as _}
+			<NetflowDashboard {initialState} />
+		{/each}
+		<div class="flex justify-center gap-4">
+			{#if numCharts > 1}
+				<button
+					type="button"
+					onclick={removeChart}
+					class="flex h-12 w-12 items-center justify-center rounded-lg border bg-gray-50 font-bold"
+					>-</button
+				>
+			{/if}
+			<button
+				type="button"
+				onclick={addChart}
+				class="flex h-12 w-12 items-center justify-center rounded-lg border bg-gray-50 font-bold"
+				>+</button
+			>
 		</div>
-	</header>
-
-	<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-		<NetflowDashboard {initialState} />
 	</main>
 </div>

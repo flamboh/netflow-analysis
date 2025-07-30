@@ -17,6 +17,7 @@ export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption
 			});
 		case 'hour':
 			return results.map((item) => {
+				console.log('item.time', item.time);
 				const year = item.time.slice(0, 4);
 				const month = item.time.slice(4, 6);
 				const day = item.time.slice(6, 8);
@@ -29,7 +30,7 @@ export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption
 				const month = item.time.slice(4, 6);
 				const day = item.time.slice(6, 8);
 				const hour = item.time.slice(9, 11);
-				const minute = item.time.slice(11, 13);
+				const minute = item.time.slice(12, 14);
 				return `${year}-${month}-${day} ${hour}:${minute}`;
 			});
 		case '5min':
@@ -38,7 +39,7 @@ export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption
 				const month = item.time.slice(4, 6);
 				const day = item.time.slice(6, 8);
 				const hour = item.time.slice(9, 11);
-				const minute = item.time.slice(11, 13);
+				const minute = item.time.slice(12, 14);
 				return `${year}-${month}-${day} ${hour}:${minute}`;
 			});
 		default:
@@ -55,9 +56,9 @@ export function getXAxisTitle(groupBy: GroupByOption): string {
 		case 'hour':
 			return 'Hour';
 		case '30min':
-			return '30-minute intervals';
+			return '30 Minutes';
 		case '5min':
-			return '5-minute intervals';
+			return '5 Minutes';
 		default:
 			return 'Time';
 	}

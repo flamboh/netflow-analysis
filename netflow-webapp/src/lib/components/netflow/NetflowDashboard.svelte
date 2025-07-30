@@ -107,6 +107,7 @@
 		groupBy = newGroupBy;
 		startDate = newStartDate;
 		endDate = newEndDate;
+		loadData();
 	}
 
 	function handleNavigateToFile(slug: string) {

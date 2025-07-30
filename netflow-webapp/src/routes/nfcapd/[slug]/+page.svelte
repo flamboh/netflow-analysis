@@ -5,7 +5,7 @@
 </script>
 
 <div class="container mx-auto p-6">
-	<h1 class="mb-4 text-2xl">
+	<h1 class="mb-4 text-2xl text-white">
 		NetFlow File: {data.fileInfo.filename}
 	</h1>
 
