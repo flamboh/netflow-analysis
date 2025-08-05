@@ -5,16 +5,18 @@
 </script>
 
 <div class="container mx-auto p-6">
-	<h1 class="mb-4 text-2xl text-white">
+	<h1 class="mb-4 text-2xl text-black">
 		NetFlow File: {data.fileInfo.filename}
 	</h1>
 
-	<div class="mb-6 rounded-lg bg-gray-100 p-4">
+	<div class="mb-6 rounded-lg border bg-blue-100 p-4">
 		<h2 class="mb-2 text-lg font-semibold">File Information</h2>
 		<div class="grid grid-cols-3 gap-4">
 			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
-			<div>Processed: {new Date(data.summary[0].processed_at).toLocaleString()}</div>
+			<div>
+				Processed in DB: {new Date(data.summary[0].processed_at).toLocaleString()}
+			</div>
 		</div>
 	</div>
 
