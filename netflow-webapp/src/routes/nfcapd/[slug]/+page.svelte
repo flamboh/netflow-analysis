@@ -22,7 +22,7 @@
 		{#each data.summary as record}
 			<div class="bg-cisco-blue rounded-lg border p-4">
 				<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
-				<h3 class="text-md mb-2 font-semibold">Absolute Path: {record.file_path}</h3>
+				<h3 class="text-md mb-2 font-semibold">Absolute Path: <br /> {record.file_path}</h3>
 				<div class="grid grid-cols-4 gap-4 text-sm">
 					<div>
 						<h4 class="font-medium">Flows</h4>

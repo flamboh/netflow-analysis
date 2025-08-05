@@ -118,6 +118,7 @@
 		groupBy = 'date';
 		startDate = '2024-03-01';
 		endDate = today;
+		loadData();
 	}
 
 	function handleStartDateChange(date: string) {
