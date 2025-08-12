@@ -156,6 +156,10 @@
 			}
 		}
 
+		// Check if all selected metrics are bytes
+		const selectedOptions = dataOptions.filter(o => o.checked);
+		const allAreBytesMetrics = selectedOptions.every(o => o.label.includes('Bytes'));
+
 		// Original scales configuration
 		const scales: any = {
 			x: {
@@ -177,12 +181,23 @@
 						ticks: {
 							callback: function (value: any) {
 								const num = Number(value);
-								if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
-								if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
-								if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
-								if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
-								if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
-								return num.toString();
+								
+								// Use binary units for bytes, decimal for others
+								if (allAreBytesMetrics) {
+									if (num >= Math.pow(1024, 5)) return (num / Math.pow(1024, 5)).toFixed(1) + 'PB';
+									if (num >= Math.pow(1024, 4)) return (num / Math.pow(1024, 4)).toFixed(1) + 'TB';
+									if (num >= Math.pow(1024, 3)) return (num / Math.pow(1024, 3)).toFixed(1) + 'GB';
+									if (num >= Math.pow(1024, 2)) return (num / Math.pow(1024, 2)).toFixed(1) + 'MB';
+									if (num >= 1024) return (num / 1024).toFixed(1) + 'KB';
+									return num.toString() + ' bytes';
+								} else {
+									if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
+									if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
+									if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+									if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+									if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+									return num.toString();
+								}
 							}
 						}
 					}

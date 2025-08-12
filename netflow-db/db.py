@@ -39,8 +39,6 @@ NETFLOW_DATA_PATH = get_required_env('NETFLOW_DATA_PATH')
 AVAILABLE_ROUTERS = get_required_env('AVAILABLE_ROUTERS').split(',')
 DATABASE_PATH = get_required_env('DATABASE_PATH')
 FIRST_RUN = os.environ.get('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
-LOG_FILE = os.environ.get('LOG_FILE', 'db_maintenance.log')
 
 # Validate paths exist
 if not os.path.exists(NETFLOW_DATA_PATH):
