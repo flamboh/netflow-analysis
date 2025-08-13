@@ -1,9 +1,10 @@
 import { json } from '@sveltejs/kit';
+import { DATABASE_PATH } from '$env/static/private';
 import type { RequestHandler } from './$types';
 import Database from 'better-sqlite3';
 import path from 'path';
 
-const DB_PATH = path.join(process.cwd(), '..', 'netflow-db', 'flowStats.db');
+const DB_PATH = path.join(process.cwd(), DATABASE_PATH);
 const DATA_OPTIONS = [
 	{ label: 'Flows', value: 'flows' },
 	{ label: 'Flows TCP', value: 'flows_tcp' },

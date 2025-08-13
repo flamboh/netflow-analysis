@@ -1,16 +1,13 @@
 <script lang="ts">
 	import NetflowDashboard from '$lib/components/netflow/NetflowDashboard.svelte';
 	import type { ChartState } from '$lib/components/netflow/types.ts';
+	import { onMount } from 'svelte';
 
 	// Optional: Pass initial state to the dashboard
 	const today = new Date().toJSON().slice(0, 10);
 	const initialState: Partial<ChartState> = {
 		startDate: '2024-03-01',
 		endDate: today,
-		routers: {
-			'cc-ir1-gw': true,
-			'oh-ir1-gw': true
-		},
 		groupBy: 'date',
 		chartType: 'stacked',
 		dataOptions: [

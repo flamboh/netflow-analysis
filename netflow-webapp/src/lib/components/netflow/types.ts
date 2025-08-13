@@ -10,8 +10,7 @@ export interface DataOption {
 }
 
 export interface RouterConfig {
-	'cc-ir1-gw': boolean;
-	'oh-ir1-gw': boolean;
+	[key: string]: boolean;
 }
 
 export type GroupByOption = 'month' | 'date' | 'hour' | '30min' | '5min';

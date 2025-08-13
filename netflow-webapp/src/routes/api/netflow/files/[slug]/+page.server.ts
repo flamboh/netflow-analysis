@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import Database from 'better-sqlite3';
 import path from 'path';
+import { DATABASE_PATH } from '$env/static/private';
 
 interface NetflowRecord {
 	router: string;
@@ -29,7 +30,7 @@ interface NetflowRecord {
 	processed_at: string;
 }
 
-const DB_PATH = path.join(process.cwd(), '..', 'netflow-db', 'flowStats.db');
+const DB_PATH = path.join(process.cwd(), DATABASE_PATH);
 let db: Database.Database | null = null;
 
 function getDb() {

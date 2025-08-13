@@ -25,12 +25,8 @@
 	const today = new Date().toJSON().slice(0, 10);
 	let startDate = $state(initialState.startDate || '2024-03-01');
 	let endDate = $state(initialState.endDate || today);
-	let routers = $state(
-		initialState.routers || {
-			'cc-ir1-gw': true,
-			'oh-ir1-gw': true
-		}
-	);
+	let routers = $state<RouterConfig>(initialState.routers || {});
+	let availableRouters = $state<string[]>([]);
 	let groupBy = $state<GroupByOption>(initialState.groupBy || 'date');
 	let chartType = $state<ChartTypeOption>(initialState.chartType || 'stacked');
 	let dataOptions = $state<DataOption[]>(
@@ -69,15 +65,17 @@
 		error = null;
 
 		try {
+			const activeRouters = Object.keys(routers)
+				.filter(router => routers[router])
+				.join(',');
+			
 			const response = await fetch(
 				'/api/netflow/stats?startDate=' +
 					Math.floor(new Date(startDate).getTime() / 1000) +
 					'&endDate=' +
 					Math.floor(new Date(endDate).getTime() / 1000) +
 					'&routers=' +
-					(routers['cc-ir1-gw'] ? 'cc-ir1-gw' : '') +
-					',' +
-					(routers['oh-ir1-gw'] ? 'oh-ir1-gw' : '') +
+					activeRouters +
 					'&dataOptions=' +
 					dataOptionsToBinary() +
 					'&groupBy=' +
@@ -151,9 +149,33 @@
 		loadData();
 	}
 
-	// Load data on mount only (like original)
-	onMount(() => {
-		loadData();
+	async function loadRouters() {
+		try {
+			const response = await fetch('/api/routers');
+			if (response.ok) {
+				const routerList: string[] = await response.json();
+				availableRouters = routerList;
+				
+				// Initialize routers with all enabled by default
+				if (Object.keys(routers).length === 0) {
+					const defaultRouters: RouterConfig = {};
+					routerList.forEach(router => {
+						defaultRouters[router] = true;
+					});
+					routers = defaultRouters;
+				}
+			}
+		} catch (err) {
+			console.error('Failed to load routers:', err);
+		}
+	}
+
+	// Load routers first, then data
+	onMount(async () => {
+		await loadRouters();
+		if (Object.keys(routers).length > 0) {
+			loadData();
+		}
 	});
 </script>
 
