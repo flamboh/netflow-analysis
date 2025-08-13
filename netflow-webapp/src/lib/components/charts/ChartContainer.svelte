@@ -91,7 +91,7 @@
 			if (onNavigateToFile) {
 				onNavigateToFile(slug);
 			} else {
-				goto(`/nfcapd/${slug}`);
+				goto(`/api/netflow/files/${slug}`);
 			}
 		}
 	}
@@ -157,8 +157,8 @@
 		}
 
 		// Check if all selected metrics are bytes
-		const selectedOptions = dataOptions.filter(o => o.checked);
-		const allAreBytesMetrics = selectedOptions.every(o => o.label.includes('Bytes'));
+		const selectedOptions = dataOptions.filter((o) => o.checked);
+		const allAreBytesMetrics = selectedOptions.every((o) => o.label.includes('Bytes'));
 
 		// Original scales configuration
 		const scales: any = {
@@ -181,7 +181,7 @@
 						ticks: {
 							callback: function (value: any) {
 								const num = Number(value);
-								
+
 								// Use binary units for bytes, decimal for others
 								if (allAreBytesMetrics) {
 									if (num >= Math.pow(1024, 5)) return (num / Math.pow(1024, 5)).toFixed(1) + 'PB';

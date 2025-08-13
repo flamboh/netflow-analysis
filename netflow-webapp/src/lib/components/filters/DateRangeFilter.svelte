@@ -27,7 +27,7 @@
 			type="date"
 			value={startDate}
 			onchange={handleStartDateChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
 		/>
 	</div>
 
@@ -38,7 +38,7 @@
 			type="date"
 			value={endDate}
 			onchange={handleEndDateChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
 		/>
 	</div>
 </div>

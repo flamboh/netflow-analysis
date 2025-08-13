@@ -45,35 +45,35 @@
 		<button
 			type="button"
 			onclick={() => handleQuickSelect('flows')}
-			class="rounded-md bg-green-100 px-3 py-1 text-xs text-green-800 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500"
+			class="rounded-md bg-green-100 px-3 py-1 text-xs text-green-800 hover:bg-green-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
 		>
 			All Flows
 		</button>
 		<button
 			type="button"
 			onclick={() => handleQuickSelect('packets')}
-			class="rounded-md bg-blue-100 px-3 py-1 text-xs text-blue-800 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+			class="rounded-md bg-blue-100 px-3 py-1 text-xs text-blue-800 hover:bg-blue-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 		>
 			All Packets
 		</button>
 		<button
 			type="button"
 			onclick={() => handleQuickSelect('bytes')}
-			class="rounded-md bg-purple-100 px-3 py-1 text-xs text-purple-800 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+			class="rounded-md bg-purple-100 px-3 py-1 text-xs text-purple-800 hover:bg-purple-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
 		>
 			All Bytes
 		</button>
 		<button
 			type="button"
 			onclick={handleSelectAll}
-			class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+			class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:outline-none"
 		>
 			Select All
 		</button>
 		<button
 			type="button"
 			onclick={handleSelectNone}
-			class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+			class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:outline-none"
 		>
 			Select None
 		</button>
@@ -88,7 +88,7 @@
 					onchange={() => handleMetricToggle(index)}
 					class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 				/>
-				<span class="select-none text-sm text-gray-700">{option.label}</span>
+				<span class="text-sm text-gray-700 select-none">{option.label}</span>
 			</label>
 		{/each}
 	</div>

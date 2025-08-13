@@ -111,7 +111,7 @@
 	}
 
 	function handleNavigateToFile(slug: string) {
-		goto(`/nfcapd/${slug}`);
+		goto(`/api/netflow/files/${slug}`);
 	}
 
 	function handleReset() {

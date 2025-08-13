@@ -19,6 +19,7 @@ NetFlow Analysis is a web-based network flow analysis tool that visualizes netwo
 
 - `netflow-webapp/` - SvelteKit application with interactive Chart.js visualization
 - `netflow-db/` - Python SQLite database setup and data processing pipeline
+- `maad/` - Haskell-based Multifractal Address Anomaly Detection module for advanced network security analysis
 - `flowStats.db` - SQLite database containing processed netflow statistics
 - `src/routes/+page.svelte` - Main interface with intelligent chart type selection
 - `src/routes/data/+server.ts` - API endpoint with binary metric encoding
@@ -39,6 +40,10 @@ npm run preview      # Preview production build
 npm run check        # TypeScript type checking
 npm run format       # Format with Prettier
 npm run lint         # Run ESLint and Prettier checks
+
+# MAAD compilation (run from maad/)
+nix-shell            # Enter nix environment with required Haskell dependencies
+./compile.sh         # Compile Haskell executables (Singularities, StructureFunction)
 ```
 
 ## File Structure Patterns
@@ -60,6 +65,7 @@ npm run lint         # Run ESLint and Prettier checks
 - **UI Components:** Shadcn-Svelte with Lucide icons and bits-ui components
 - **Database:** SQLite with better-sqlite3 for Node.js integration
 - **Data Processing:** Python pipeline using `nfdump` to populate database
+- **Security Analysis:** Haskell-based MAAD tools for multifractal anomaly detection
 - **Build Tools:** Vite 6.x with ESLint 9.x and Prettier formatting
 
 ## Data Visualization Features
@@ -87,6 +93,62 @@ The main interface (`src/routes/+page.svelte`) supports:
 ## Access Method
 
 Application requires SSH tunnel access as noted in README - designed for research environment use.
+
+## MAAD (Multifractal Address Anomaly Detection)
+
+The MAAD module provides advanced network security analysis capabilities using multifractal analysis techniques to detect anomalous IP address patterns in network traffic.
+
+### MAAD Components
+
+**Core Haskell Modules:**
+- `Singularities.hs` - Computes alpha(x) singularity metrics to identify anomalous addresses
+- `StructureFunction.hs` - Calculates tau(q) structure functions for multifractal analysis
+- `Common.hs` - IPv4 address utilities and bit manipulation functions
+- `PrefixMap.hs` - Efficient prefix-based IP address mapping and aggregation
+
+**Build System:**
+- `shell.nix` - Nix environment with required Haskell dependencies (bytestring, statistics, etc.)
+- `compile.sh` - GHC compilation script for optimized executables
+- `test_data/` - Sample IPv4 address lists for testing (simple.csv, caida_100k.csv)
+
+### MAAD Usage
+
+**Singularities Analysis:**
+```bash
+# Identify top N anomalous addresses
+./Singularities <N> <input_file>
+# Example: ./Singularities 10 test_data/simple.csv
+```
+
+**Structure Function Analysis:**
+```bash
+# Compute multifractal structure function
+./StructureFunction <input_file>  
+# Example: ./StructureFunction test_data/simple.csv
+```
+
+**Input Format:**
+- IPv4 addresses in dotted-decimal notation (192.0.2.1)
+- One address per line
+- Use "-" for stdin input
+
+### Integration with NetFlow Analysis
+
+**Current Status:**
+- `netflow-db/maad.py` - Empty Python interface (future integration point)
+- MAAD designed to complement existing netflow statistics with anomaly detection capabilities
+- Planned integration: Extract IP addresses from netflow data → MAAD analysis → Display anomaly metrics in webapp
+
+**Future Integration Plans:**
+1. **Data Pipeline**: Extract IP addresses from SQLite database to feed MAAD tools
+2. **API Endpoints**: Add anomaly detection results to existing REST API structure
+3. **Visualization**: Display singularity metrics and anomalous addresses in Chart.js interface
+4. **Real-time Analysis**: Integrate MAAD processing into regular netflow data updates
+
+**Technical Requirements:**
+- Haskell GHC compiler with statistics, bytestring, and vector libraries
+- Nix package manager recommended for dependency management
+- Python integration layer for database connectivity
 
 ## Svelte/SvelteKit Architecture Analysis
 
