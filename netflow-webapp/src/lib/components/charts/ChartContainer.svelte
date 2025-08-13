@@ -46,54 +46,131 @@
 	}
 
 	function handleChartClick(e: any, activeElements: any[]) {
-		const clickedElement = getClickedElement(activeElements);
-		if (!clickedElement) {
-			const canvasPosition = getRelativePosition(e, chart);
-			const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-			const dataY = chart.scales.y.getValueForPixel(canvasPosition.y);
-			console.log('Clicked coordinates:', { x: dataX, y: dataY });
+		// Always get the canvas position and convert to data values
+		const canvasPosition = getRelativePosition(e, chart);
+		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+		const dataY = chart.scales.y.getValueForPixel(canvasPosition.y);
+		
+		console.log('=== CHART CLICK DEBUG ===');
+		console.log('Canvas position:', canvasPosition);
+		console.log('Data coordinates:', { x: dataX, y: dataY });
+		console.log('Current groupBy:', groupBy);
+		console.log('Chart labels:', chart.data.labels);
+		
+		// Convert the x-axis data value to the appropriate date based on current groupBy
+		let clickedDate: Date;
+		
+		if (typeof dataX === 'number') {
+			// dataX is the index in the labels array
+			const labelIndex = Math.round(dataX);
+			const labels = chart.data.labels;
+			
+			console.log('Calculated label index:', labelIndex);
+			console.log('Total labels:', labels?.length);
+			
+			if (labels && labelIndex >= 0 && labelIndex < labels.length) {
+				const clickedLabel = labels[labelIndex] as string;
+				console.log('Clicked label:', clickedLabel);
+				clickedDate = parseClickedLabel(clickedLabel, groupBy);
+			} else {
+				// Handle clicks outside the data range
+				console.log('Click outside data range, using boundary logic');
+				if (labels && labels.length > 0) {
+					let targetLabel: string;
+					if (labelIndex < 0) {
+						targetLabel = labels[0] as string;
+					} else {
+						targetLabel = labels[labels.length - 1] as string;
+					}
+					clickedDate = parseClickedLabel(targetLabel, groupBy);
+				} else {
+					console.log('No labels available, cannot determine date');
+					return;
+				}
+			}
+		} else {
+			console.log('Unexpected dataX type:', typeof dataX, dataX);
 			return;
 		}
+		
+		console.log('Parsed clicked date:', clickedDate);
+		
+		const clickedElement = getClickedElement(activeElements);
+		if (clickedElement) {
+			console.log('Clicked on data point:', {
+				dataset: clickedElement.dataset.label,
+				label: clickedElement.label,
+				value: clickedElement.value,
+				datasetIndex: clickedElement.datasetIndex,
+				index: clickedElement.index
+			});
+		} else {
+			console.log('Clicked on empty space - will drill down based on calculated date');
+		}
 
-		console.log('Clicked point:', {
-			dataset: clickedElement.dataset.label,
-			label: clickedElement.label,
-			value: clickedElement.value,
-			datasetIndex: clickedElement.datasetIndex,
-			index: clickedElement.index
-		});
-
-		// Handle drill-down logic
+		// Handle drill-down logic using the calculated clickedDate
+		// This works regardless of whether there was a data point at the exact click location
+		console.log('=== DRILL DOWN LOGIC ===');
+		console.log('Current groupBy:', groupBy);
+		console.log('Using date for drill-down:', clickedDate);
+		
 		if (groupBy === 'date') {
-			const date = parseClickedLabel(clickedElement.label, groupBy);
-			const startOfMonth = new Date(date.getTime() - 15 * 24 * 60 * 60 * 1000);
-			const endOfMonth = new Date(date.getTime() + 16 * 24 * 60 * 60 * 1000);
+			const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+			const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
+			console.log('Drilling down to hour view with date range:', {
+				start: startOfMonth.toISOString().slice(0, 10),
+				end: endOfMonth.toISOString().slice(0, 10)
+			});
 			onDrillDown?.(
 				'hour',
 				startOfMonth.toISOString().slice(0, 10),
 				endOfMonth.toISOString().slice(0, 10)
 			);
 		} else if (groupBy === 'hour') {
-			const date = parseClickedLabel(clickedElement.label, groupBy);
-			const startOfWeek = new Date(date.getTime() - 3 * 24 * 60 * 60 * 1000);
-			const endOfWeek = new Date(date.getTime() + 4 * 24 * 60 * 60 * 1000);
+			const startOfWeek = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+			const endOfWeek = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+			console.log('Drilling down to 30min view with date range:', {
+				start: startOfWeek.toISOString().slice(0, 10),
+				end: endOfWeek.toISOString().slice(0, 10)
+			});
 			onDrillDown?.(
 				'30min',
 				startOfWeek.toISOString().slice(0, 10),
 				endOfWeek.toISOString().slice(0, 10)
 			);
 		} else if (groupBy === '30min') {
-			const date = parseClickedLabel(clickedElement.label, groupBy);
-			const endDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-			onDrillDown?.('5min', date.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10));
+			const endDate = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
+			console.log('Drilling down to 5min view with date range:', {
+				start: clickedDate.toISOString().slice(0, 10),
+				end: endDate.toISOString().slice(0, 10)
+			});
+			onDrillDown?.('5min', clickedDate.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10));
 		} else if (groupBy === '5min') {
-			const slug = generateSlugFromLabel(clickedElement.label, groupBy);
+			// For 5min level, we need to create a slug from the clicked date
+			// Convert the date back to a label format that generateSlugFromLabel expects
+			let labelForSlug: string;
+			if (clickedElement) {
+				labelForSlug = clickedElement.label;
+			} else {
+				// Format the date to match the label format for 5min grouping
+				const year = clickedDate.getFullYear();
+				const month = String(clickedDate.getMonth() + 1).padStart(2, '0');
+				const day = String(clickedDate.getDate()).padStart(2, '0');
+				const hour = String(clickedDate.getHours()).padStart(2, '0');
+				const minute = String(clickedDate.getMinutes()).padStart(2, '0');
+				labelForSlug = `${year}-${month}-${day} ${hour}:${minute}`;
+			}
+			
+			const slug = generateSlugFromLabel(labelForSlug, groupBy);
+			console.log('Navigating to file with slug:', slug);
 			if (onNavigateToFile) {
 				onNavigateToFile(slug);
 			} else {
 				goto(`/api/netflow/files/${slug}`);
 			}
 		}
+		
+		console.log('=== END CHART CLICK DEBUG ===');
 	}
 
 	function createChartConfig(): ChartConfig {
