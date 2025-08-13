@@ -108,9 +108,7 @@
 
 				<!-- MAAD Structure Function Analysis for this Router -->
 				<div class="rounded-b-lg bg-purple-50 p-4">
-					<h4 class="text-md mb-3 font-semibold text-gray-800">
-						MAAD - Multifractal Structure Function Analysis
-					</h4>
+					<h4 class="text-md mb-3 font-semibold text-gray-800">Structure Function Analysis</h4>
 					{#if loading.get(record.router)}
 						<div class="flex items-center justify-center py-6">
 							<div class="text-gray-600">Loading structure function analysis...</div>
