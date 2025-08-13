@@ -51,24 +51,24 @@
 		const canvasPosition = getRelativePosition(e, chart);
 		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
 		const dataY = chart.scales.y.getValueForPixel(canvasPosition.y);
-		
+
 		console.log('=== CHART CLICK DEBUG ===');
 		console.log('Canvas position:', canvasPosition);
 		console.log('Data coordinates:', { x: dataX, y: dataY });
 		console.log('Current groupBy:', groupBy);
 		console.log('Chart labels:', chart.data.labels);
-		
+
 		// Convert the x-axis data value to the appropriate date based on current groupBy
 		let clickedDate: Date;
-		
+
 		if (typeof dataX === 'number') {
 			// dataX is the index in the labels array
 			const labelIndex = Math.round(dataX);
 			const labels = chart.data.labels;
-			
+
 			console.log('Calculated label index:', labelIndex);
 			console.log('Total labels:', labels?.length);
-			
+
 			if (labels && labelIndex >= 0 && labelIndex < labels.length) {
 				const clickedLabel = labels[labelIndex] as string;
 				console.log('Clicked label:', clickedLabel);
@@ -93,9 +93,9 @@
 			console.log('Unexpected dataX type:', typeof dataX, dataX);
 			return;
 		}
-		
+
 		console.log('Parsed clicked date:', clickedDate);
-		
+
 		const clickedElement = getClickedElement(activeElements);
 		if (clickedElement) {
 			console.log('Clicked on data point:', {
@@ -114,7 +114,7 @@
 		console.log('=== DRILL DOWN LOGIC ===');
 		console.log('Current groupBy:', groupBy);
 		console.log('Using date for drill-down:', clickedDate);
-		
+
 		if (groupBy === 'date') {
 			const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
 			const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
@@ -145,7 +145,11 @@
 				start: clickedDate.toISOString().slice(0, 10),
 				end: endDate.toISOString().slice(0, 10)
 			});
-			onDrillDown?.('5min', clickedDate.toISOString().slice(0, 10), endDate.toISOString().slice(0, 10));
+			onDrillDown?.(
+				'5min',
+				clickedDate.toISOString().slice(0, 10),
+				endDate.toISOString().slice(0, 10)
+			);
 		} else if (groupBy === '5min') {
 			// For 5min level, we need to create a slug from the clicked date
 			// Convert the date back to a label format that generateSlugFromLabel expects
@@ -161,7 +165,7 @@
 				const minute = String(clickedDate.getMinutes()).padStart(2, '0');
 				labelForSlug = `${year}-${month}-${day} ${hour}:${minute}`;
 			}
-			
+
 			const slug = generateSlugFromLabel(labelForSlug, groupBy);
 			console.log('Navigating to file with slug:', slug);
 			if (onNavigateToFile) {
@@ -170,7 +174,7 @@
 				goto(`/api/netflow/files/${slug}`);
 			}
 		}
-		
+
 		console.log('=== END CHART CLICK DEBUG ===');
 	}
 
@@ -345,7 +349,7 @@
 	onMount(() => {
 		// Register the crosshair plugin
 		Chart.register(verticalCrosshairPlugin);
-		
+
 		// Initialize empty chart (matches original)
 		chart = new Chart(chartCanvas, {
 			type: 'line',

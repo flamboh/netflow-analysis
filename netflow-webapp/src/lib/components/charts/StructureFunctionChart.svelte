@@ -15,6 +15,7 @@
 		structureFunction: StructureFunctionPoint[];
 		metadata: {
 			dataSource: string;
+			uniqueIPCount?: number;
 			pointCount: number;
 			qRange: { min: number; max: number };
 		};
@@ -157,10 +158,14 @@
 				1
 			)}, {data.metadata.qRange.max.toFixed(1)}]
 		</p>
-		<p class="text-xs text-gray-500">
-			Note: Using dummy data from MAAD test set. In production, this would analyze IP addresses from
-			the actual netflow file.
-		</p>
+		{#if data.metadata.uniqueIPCount}
+			<p class="text-xs font-medium text-green-600">
+				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
+				analyzed
+			</p>
+		{:else}
+			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
+		{/if}
 	</div>
 	<div class="relative h-96 w-full">
 		<canvas bind:this={chartCanvas}></canvas>

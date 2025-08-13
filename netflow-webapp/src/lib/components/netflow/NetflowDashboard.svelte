@@ -66,9 +66,9 @@
 
 		try {
 			const activeRouters = Object.keys(routers)
-				.filter(router => routers[router])
+				.filter((router) => routers[router])
 				.join(',');
-			
+
 			const response = await fetch(
 				'/api/netflow/stats?startDate=' +
 					Math.floor(new Date(startDate).getTime() / 1000) +
@@ -155,11 +155,11 @@
 			if (response.ok) {
 				const routerList: string[] = await response.json();
 				availableRouters = routerList;
-				
+
 				// Initialize routers with all enabled by default
 				if (Object.keys(routers).length === 0) {
 					const defaultRouters: RouterConfig = {};
-					routerList.forEach(router => {
+					routerList.forEach((router) => {
 						defaultRouters[router] = true;
 					});
 					routers = defaultRouters;
