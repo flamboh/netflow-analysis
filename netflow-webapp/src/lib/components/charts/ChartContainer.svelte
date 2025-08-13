@@ -323,6 +323,18 @@
 							color: 'rgba(100, 100, 100, 0.8)',
 							width: 1,
 							dash: [3, 3]
+						},
+						tooltip: {
+							enabled: true,
+							delay: 500,
+							backgroundColor: 'rgba(0, 0, 0, 0.85)',
+							textColor: 'white',
+							borderColor: 'rgba(100, 100, 100, 0.8)',
+							borderWidth: 1,
+							borderRadius: 4,
+							padding: 8,
+							fontSize: 12,
+							fontFamily: 'system-ui, sans-serif'
 						}
 					}
 				} as any
@@ -359,6 +371,18 @@
 							color: 'rgba(100, 100, 100, 0.8)',
 							width: 1,
 							dash: [3, 3]
+						},
+						tooltip: {
+							enabled: true,
+							delay: 500,
+							backgroundColor: 'rgba(0, 0, 0, 0.85)',
+							textColor: 'white',
+							borderColor: 'rgba(100, 100, 100, 0.8)',
+							borderWidth: 1,
+							borderRadius: 4,
+							padding: 8,
+							fontSize: 12,
+							fontFamily: 'system-ui, sans-serif'
 						}
 					}
 				} as any
