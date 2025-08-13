@@ -3,6 +3,7 @@
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import { goto } from '$app/navigation';
+	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import {
 		formatLabels,
 		getXAxisTitle,
@@ -315,13 +316,24 @@
 					legend: {
 						display: true,
 						position: 'top' as const
+					},
+					verticalCrosshair: {
+						enabled: true,
+						line: {
+							color: 'rgba(100, 100, 100, 0.8)',
+							width: 1,
+							dash: [3, 3]
+						}
 					}
-				}
+				} as any
 			}
 		};
 	}
 
 	onMount(() => {
+		// Register the crosshair plugin
+		Chart.register(verticalCrosshairPlugin);
+		
 		// Initialize empty chart (matches original)
 		chart = new Chart(chartCanvas, {
 			type: 'line',
@@ -339,7 +351,17 @@
 							text: 'Date'
 						}
 					}
-				}
+				},
+				plugins: {
+					verticalCrosshair: {
+						enabled: true,
+						line: {
+							color: 'rgba(100, 100, 100, 0.8)',
+							width: 1,
+							dash: [3, 3]
+						}
+					}
+				} as any
 			}
 		});
 
