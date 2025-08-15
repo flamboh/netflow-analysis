@@ -7,7 +7,7 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 - **Interactive Data Visualization**: Chart.js-powered line graphs with logarithmic scaling
 - **Flexible Time Grouping**: Aggregate data by month, date, or hour
 - **Multiple Metrics**: Track 15 different network statistics including flows, packets, and bytes by protocol
-- **Router Filtering**: Support for `cc-ir1-gw` and `oh-ir1-gw` routers
+- **Router Filtering**: Support for multiple routers
 - **Date Range Selection**: Query specific time periods with intuitive controls
 - **Dynamic X-Axis**: Automatically formats labels based on selected grouping (YYYY-MM, MM/DD/YY, DD:HH)
 
@@ -15,7 +15,7 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 
 ### Data Processing Pipeline
 
-1. Raw netflow files from `/research/tango_cis/uonet-in/{router}/YYYY/MM/DD/`
+1. Raw netflow files from a configurable location
 2. Python script (`netflow-db/db.py`) processes files using `nfdump` and populates SQLite database
 3. SvelteKit API queries database with `better-sqlite3` for fast aggregation
 4. Frontend renders interactive charts with real-time filtering
@@ -81,7 +81,7 @@ SQLite database (`flowStats.db`) with `netflow_stats` table containing:
 
 - **Date Range**: Select start and end dates for analysis
 - **Time Options**: Choose specific time or analyze full day
-- **Router Selection**: Filter by `cc-ir1-gw` and/or `oh-ir1-gw`
+- **Router Selection**: Filter by different routers
 - **Metrics**: Select from 15 available network statistics
 - **Grouping**: Aggregate by month, date, or hour for different perspectives
 
@@ -125,35 +125,6 @@ sqlite3 flowStats.db
 - **Database**: SQLite with better-sqlite3 Node.js integration
 - **UI Components**: Shadcn-Svelte with custom calendar components
 - **Data Processing**: Python with nfdump command-line tool
-
-## Database Queries
-
-Example queries for exploring the data:
-
-```sql
--- Daily traffic summary
-SELECT date(datetime(timestamp, 'unixepoch')) as day,
-       SUM(flows) as total_flows,
-       SUM(bytes) as total_bytes
-FROM netflow_stats
-GROUP BY day
-ORDER BY day;
-
--- Protocol breakdown by router
-SELECT router,
-       SUM(flows_tcp) as tcp_flows,
-       SUM(flows_udp) as udp_flows,
-       SUM(flows_icmp) as icmp_flows
-FROM netflow_stats
-GROUP BY router;
-
--- Hourly traffic patterns
-SELECT strftime('%H', datetime(timestamp, 'unixepoch')) as hour,
-       AVG(flows) as avg_flows
-FROM netflow_stats
-GROUP BY hour
-ORDER BY hour;
-```
 
 ## Access Requirements
 
