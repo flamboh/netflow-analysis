@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Chart from 'chart.js/auto';
+	import annotationPlugin from 'chartjs-plugin-annotation';
 
 	interface StructureFunctionPoint {
 		q: number;
@@ -26,6 +27,9 @@
 	let chart: Chart;
 
 	onMount(() => {
+		// Register the annotation plugin
+		Chart.register(annotationPlugin);
+
 		return () => {
 			if (chart) {
 				chart.destroy();
@@ -54,6 +58,46 @@
 	function createChart() {
 		const points = data.structureFunction;
 
+		// Generate error bar annotations for each data point
+		const errorBarAnnotations: any = {};
+
+		points.forEach((point, index) => {
+			const capWidth = 0.02; // Width of error bar caps
+
+			// Vertical line (main error bar)
+			errorBarAnnotations[`errorBar_${index}`] = {
+				type: 'line',
+				xMin: point.q,
+				xMax: point.q,
+				yMin: point.tauTilde - point.sd,
+				yMax: point.tauTilde + point.sd,
+				borderColor: 'rgba(128, 128, 128, 0.7)',
+				borderWidth: 1.5
+			};
+
+			// Top cap (horizontal line at top of error bar)
+			errorBarAnnotations[`errorBarTop_${index}`] = {
+				type: 'line',
+				xMin: point.q - capWidth,
+				xMax: point.q + capWidth,
+				yMin: point.tauTilde + point.sd,
+				yMax: point.tauTilde + point.sd,
+				borderColor: 'rgba(128, 128, 128, 0.7)',
+				borderWidth: 1.5
+			};
+
+			// Bottom cap (horizontal line at bottom of error bar)
+			errorBarAnnotations[`errorBarBottom_${index}`] = {
+				type: 'line',
+				xMin: point.q - capWidth,
+				xMax: point.q + capWidth,
+				yMin: point.tauTilde - point.sd,
+				yMax: point.tauTilde - point.sd,
+				borderColor: 'rgba(128, 128, 128, 0.7)',
+				borderWidth: 1.5
+			};
+		});
+
 		const chartData = {
 			datasets: [
 				{
@@ -62,22 +106,13 @@
 					borderColor: 'rgb(59, 130, 246)',
 					backgroundColor: 'rgba(59, 130, 246, 0.1)',
 					borderWidth: 2,
-					pointRadius: 3,
-					pointHoverRadius: 5,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					pointBackgroundColor: 'rgb(59, 130, 246)',
+					pointBorderColor: 'white',
+					pointBorderWidth: 1,
 					fill: false,
 					tension: 0.1
-				},
-				{
-					label: 'Standard Deviation',
-					data: points.map((p) => ({ x: p.q, y: p.sd })),
-					borderColor: 'rgb(239, 68, 68)',
-					backgroundColor: 'rgba(239, 68, 68, 0.1)',
-					borderWidth: 1,
-					pointRadius: 2,
-					pointHoverRadius: 4,
-					fill: false,
-					tension: 0.1,
-					yAxisID: 'y1'
 				}
 			]
 		};
@@ -103,17 +138,6 @@
 							text: 'τ̃(q) - Structure Function'
 						},
 						position: 'left' as const
-					},
-					y1: {
-						type: 'linear' as const,
-						title: {
-							display: true,
-							text: 'Standard Deviation'
-						},
-						position: 'right' as const,
-						grid: {
-							drawOnChartArea: false
-						}
 					}
 				},
 				plugins: {
@@ -135,9 +159,17 @@
 							title: (items: any[]) => `q = ${items[0]?.parsed?.x?.toFixed(3)}`,
 							label: (item: any) => {
 								const value = item.parsed.y.toFixed(6);
-								return `${item.dataset.label}: ${value}`;
+								const pointIndex = item.dataIndex;
+								const point = points[pointIndex];
+								return [
+									`${item.dataset.label}: ${value}`,
+									`Standard Deviation: ±${point.sd.toFixed(6)}`
+								];
 							}
 						}
+					},
+					annotation: {
+						annotations: errorBarAnnotations
 					}
 				},
 				interaction: {
