@@ -3,7 +3,6 @@ import type { RequestHandler } from './$types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { writeFile, unlink } from 'fs/promises';
 import Database from 'better-sqlite3';
 import { DATABASE_PATH } from '$env/static/private';
 
@@ -44,125 +43,44 @@ async function getNetflowFilePath(slug: string, router: string): Promise<string 
 	return result?.file_path || null;
 }
 
-async function extractIPAddressesFromNetflow(
+async function runStructureFunctionAnalysis(
 	filePath: string,
 	timeoutMs: number = 60000
-): Promise<string[]> {
+): Promise<StructureFunctionPoint[]> {
 	try {
-		// Use nfdump to extract unique source and destination IP addresses
-		// Using aggregation to reduce output size and avoid buffer overflow
-		const nfdumpCommand = `nfdump -r "${filePath}" -A srcip,dstip -o csv -q`;
+		// Use nfdump to extract IPv4 source addresses and pipe directly to MAAD StructureFunction
+		const maadPath = path.join(process.cwd(), '..', 'maad');
+		const structureFunctionPath = path.join(maadPath, 'StructureFunction');
 
-		console.log(`Executing nfdump command: ${nfdumpCommand}`);
+		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:%sa' -q | "${structureFunctionPath}" /dev/stdin`;
 
-		const { stdout } = await execAsync(nfdumpCommand, {
+		console.log(`Executing combined nfdump + StructureFunction command`);
+
+		const { stdout } = await execAsync(command, {
 			timeout: timeoutMs,
-			maxBuffer: 100 * 1024 * 1024 // 100MB buffer for large files
+			maxBuffer: 10 * 1024 * 1024, // 10MB buffer should be sufficient for structure function output
+			cwd: maadPath
 		});
 
-		// Parse the CSV output to extract unique IP addresses
-		const ipSet = new Set<string>();
+		// Parse CSV output from StructureFunction
 		const lines = stdout.trim().split('\n');
+		const header = lines[0]; // q,tauTilde,sd
 
-		// Skip header line
-		for (let i = 1; i < lines.length; i++) {
-			const line = lines[i].trim();
-			if (line) {
-				// CSV format: "srcip","dstip","flows","packets","bytes"
-				const columns = line.split(',');
-				if (columns.length >= 2) {
-					const srcIP = columns[0].replace(/"/g, '').trim();
-					const dstIP = columns[1].replace(/"/g, '').trim();
-
-					if (srcIP && isValidIP(srcIP)) {
-						ipSet.add(srcIP);
-					}
-					if (dstIP && isValidIP(dstIP)) {
-						ipSet.add(dstIP);
-					}
-				}
-			}
+		if (header !== 'q,tauTilde,sd') {
+			throw new Error('Unexpected StructureFunction output format');
 		}
 
-		console.log(`Extracted ${ipSet.size} unique IP addresses from aggregated nfdump output`);
-		return Array.from(ipSet);
-	} catch (error) {
-		console.error('Error extracting IP addresses from NetFlow file:', error);
-
-		// If aggregation fails, try a more basic approach with sampling
-		if (error instanceof Error && error.message.includes('maxBuffer')) {
-			console.log('Trying fallback approach with sampling...');
-			return await extractIPAddressesWithSampling(filePath, timeoutMs);
-		}
-
-		throw error;
-	}
-}
-
-async function extractIPAddressesWithSampling(
-	filePath: string,
-	timeoutMs: number
-): Promise<string[]> {
-	try {
-		// Sample every 10th record to reduce output size
-		const nfdumpCommand = `nfdump -r "${filePath}" -o 'fmt:%sa,%da' -c 10000 -q`;
-
-		console.log(`Executing fallback nfdump command with sampling: ${nfdumpCommand}`);
-
-		const { stdout } = await execAsync(nfdumpCommand, {
-			timeout: timeoutMs,
-			maxBuffer: 50 * 1024 * 1024 // 50MB buffer
+		const data: StructureFunctionPoint[] = lines.slice(1).map((line) => {
+			const [q, tauTilde, sd] = line.split(',').map(Number);
+			return { q, tauTilde, sd };
 		});
 
-		// Parse the output to extract unique IP addresses
-		const ipSet = new Set<string>();
-		const lines = stdout.trim().split('\n');
-
-		for (const line of lines) {
-			if (line.trim()) {
-				const [srcIP, dstIP] = line.split(',').map((ip) => ip.trim());
-				if (srcIP && isValidIP(srcIP)) {
-					ipSet.add(srcIP);
-				}
-				if (dstIP && isValidIP(dstIP)) {
-					ipSet.add(dstIP);
-				}
-			}
-		}
-
-		console.log(`Extracted ${ipSet.size} unique IP addresses from sampled nfdump output`);
-		return Array.from(ipSet);
+		console.log(`Structure function analysis complete: ${data.length} data points generated`);
+		return data;
 	} catch (error) {
-		console.error('Error in fallback IP extraction:', error);
+		console.error('Error running structure function analysis:', error);
 		throw error;
 	}
-}
-
-function isValidIP(ip: string): boolean {
-	const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-	if (!ipRegex.test(ip)) return false;
-
-	const parts = ip.split('.');
-	return parts.every((part) => {
-		const num = parseInt(part, 10);
-		return num >= 0 && num <= 255;
-	});
-}
-
-async function createTempIPFile(
-	ipAddresses: string[],
-	slug: string,
-	router: string
-): Promise<string> {
-	const tempFileName = `netflow_ips_${router}_${slug}_${Date.now()}.csv`;
-	const tempFilePath = path.join('/tmp', tempFileName);
-
-	// Write IP addresses to temp file, one per line
-	const content = ipAddresses.join('\n') + '\n';
-	await writeFile(tempFilePath, content, 'utf8');
-
-	console.log(`Created temporary IP file: ${tempFilePath} with ${ipAddresses.length} addresses`);
-	return tempFilePath;
 }
 
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -176,8 +94,6 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	if (!router) {
 		return json({ error: 'Router parameter is required' }, { status: 400 });
 	}
-
-	let tempFilePath: string | null = null;
 
 	try {
 		console.log(`Starting structure function analysis for ${router} - ${slug}`);
@@ -193,43 +109,15 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 		console.log(`Found NetFlow file: ${filePath}`);
 
-		// Extract IP addresses from the NetFlow file using nfdump
-		const ipAddresses = await extractIPAddressesFromNetflow(filePath);
+		// Run structure function analysis directly with nfdump piped to MAAD
+		const data = await runStructureFunctionAnalysis(filePath);
 
-		if (ipAddresses.length === 0) {
-			return json({ error: 'No IP addresses found in NetFlow file' }, { status: 422 });
+		if (data.length === 0) {
+			return json(
+				{ error: 'No data points generated from structure function analysis' },
+				{ status: 422 }
+			);
 		}
-
-		console.log(`Extracted ${ipAddresses.length} unique IP addresses`);
-
-		// Create temporary file with IP addresses for MAAD analysis
-		tempFilePath = await createTempIPFile(ipAddresses, slug, router);
-
-		// Execute the MAAD StructureFunction analysis
-		const maadPath = path.join(process.cwd(), '..', 'maad');
-		const structureFunctionPath = path.join(maadPath, 'StructureFunction');
-
-		console.log(`Executing MAAD StructureFunction analysis`);
-
-		const { stdout } = await execAsync(
-			`cd "${maadPath}" && "${structureFunctionPath}" "${tempFilePath}"`,
-			{ timeout: 60000 } // 60 second timeout for analysis
-		);
-
-		// Parse CSV output
-		const lines = stdout.trim().split('\n');
-		const header = lines[0]; // q,tauTilde,sd
-
-		if (header !== 'q,tauTilde,sd') {
-			throw new Error('Unexpected StructureFunction output format');
-		}
-
-		const data: StructureFunctionPoint[] = lines.slice(1).map((line) => {
-			const [q, tauTilde, sd] = line.split(',').map(Number);
-			return { q, tauTilde, sd };
-		});
-
-		console.log(`Structure function analysis complete: ${data.length} data points generated`);
 
 		return json({
 			slug,
@@ -238,7 +126,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			structureFunction: data,
 			metadata: {
 				dataSource: `NetFlow File: ${path.basename(filePath)}`,
-				uniqueIPCount: ipAddresses.length,
+				uniqueIPCount: -1, // Indicates real NetFlow data (IP count not tracked in new pipeline)
 				pointCount: data.length,
 				qRange: {
 					min: Math.min(...data.map((d) => d.q)),
@@ -275,15 +163,5 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		}
 
 		return json({ error: 'Failed to generate structure function analysis' }, { status: 500 });
-	} finally {
-		// Clean up temporary file
-		if (tempFilePath) {
-			try {
-				await unlink(tempFilePath);
-				console.log(`Cleaned up temporary file: ${tempFilePath}`);
-			} catch (cleanupError) {
-				console.warn(`Failed to clean up temporary file ${tempFilePath}:`, cleanupError);
-			}
-		}
 	}
 };

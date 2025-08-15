@@ -186,14 +186,18 @@
 <div class="w-full">
 	<div class="mb-2 text-sm text-gray-600">
 		<p>
-			Data Source: {data.metadata.dataSource} | Points: {data.metadata.pointCount} | q Range: [{data.metadata.qRange.min.toFixed(
+			Data Source: {data.metadata.dataSource} | q Range: [{data.metadata.qRange.min.toFixed(1)}, {data.metadata.qRange.max.toFixed(
 				1
-			)}, {data.metadata.qRange.max.toFixed(1)}]
+			)}]
 		</p>
-		{#if data.metadata.uniqueIPCount}
+		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
 			<p class="text-xs font-medium text-green-600">
 				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
 				analyzed
+			</p>
+		{:else if data.metadata.uniqueIPCount === -1}
+			<p class="text-xs font-medium text-green-600">
+				✓ Real NetFlow Data Analysis - IPv4 source addresses processed directly
 			</p>
 		{:else}
 			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
