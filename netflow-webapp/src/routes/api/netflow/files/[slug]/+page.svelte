@@ -11,18 +11,19 @@
 	onMount(async () => {
 		// Load structure function data for each router
 		for (const record of data.summary) {
-			await loadStructureFunctionData(record.router);
+			await loadStructureFunctionData(record.router, record.file_path, false);
+			await loadStructureFunctionData(record.router, record.file_path, true);
 		}
 	});
 
-	async function loadStructureFunctionData(router: string) {
+	async function loadStructureFunctionData(router: string, file_path: string, source: boolean) {
 		loading.set(router, true);
 		loading = new Map(loading);
 		errors.set(router, '');
 		errors = new Map(errors);
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/structure-function?router=${encodeURIComponent(router)}`
+				`/api/netflow/files/${data.slug}/structure-function?router=${encodeURIComponent(router)}&file_path=${encodeURIComponent(file_path)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load structure function data: ${response.statusText}`);
@@ -118,7 +119,7 @@
 							<p>Error loading structure function: {errors.get(record.router)}</p>
 							<button
 								class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-								onclick={() => loadStructureFunctionData(record.router)}
+								onclick={() => loadStructureFunctionData(record.router, record.file_path, false)}
 							>
 								Retry
 							</button>

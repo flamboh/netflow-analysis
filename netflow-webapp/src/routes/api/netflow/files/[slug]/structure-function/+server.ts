@@ -52,7 +52,7 @@ async function runStructureFunctionAnalysis(
 		const maadPath = path.join(process.cwd(), '..', 'maad');
 		const structureFunctionPath = path.join(maadPath, 'StructureFunction');
 
-		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:%sa' -q | "${structureFunctionPath}" /dev/stdin`;
+		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:%sa' -q | "${structureFunctionPath}" /dev/stdin`; // loading source addresses, use %da to get destination addresses
 
 		console.log(`Executing combined nfdump + StructureFunction command`);
 
