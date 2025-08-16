@@ -171,10 +171,10 @@
 									</button>
 								</div>
 							{:else if structureFunctionDataSource.get(record.router)}
-								<div class="mb-2 text-xs text-green-600">
+								<!-- <div class="mb-2 text-xs text-green-600">
 									Debug: Source data loaded - {structureFunctionDataSource.get(record.router)
 										?.structureFunction?.length || 0} points
-								</div>
+								</div> -->
 								<StructureFunctionChart data={structureFunctionDataSource.get(record.router)} />
 							{/if}
 						</div>

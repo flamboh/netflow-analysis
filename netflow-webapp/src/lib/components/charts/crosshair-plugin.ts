@@ -1,4 +1,4 @@
-import type { Chart, ChartArea, Plugin } from 'chart.js';
+import type { Chart, ChartArea, Plugin, ChartEvent } from 'chart.js';
 
 interface CrosshairState {
 	mouseX: number | null;
@@ -158,13 +158,19 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 		});
 	},
 
-	afterEvent(chart: Chart, args: { event: MouseEvent }, options: CrosshairOptions) {
+	afterEvent(chart: Chart, args: { event: ChartEvent }, options: CrosshairOptions) {
 		const state = chartStates.get(chart);
 		if (!state || !options.enabled) return;
 
 		const event = args.event;
 
-		if (event.type === 'mousemove' && event.x !== undefined) {
+		if (
+			event.type === 'mousemove' &&
+			event.x !== null &&
+			event.x !== undefined &&
+			event.y !== null &&
+			event.y !== undefined
+		) {
 			// Check if mouse is within chart area
 			const chartArea = chart.chartArea;
 			const isInChartArea =

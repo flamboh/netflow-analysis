@@ -106,8 +106,8 @@
 					borderColor: 'rgb(59, 130, 246)',
 					backgroundColor: 'rgba(59, 130, 246, 0.1)',
 					borderWidth: 2,
-					pointRadius: 4,
-					pointHoverRadius: 6,
+					pointRadius: 0,
+					pointHoverRadius: 0,
 					pointBackgroundColor: 'rgb(59, 130, 246)',
 					pointBorderColor: 'white',
 					pointBorderWidth: 1,
@@ -126,8 +126,8 @@
 				scales: {
 					x: {
 						type: 'linear' as const,
-							min: -2.05,
-						max: 4.05,
+						min: -2.1,
+						max: 4.1,
 						title: {
 							display: true,
 							text: 'q (moment parameter)'
@@ -197,11 +197,11 @@
 				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
 				analyzed
 			</p>
-		{:else if data.metadata.uniqueIPCount === -1}
+			<!-- {:else if data.metadata.uniqueIPCount === -1}
 			<p class="text-xs font-medium text-green-600">
 				✓ Real NetFlow Data Analysis - IPv4 source addresses processed directly
-			</p>
-		{:else}
+			</p> -->
+		{:else if data.metadata.uniqueIPCount !== -1}
 			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
 		{/if}
 	</div>
