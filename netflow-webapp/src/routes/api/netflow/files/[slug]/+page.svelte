@@ -4,43 +4,83 @@
 	import { onMount } from 'svelte';
 
 	let { data }: PageProps = $props();
-	let structureFunctionData = $state(new Map());
-	let loading = $state(new Map());
-	let errors = $state(new Map());
+	let structureFunctionDataSource = $state(new Map());
+	let structureFunctionDataDestination = $state(new Map());
+	let loadingSource = $state(new Map());
+	let loadingDestination = $state(new Map());
+	let errorsSource = $state(new Map());
+	let errorsDestination = $state(new Map());
 
 	onMount(async () => {
-		// Load structure function data for each router
+		// Load structure function data for each router (both source and destination)
 		for (const record of data.summary) {
-			await loadStructureFunctionData(record.router, record.file_path, false);
-			await loadStructureFunctionData(record.router, record.file_path, true);
+			// Load source and destination data in parallel
+			await Promise.all([
+				loadStructureFunctionData(record.router, record.file_path, true), // source
+				loadStructureFunctionData(record.router, record.file_path, false) // destination
+			]);
 		}
 	});
 
 	async function loadStructureFunctionData(router: string, file_path: string, source: boolean) {
-		loading.set(router, true);
-		loading = new Map(loading);
-		errors.set(router, '');
-		errors = new Map(errors);
+		// Set loading state
+		if (source) {
+			loadingSource.set(router, true);
+			loadingSource = new Map(loadingSource);
+			errorsSource.set(router, '');
+			errorsSource = new Map(errorsSource);
+		} else {
+			loadingDestination.set(router, true);
+			loadingDestination = new Map(loadingDestination);
+			errorsDestination.set(router, '');
+			errorsDestination = new Map(errorsDestination);
+		}
+
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/structure-function?router=${encodeURIComponent(router)}&file_path=${encodeURIComponent(file_path)}&source=${source}`
+				`/api/netflow/files/${data.slug}/structure-function?router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load structure function data: ${response.statusText}`);
 			}
 			const result = await response.json();
-			console.log(`Structure function data loaded for ${router}:`, result);
-			structureFunctionData.set(router, result);
-			// Trigger reactivity by creating a new Map
-			structureFunctionData = new Map(structureFunctionData);
+			console.log(
+				`Structure function data loaded for ${router} (${source ? 'source' : 'destination'}):`,
+				result
+			);
+
+			// Store the result in the appropriate data map
+			if (source) {
+				structureFunctionDataSource.set(router, result);
+				structureFunctionDataSource = new Map(structureFunctionDataSource);
+			} else {
+				structureFunctionDataDestination.set(router, result);
+				structureFunctionDataDestination = new Map(structureFunctionDataDestination);
+			}
 		} catch (e) {
 			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
-			errors.set(router, errorMessage);
-			errors = new Map(errors);
-			console.error(`Failed to load structure function data for ${router}:`, e);
+			console.error(
+				`Failed to load structure function data for ${router} (${source ? 'source' : 'destination'}):`,
+				e
+			);
+
+			// Set error state
+			if (source) {
+				errorsSource.set(router, errorMessage);
+				errorsSource = new Map(errorsSource);
+			} else {
+				errorsDestination.set(router, errorMessage);
+				errorsDestination = new Map(errorsDestination);
+			}
 		} finally {
-			loading.set(router, false);
-			loading = new Map(loading);
+			// Clear loading state
+			if (source) {
+				loadingSource.set(router, false);
+				loadingSource = new Map(loadingSource);
+			} else {
+				loadingDestination.set(router, false);
+				loadingDestination = new Map(loadingDestination);
+			}
 		}
 	}
 </script>
@@ -110,28 +150,65 @@
 				<!-- MAAD Structure Function Analysis for this Router -->
 				<div class="rounded-b-lg bg-purple-50 p-4">
 					<h4 class="text-md mb-3 font-semibold text-gray-800">Structure Function Analysis</h4>
-					{#if loading.get(record.router)}
-						<div class="flex items-center justify-center py-6">
-							<div class="text-gray-600">Loading structure function analysis...</div>
+
+					<!-- Side-by-side layout for Source and Destination graphs -->
+					<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+						<!-- Source Address Analysis -->
+						<div class="space-y-3">
+							<h5 class="text-sm font-medium text-blue-700">Source Address Analysis</h5>
+							{#if loadingSource.get(record.router)}
+								<div class="flex items-center justify-center py-6">
+									<div class="text-gray-600">Loading source address analysis...</div>
+								</div>
+							{:else if errorsSource.get(record.router)}
+								<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+									<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
+									<button
+										class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+										onclick={() => loadStructureFunctionData(record.router, record.file_path, true)}
+									>
+										Retry Source
+									</button>
+								</div>
+							{:else if structureFunctionDataSource.get(record.router)}
+								<div class="mb-2 text-xs text-green-600">
+									Debug: Source data loaded - {structureFunctionDataSource.get(record.router)
+										?.structureFunction?.length || 0} points
+								</div>
+								<StructureFunctionChart data={structureFunctionDataSource.get(record.router)} />
+							{/if}
 						</div>
-					{:else if errors.get(record.router)}
-						<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-							<p>Error loading structure function: {errors.get(record.router)}</p>
-							<button
-								class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-								onclick={() => loadStructureFunctionData(record.router, record.file_path, false)}
-							>
-								Retry
-							</button>
+
+						<!-- Destination Address Analysis -->
+						<div class="space-y-3">
+							<h5 class="text-sm font-medium text-purple-700">Destination Address Analysis</h5>
+							{#if loadingDestination.get(record.router)}
+								<div class="flex items-center justify-center py-6">
+									<div class="text-gray-600">Loading destination address analysis...</div>
+								</div>
+							{:else if errorsDestination.get(record.router)}
+								<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+									<p>Error loading destination analysis: {errorsDestination.get(record.router)}</p>
+									<button
+										class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+										onclick={() =>
+											loadStructureFunctionData(record.router, record.file_path, false)}
+									>
+										Retry Destination
+									</button>
+								</div>
+							{:else if structureFunctionDataDestination.get(record.router)}
+								<div class="mb-2 text-xs text-green-600">
+									Debug: Destination data loaded - {structureFunctionDataDestination.get(
+										record.router
+									)?.structureFunction?.length || 0} points
+								</div>
+								<StructureFunctionChart
+									data={structureFunctionDataDestination.get(record.router)}
+								/>
+							{/if}
 						</div>
-					{:else if structureFunctionData.get(record.router)}
-						<div class="mb-2 text-xs text-green-600">
-							Debug: Chart data loaded for {record.router} - {structureFunctionData.get(
-								record.router
-							)?.structureFunction?.length || 0} points
-						</div>
-						<StructureFunctionChart data={structureFunctionData.get(record.router)} />
-					{/if}
+					</div>
 				</div>
 			</div>
 		{/each}

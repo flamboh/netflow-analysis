@@ -45,16 +45,21 @@ async function getNetflowFilePath(slug: string, router: string): Promise<string 
 
 async function runStructureFunctionAnalysis(
 	filePath: string,
+	isSource: boolean,
 	timeoutMs: number = 60000
 ): Promise<StructureFunctionPoint[]> {
 	try {
-		// Use nfdump to extract IPv4 source addresses and pipe directly to MAAD StructureFunction
+		// Use nfdump to extract IPv4 addresses (source or destination) and pipe directly to MAAD StructureFunction
 		const maadPath = path.join(process.cwd(), '..', 'maad');
 		const structureFunctionPath = path.join(maadPath, 'StructureFunction');
 
-		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:%sa' -q | "${structureFunctionPath}" /dev/stdin`; // loading source addresses, use %da to get destination addresses
+		// Use %sa for source addresses, %da for destination addresses
+		const addressFormat = isSource ? '%sa' : '%da';
+		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:${addressFormat}' -q | "${structureFunctionPath}" /dev/stdin`;
 
-		console.log(`Executing combined nfdump + StructureFunction command`);
+		console.log(
+			`Executing combined nfdump + StructureFunction command for ${isSource ? 'source' : 'destination'} addresses`
+		);
 
 		const { stdout } = await execAsync(command, {
 			timeout: timeoutMs,
@@ -75,10 +80,15 @@ async function runStructureFunctionAnalysis(
 			return { q, tauTilde, sd };
 		});
 
-		console.log(`Structure function analysis complete: ${data.length} data points generated`);
+		console.log(
+			`Structure function analysis complete: ${data.length} data points generated for ${isSource ? 'source' : 'destination'} addresses`
+		);
 		return data;
 	} catch (error) {
-		console.error('Error running structure function analysis:', error);
+		console.error(
+			`Error running structure function analysis for ${isSource ? 'source' : 'destination'} addresses:`,
+			error
+		);
 		throw error;
 	}
 }
@@ -86,6 +96,7 @@ async function runStructureFunctionAnalysis(
 export const GET: RequestHandler = async ({ params, url }) => {
 	const { slug } = params;
 	const router = url.searchParams.get('router');
+	const sourceParam = url.searchParams.get('source');
 
 	if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
 		return json({ error: 'Invalid slug format' }, { status: 400 });
@@ -95,8 +106,19 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		return json({ error: 'Router parameter is required' }, { status: 400 });
 	}
 
+	if (sourceParam === null) {
+		return json(
+			{ error: 'Source parameter is required (true for source addresses, false for destination)' },
+			{ status: 400 }
+		);
+	}
+
+	const isSource = sourceParam === 'true';
+
 	try {
-		console.log(`Starting structure function analysis for ${router} - ${slug}`);
+		console.log(
+			`Starting structure function analysis for ${router} - ${slug} (${isSource ? 'source' : 'destination'} addresses)`
+		);
 
 		// Get the absolute file path for the NetFlow file from the database
 		const filePath = await getNetflowFilePath(slug, router);
@@ -110,7 +132,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		console.log(`Found NetFlow file: ${filePath}`);
 
 		// Run structure function analysis directly with nfdump piped to MAAD
-		const data = await runStructureFunctionAnalysis(filePath);
+		const data = await runStructureFunctionAnalysis(filePath, isSource);
 
 		if (data.length === 0) {
 			return json(
@@ -119,15 +141,18 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			);
 		}
 
+		const addressType = isSource ? 'Source' : 'Destination';
+
 		return json({
 			slug,
 			router,
 			filename: `nfcapd.${slug}`,
 			structureFunction: data,
 			metadata: {
-				dataSource: `NetFlow File: ${path.basename(filePath)}`,
+				dataSource: `NetFlow File: ${path.basename(filePath)} (${addressType} Addresses)`,
 				uniqueIPCount: -1, // Indicates real NetFlow data (IP count not tracked in new pipeline)
 				pointCount: data.length,
+				addressType: addressType,
 				qRange: {
 					min: Math.min(...data.map((d) => d.q)),
 					max: Math.max(...data.map((d) => d.q))
