@@ -1,10 +1,10 @@
-import type { Chart, Plugin } from 'chart.js';
+import type { Chart, ChartArea, Plugin } from 'chart.js';
 
 interface CrosshairState {
 	mouseX: number | null;
 	isMouseOver: boolean;
 	showTooltip: boolean;
-	tooltipTimeout: any;
+	tooltipTimeout: NodeJS.Timeout | null;
 	hoveredDate: string | null;
 }
 
@@ -66,7 +66,7 @@ function drawTooltip(
 	ctx: CanvasRenderingContext2D,
 	mouseX: number,
 	date: string,
-	chartArea: any,
+	chartArea: ChartArea,
 	options: CrosshairOptions['tooltip']
 ) {
 	// Set font for text measurement
@@ -158,7 +158,7 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 		});
 	},
 
-	afterEvent(chart: Chart, args: { event: any }, options: CrosshairOptions) {
+	afterEvent(chart: Chart, args: { event: MouseEvent }, options: CrosshairOptions) {
 		const state = chartStates.get(chart);
 		if (!state || !options.enabled) return;
 
@@ -226,7 +226,7 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 		}
 	},
 
-	afterDraw(chart: Chart, args: any, options: CrosshairOptions) {
+	afterDraw(chart: Chart, args: unknown, options: CrosshairOptions) {
 		const state = chartStates.get(chart);
 		if (!state || !options.enabled || !state.isMouseOver || state.mouseX === null) {
 			return;

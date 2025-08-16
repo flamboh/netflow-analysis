@@ -126,6 +126,8 @@
 				scales: {
 					x: {
 						type: 'linear' as const,
+							min: -2.05,
+						max: 4.05,
 						title: {
 							display: true,
 							text: 'q (moment parameter)'
