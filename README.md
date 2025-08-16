@@ -37,7 +37,7 @@ SQLite database (`flowStats.db`) with `netflow_stats` table containing:
 
 - Node.js 20+
 - Python 3.x with `nfdump` available
-- SSH access to UO research infrastructure
+- SSH access to pinot, to use ONRG database
 
 ### Installation
 
