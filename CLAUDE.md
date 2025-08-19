@@ -10,19 +10,28 @@ NetFlow Analysis is a web-based network flow analysis tool that visualizes netwo
 
 **Data Flow:**
 
-1. Netflow data files processed by `netflow-db/db.py` into SQLite database (`flowStats.db`)
-2. SvelteKit API endpoint (`src/routes/data/+server.ts`) queries SQLite database with better-sqlite3
-3. Frontend visualizes data using Chart.js with interactive date/time controls and groupBy functionality
-4. Data aggregation supports month/date/hour grouping with 15 different metrics
+1. Netflow data files processed by `netflow-db/flow_db.py` into SQLite database (`flowStats.db`)
+2. MAAD analysis results managed by `netflow-db/maad_db.py` for multifractal anomaly detection
+3. SvelteKit API endpoints query SQLite database with better-sqlite3:
+   - `/api/netflow/stats/` - Aggregated network statistics
+   - `/api/netflow/files/[slug]/` - Individual file analysis
+   - `/api/netflow/files/[slug]/structure-function/` - Real-time MAAD analysis
+   - `/api/database/` - Database update trigger with logging
+4. Frontend visualizes data using Chart.js with interactive date/time controls and groupBy functionality
+5. Data aggregation supports month/date/hour grouping with 15 different metrics
+6. Individual NetFlow file pages display structure function analysis for source and destination addresses
 
 **Key Components:**
 
 - `netflow-webapp/` - SvelteKit application with interactive Chart.js visualization
 - `netflow-db/` - Python SQLite database setup and data processing pipeline
+  - `flow_db.py` - Main NetFlow data processing and database population
+  - `maad_db.py` - MAAD analysis results management and storage
 - `maad/` - Haskell-based Multifractal Address Anomaly Detection module for advanced network security analysis
-- `flowStats.db` - SQLite database containing processed netflow statistics
+- `flowStats.db` - SQLite database containing processed netflow statistics and MAAD analysis results
 - `src/routes/+page.svelte` - Main interface with intelligent chart type selection
-- `src/routes/data/+server.ts` - API endpoint with binary metric encoding
+- `src/routes/+layout.svelte` - Navigation layout with database update button
+- `src/routes/api/netflow/files/[slug]/+page.svelte` - Individual file analysis with structure function visualization
 
 **Supported Routers:**
 
@@ -41,6 +50,10 @@ npm run check        # TypeScript type checking
 npm run format       # Format with Prettier
 npm run lint         # Run ESLint and Prettier checks
 
+# Database management (run from netflow-db/)
+python3 flow_db.py   # Update NetFlow statistics database
+python3 maad_db.py   # Process MAAD analysis results (planned)
+
 # MAAD compilation (run from maad/)
 nix-shell            # Enter nix environment with required Haskell dependencies
 ./compile.sh         # Compile Haskell executables (Singularities, StructureFunction)
@@ -53,9 +66,12 @@ nix-shell            # Enter nix environment with required Haskell dependencies
 - Path: `/research/tango_cis/uonet-in/{router}/YYYY/MM/DD/nfcapd.YYYYMMDDHHmm`
 - Routers: `cc-ir1-gw`, `oh-ir1-gw`
 
-**Database Schema** (from `netflow-db/db.py`):
+**Database Schema**:
 
-- Table: `netflow_stats` with 20+ columns tracking flows, packets, bytes by protocol
+- `netflow_stats` - 20+ columns tracking flows, packets, bytes by protocol (from `flow_db.py`)
+- `maad_metadata` - Links MAAD analysis to netflow_stats records (planned, from `maad_db.py`)
+- `structure_function_results` - Cached structure function analysis results (planned)
+- `spectrum_results` - Cached spectrum analysis results (planned)
 - Indexed by router and timestamp for efficient querying
 - Supports aggregation queries for different time groupings
 
@@ -73,22 +89,34 @@ nix-shell            # Enter nix environment with required Haskell dependencies
 The main interface (`src/routes/+page.svelte`) supports:
 
 ### Chart Types and Intelligence
+
 - **Stacked Area Charts**: Automatically displayed when selecting metrics of the same type (all flows, all packets, or all bytes)
 - **Logarithmic Line Charts**: Used for heterogeneous metric combinations with different scales
 - Intelligent chart type detection based on metric homogeneity
 
 ### Interactive Features
+
 - **3-Level Drill-Down**: Click month→date→hour→reset navigation
 - **Auto-Loading**: Data loads automatically on mount and state changes
 - **Real-time Updates**: Chart responds instantly to router/metric selection changes
 - 15 different network metrics (flows, packets, bytes by protocol TCP/UDP/ICMP/Other)
 
 ### Navigation and Controls
+
 - Date range selection with router filtering (`cc-ir1-gw`, `oh-ir1-gw`)
 - Time aggregation by month, date, or hour with automatic date range adjustment
 - Quick selection buttons for "All Flows", "All Packets", "All Bytes"
 - Dynamic x-axis formatting and y-axis scaling (K/M/B/T/P units)
 - Responsive chart design with 20-color cycling palette
+- **Database Update Button**: Triggers flow_db.py execution with PST logging to `./logs/flowStats/`
+
+### Individual NetFlow File Analysis
+
+- **File Pages**: Accessible via `/files` route, individual file analysis at `/api/netflow/files/[slug]/`
+- **Structure Function Visualization**: Real-time MAAD analysis with Chart.js display
+- **Dual Analysis**: Separate graphs for source and destination address analysis
+- **Error Handling**: Retry buttons for failed analysis, loading states, timeout management
+- **Metadata Display**: File information, processing timestamps, protocol breakdowns
 
 ## Access Method
 
@@ -101,12 +129,14 @@ The MAAD module provides advanced network security analysis capabilities using m
 ### MAAD Components
 
 **Core Haskell Modules:**
+
 - `Singularities.hs` - Computes alpha(x) singularity metrics to identify anomalous addresses
 - `StructureFunction.hs` - Calculates tau(q) structure functions for multifractal analysis
 - `Common.hs` - IPv4 address utilities and bit manipulation functions
 - `PrefixMap.hs` - Efficient prefix-based IP address mapping and aggregation
 
 **Build System:**
+
 - `shell.nix` - Nix environment with required Haskell dependencies (bytestring, statistics, etc.)
 - `compile.sh` - GHC compilation script for optimized executables
 - `test_data/` - Sample IPv4 address lists for testing (simple.csv, caida_100k.csv)
@@ -114,6 +144,7 @@ The MAAD module provides advanced network security analysis capabilities using m
 ### MAAD Usage
 
 **Singularities Analysis:**
+
 ```bash
 # Identify top N anomalous addresses
 ./Singularities <N> <input_file>
@@ -121,149 +152,48 @@ The MAAD module provides advanced network security analysis capabilities using m
 ```
 
 **Structure Function Analysis:**
+
 ```bash
 # Compute multifractal structure function
-./StructureFunction <input_file>  
+./StructureFunction <input_file>
 # Example: ./StructureFunction test_data/simple.csv
 ```
 
 **Input Format:**
+
 - IPv4 addresses in dotted-decimal notation (192.0.2.1)
 - One address per line
 - Use "-" for stdin input
 
 ### Integration with NetFlow Analysis
 
-**Current Status:**
-- `netflow-db/maad.py` - Empty Python interface (future integration point)
-- MAAD designed to complement existing netflow statistics with anomaly detection capabilities
-- Planned integration: Extract IP addresses from netflow data → MAAD analysis → Display anomaly metrics in webapp
+**Current Implementation:**
 
-**Future Integration Plans:**
-1. **Data Pipeline**: Extract IP addresses from SQLite database to feed MAAD tools
-2. **API Endpoints**: Add anomaly detection results to existing REST API structure
-3. **Visualization**: Display singularity metrics and anomalous addresses in Chart.js interface
-4. **Real-time Analysis**: Integrate MAAD processing into regular netflow data updates
+- **Real-time Structure Function Analysis**: `/api/netflow/files/[slug]/structure-function/` endpoint
+- **Direct NetFlow Processing**: Uses `nfdump` to extract IP addresses and pipe to MAAD tools
+- **Web Visualization**: Chart.js displays structure function results with error bars
+- **Dual Address Analysis**: Separate processing for source and destination addresses
+- **Database Integration**: Queries `netflow_stats` to locate NetFlow files by timestamp
+- **Performance Optimization**: 60-second timeout, 10MB buffer limits for large files
+
+**Database Storage (Planned):**
+
+- `netflow-db/maad_db.py` - Batch processing and caching of MAAD analysis results
+- Pre-computed storage for Structure Function and Spectrum analysis
+- Immutable analysis results cached permanently after computation
+- Integration with existing flowStats.db schema
+
+**Processing Pipeline:**
+
+1. **Real-time**: API endpoint extracts addresses with `nfdump` → pipes to `StructureFunction` → returns JSON
+2. **Batch**: `maad_db.py` processes unanalyzed files → stores results in database → serves cached results
+3. **Hybrid**: Check database cache first, compute on-demand for cache misses
 
 **Technical Requirements:**
+
 - Haskell GHC compiler with statistics, bytestring, and vector libraries
 - Nix package manager recommended for dependency management
 - Python integration layer for database connectivity
 
-## Svelte/SvelteKit Architecture Analysis
-
-### Current Alignment with Svelte Design Philosophy
-
-**✅ Strengths:**
-
-1. **Modern Svelte 5 Runes Usage**: The project correctly uses Svelte 5's new `$state` runes for reactive state management, replacing legacy `let` declarations with explicit reactivity
-2. **Proper File-based Routing**: Follows SvelteKit's file-based routing conventions with `+page.svelte`, `+page.server.ts`, and `+server.ts` files
-3. **Server-side Data Loading**: Uses `+page.server.ts` for database operations, keeping database logic on the server side
-4. **TypeScript Integration**: Proper use of TypeScript with SvelteKit's generated types (`$types`)
-5. **Component Structure**: Well-organized component library in `src/lib/components/ui/` following modern component patterns
-
-**⚠️ Areas for Improvement:**
-
-1. **State Management Architecture**: The main page (`+page.svelte`) contains ~500 lines with complex state logic mixed with UI. This violates Svelte's philosophy of component composition
-2. **Missing Reactive Derivations**: Heavy use of imperative effects (`onMount`, manual chart updates) instead of Svelte 5's `$derived` for computed state
-3. **Mixed Concerns**: Chart.js integration, data fetching, and UI logic are tightly coupled in a single component
-4. **Legacy Patterns**: Still uses `onMount` and imperative DOM manipulation instead of leveraging Svelte 5's reactive primitives
-5. **Type Safety**: Several `any` types and missing proper TypeScript interfaces for data structures
-
-### Recommended Refactoring for Svelte Best Practices
-
-**1. Component Decomposition:**
-```svelte
-src/routes/+page.svelte (simplified coordinator)
-src/lib/components/
-├── charts/
-│   ├── ChartContainer.svelte
-│   ├── ChartControls.svelte
-│   └── chart-utils.ts
-├── filters/
-│   ├── DateRangeFilter.svelte
-│   ├── RouterFilter.svelte
-│   └── MetricSelector.svelte
-└── netflow/
-    ├── NetflowDashboard.svelte
-    └── types.ts
-```
-
-**2. State Management with Runes:**
-```javascript
-// src/lib/stores/netflow.svelte.js
-export const chartState = $state({
-  startDate: '2024-03-01',
-  endDate: new Date().toISOString().slice(0, 10),
-  routers: { 'cc-ir1-gw': true, 'oh-ir1-gw': true },
-  groupBy: 'date'
-});
-
-export const chartData = $derived.by(async () => {
-  // Reactive data fetching based on chartState
-});
-```
-
-**3. Better Load Function Architecture:**
-```typescript
-// src/routes/+layout.server.ts
-export const load = async () => ({
-  routers: await getAvailableRouters(),
-  dateRange: await getAvailableDateRange()
-});
-
-// src/routes/+page.js (universal load)
-export const load = async ({ fetch, url, depends }) => {
-  depends('netflow:data');
-  // Handle client-side navigation and data fetching
-};
-```
-
-### REST API Recommendations
-
-The current API endpoint (`/data/+server.ts`) could be restructured to follow REST conventions:
-
-**Current:**
-- `GET /data?params...` (single endpoint with query parameters)
-
-**Proposed RESTful Structure:**
-```
-GET    /api/routers                    # List available routers
-GET    /api/routers/{id}/metrics       # Get metrics for specific router
-GET    /api/netflow/stats             # Aggregated statistics (current /data functionality)
-GET    /api/netflow/files/{slug}      # Individual file details (current /nfcapd/[slug])
-GET    /api/netflow/summary           # Dashboard summary data
-GET    /api/health                    # Service health check
-```
-
-**Benefits:**
-- Clear resource-based URLs
-- Cacheable endpoints
-- Better separation of concerns
-- Easier API documentation and testing
-- Future extensibility for additional data sources
-
-**Implementation Strategy:**
-```
-src/routes/api/
-├── routers/
-│   └── +server.ts
-├── netflow/
-│   ├── stats/+server.ts
-│   ├── files/[slug]/+server.ts
-│   └── summary/+server.ts
-└── health/+server.ts
-```
-
-### Action Items for Svelte 5 Modernization
-
-1. **Refactor Main Component**: Break down `+page.svelte` into focused, single-responsibility components
-2. **Implement Reactive Derivations**: Replace imperative effects with `$derived` for computed state
-3. **Add Proper TypeScript**: Define interfaces for all data structures and API responses
-4. **State Management**: Move shared state to `.svelte.js` files with proper rune usage
-5. **Error Boundaries**: Add `<svelte:boundary>` for better error handling
-6. **Performance**: Use `$state.raw` for large datasets that don't need deep reactivity
-7. **Testing**: Add component tests using Svelte Testing Library with runes support
-8. **Environment Variables**: Add environment variables for the location of the NetFlow data
-
-This refactoring would align the project with Svelte 5's design philosophy of explicit reactivity, component composition, and clear separation of concerns while maintaining the existing functionality.
+- Use YYYY-MM-DD HH:mm:ss format for any dates
+- Keep commit messages brief. One sentence usually. Avoid adding bullet points for commit messages with 1-2 significant changes. Don't explain much of implementation details.

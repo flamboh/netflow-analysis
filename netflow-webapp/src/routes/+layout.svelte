@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { fade } from 'svelte/transition';
 
 	let { children } = $props();
 
@@ -25,7 +26,7 @@
 			const result = await response.json();
 
 			if (result.success) {
-				updateMessage = result.message + (result.logFile ? ` (Log: ${result.logFile})` : '');
+				updateMessage = result.message + (result.logFile ? ` (Logs at: ./logs/flowStats)` : '');
 				showMessage = true;
 				// Hide success message after 5 seconds
 				setTimeout(() => {
@@ -33,7 +34,8 @@
 				}, 5000);
 			} else {
 				updateMessage =
-					(result.message || 'Update failed') + (result.logFile ? ` (Log: ${result.logFile})` : '');
+					(result.message || 'Update failed') +
+					(result.logFile ? ` (Logs at: ./logs/flowStats)` : '');
 				showMessage = true;
 				// Hide error message after 10 seconds
 				setTimeout(() => {
@@ -77,9 +79,12 @@
 </header>
 
 {#if showMessage}
-	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+	<div
+		class="fixed left-1/2 top-4 z-50 w-full max-w-md -translate-x-1/2 transform px-4"
+		transition:fade={{ duration: 300 }}
+	>
 		<div
-			class="mt-4 rounded-md p-4 {updateMessage.includes('success') ||
+			class="rounded-md p-4 shadow-lg {updateMessage.includes('success') ||
 			updateMessage.includes('completed')
 				? 'border border-green-200 bg-green-50 text-green-800'
 				: 'border border-red-200 bg-red-50 text-red-800'}"

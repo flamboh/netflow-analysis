@@ -198,11 +198,11 @@
 									</button>
 								</div>
 							{:else if structureFunctionDataDestination.get(record.router)}
-								<div class="mb-2 text-xs text-green-600">
+								<!-- <div class="mb-2 text-xs text-green-600">
 									Debug: Destination data loaded - {structureFunctionDataDestination.get(
 										record.router
 									)?.structureFunction?.length || 0} points
-								</div>
+								</div> -->
 								<StructureFunctionChart
 									data={structureFunctionDataDestination.get(record.router)}
 								/>
