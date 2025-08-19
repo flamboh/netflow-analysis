@@ -124,7 +124,7 @@ Application requires SSH tunnel access as noted in README - designed for researc
 
 ## MAAD (Multifractal Address Anomaly Detection)
 
-The MAAD module provides advanced network security analysis capabilities using multifractal analysis techniques to detect anomalous IP address patterns in network traffic.
+The MAAD submodule provides advanced network security analysis capabilities using multifractal analysis techniques to detect anomalous IP address patterns in network traffic.
 
 ### MAAD Components
 

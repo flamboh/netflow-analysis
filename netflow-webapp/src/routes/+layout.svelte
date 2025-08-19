@@ -65,7 +65,7 @@
 			</div>
 			<div class="flex items-center gap-4">
 				<a href="/" class="text-gray-500 hover:text-gray-900">Home</a>
-				<a href="files" class="text-gray-500 hover:text-gray-900">Files</a>
+				<a href="/api/netflow/files" class="text-gray-500 hover:text-gray-900">Files</a>
 				<button
 					onclick={updateDatabase}
 					disabled={isUpdating}
