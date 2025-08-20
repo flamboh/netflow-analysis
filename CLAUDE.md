@@ -32,6 +32,7 @@ NetFlow Analysis is a web-based network flow analysis tool that visualizes netwo
 - `src/routes/+page.svelte` - Main interface with intelligent chart type selection
 - `src/routes/+layout.svelte` - Navigation layout with database update button
 - `src/routes/api/netflow/files/[slug]/+page.svelte` - Individual file analysis with structure function visualization
+- `src/lib/types/types.ts` - TypeScript type definitions for NetFlow API responses and database query results; add reusable types here when they occur multiple times across the codebase
 
 **Supported Routers:**
 

@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { DATABASE_PATH } from '$env/static/private';
 import type { RequestHandler } from './$types';
+import type { NetflowStatsRow, NetflowStatsResult } from '$lib/types/types';
 import Database from 'better-sqlite3';
 import path from 'path';
 
@@ -56,9 +57,9 @@ function getDataOptions(dataOptionsBinary: number) {
 export const GET: RequestHandler = async ({ url }) => {
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
-	const fullDay = url.searchParams.get('fullDay') === 'true';
-	const time = url.searchParams.get('time') || '1200';
-	const endTime = url.searchParams.get('endTime') || '0100';
+	// const fullDay = url.searchParams.get('fullDay') === 'true';
+	// const time = url.searchParams.get('time') || '1200';
+	// const endTime = url.searchParams.get('endTime') || '0100';
 	const routersParam = url.searchParams.get('routers') || '';
 	const dataOptionsBinary = parseInt(url.searchParams.get('dataOptions') || '0');
 	const groupBy = url.searchParams.get('groupBy') || 'month';
@@ -100,33 +101,33 @@ export const GET: RequestHandler = async ({ url }) => {
 		query += ` GROUP BY ${groupByQuery} ORDER BY date`;
 
 		const stmt = db.prepare(query);
-		const rows = stmt.all(...params);
+		const rows = stmt.all(...params) as NetflowStatsRow[];
 
 		db.close();
 
 		// Format results to match the expected structure from +page.svelte
-		const result = rows.map((row: any) => {
+		const result: NetflowStatsResult[] = rows.map((row) => {
 			// Convert date back to YYYYMMDD format
 			const dateStr = row.date.replace(/-/g, '');
 
 			// Build data string in the expected format (matching nfdump -I output)
 			const dataLines = [
 				`Date: ${dateStr}`,
-				`Flows: ${row.flows}`,
-				`Flows_tcp: ${row.flows_tcp}`,
-				`Flows_udp: ${row.flows_udp}`,
-				`Flows_icmp: ${row.flows_icmp}`,
-				`Flows_other: ${row.flows_other}`,
-				`Packets: ${row.packets}`,
-				`Packets_tcp: ${row.packets_tcp}`,
-				`Packets_udp: ${row.packets_udp}`,
-				`Packets_icmp: ${row.packets_icmp}`,
-				`Packets_other: ${row.packets_other}`,
-				`Bytes: ${row.bytes}`,
-				`Bytes_tcp: ${row.bytes_tcp}`,
-				`Bytes_udp: ${row.bytes_udp}`,
-				`Bytes_icmp: ${row.bytes_icmp}`,
-				`Bytes_other: ${row.bytes_other}`
+				`Flows: ${row.flows ?? 0}`,
+				`Flows_tcp: ${row.flows_tcp ?? 0}`,
+				`Flows_udp: ${row.flows_udp ?? 0}`,
+				`Flows_icmp: ${row.flows_icmp ?? 0}`,
+				`Flows_other: ${row.flows_other ?? 0}`,
+				`Packets: ${row.packets ?? 0}`,
+				`Packets_tcp: ${row.packets_tcp ?? 0}`,
+				`Packets_udp: ${row.packets_udp ?? 0}`,
+				`Packets_icmp: ${row.packets_icmp ?? 0}`,
+				`Packets_other: ${row.packets_other ?? 0}`,
+				`Bytes: ${row.bytes ?? 0}`,
+				`Bytes_tcp: ${row.bytes_tcp ?? 0}`,
+				`Bytes_udp: ${row.bytes_udp ?? 0}`,
+				`Bytes_icmp: ${row.bytes_icmp ?? 0}`,
+				`Bytes_other: ${row.bytes_other ?? 0}`
 				// `Sequence failures: ${row.sequence_failures}`
 			];
 
