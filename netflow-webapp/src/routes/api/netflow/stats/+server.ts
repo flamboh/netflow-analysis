@@ -31,11 +31,11 @@ function getGroupByQuery(groupBy: string) {
 	} else if (groupBy === 'date') {
 		return "strftime('%Y-%m-%d', timestamp, 'unixepoch')";
 	} else if (groupBy === 'hour') {
-		return "strftime('%Y-%m-%d %H:00:00', timestamp, 'unixepoch')";
+		return "strftime('%Y-%m-%d %H:00:00', timestamp, 'unixepoch', 'localtime')";
 	} else if (groupBy === '30min') {
-		return "strftime('%Y-%m-%d %H:', timestamp, 'unixepoch') || CASE WHEN CAST(strftime('%M', timestamp, 'unixepoch') AS INTEGER) < 30 THEN '00:00' ELSE '30:00' END";
+		return "strftime('%Y-%m-%d %H:', timestamp, 'unixepoch', 'localtime') || CASE WHEN CAST(strftime('%M', timestamp, 'unixepoch', 'localtime') AS INTEGER) < 30 THEN '00:00' ELSE '30:00' END";
 	} else if (groupBy === '5min') {
-		return "strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch')";
+		return "strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch', 'localtime')";
 	}
 }
 
