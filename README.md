@@ -135,6 +135,3 @@ This application requires SSH tunnel access to the UO research infrastructure wh
 Please ensure any changes maintain compatibility with the existing database schema and follow the established TypeScript/SvelteKit patterns.
 
 ## Known Issues/Bugs
-
-- Desync between database time and displayed time
-  - Could relate to timezones and/or use of epoch time?
