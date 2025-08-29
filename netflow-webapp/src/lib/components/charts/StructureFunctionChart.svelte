@@ -101,7 +101,7 @@
 		const chartData = {
 			datasets: [
 				{
-					label: 'τ̃(q) - Structure Function',
+					label: 'tau(q)',
 					data: points.map((p) => ({ x: p.q, y: p.tauTilde })),
 					borderColor: 'rgb(59, 130, 246)',
 					backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -130,14 +130,14 @@
 						max: 4.1,
 						title: {
 							display: true,
-							text: 'q (moment parameter)'
+							text: 'q'
 						}
 					},
 					y: {
 						type: 'linear' as const,
 						title: {
 							display: true,
-							text: 'τ̃(q) - Structure Function'
+							text: 'tau(q)'
 						},
 						position: 'left' as const
 					}
@@ -145,7 +145,7 @@
 				plugins: {
 					title: {
 						display: true,
-						text: `Multifractal Structure Function - ${data.router} - ${data.filename}`,
+						text: `Structure Function - ${data.router} - ${data.filename}`,
 						font: {
 							size: 16
 						}

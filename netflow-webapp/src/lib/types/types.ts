@@ -21,3 +21,22 @@ export interface NetflowStatsResult {
 	time: string;
 	data: string;
 }
+
+export interface SpectrumPoint {
+	alpha: number;
+	f: number;
+}
+
+export interface SpectrumData {
+	slug: string;
+	router: string;
+	filename: string;
+	spectrum: SpectrumPoint[];
+	metadata: {
+		dataSource: string;
+		uniqueIPCount?: number;
+		pointCount: number;
+		addressType: string;
+		alphaRange: { min: number; max: number };
+	};
+}

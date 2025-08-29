@@ -1,23 +1,32 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
 	import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
+	import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
 	import { onMount } from 'svelte';
 
 	let { data }: PageProps = $props();
 	let structureFunctionDataSource = $state(new Map());
 	let structureFunctionDataDestination = $state(new Map());
+	let spectrumDataSource = $state(new Map());
+	let spectrumDataDestination = $state(new Map());
 	let loadingSource = $state(new Map());
 	let loadingDestination = $state(new Map());
+	let loadingSpectrumSource = $state(new Map());
+	let loadingSpectrumDestination = $state(new Map());
 	let errorsSource = $state(new Map());
 	let errorsDestination = $state(new Map());
+	let errorsSpectrumSource = $state(new Map());
+	let errorsSpectrumDestination = $state(new Map());
 
 	onMount(async () => {
-		// Load structure function data for each router (both source and destination)
+		// Load structure function and spectrum data for each router (both source and destination)
 		for (const record of data.summary) {
-			// Load source and destination data in parallel
+			// Load source and destination data in parallel for both analyses
 			await Promise.all([
 				loadStructureFunctionData(record.router, record.file_path, true), // source
-				loadStructureFunctionData(record.router, record.file_path, false) // destination
+				loadStructureFunctionData(record.router, record.file_path, false), // destination
+				loadSpectrumData(record.router, record.file_path, true), // source spectrum
+				loadSpectrumData(record.router, record.file_path, false) // destination spectrum
 			]);
 		}
 	});
@@ -80,6 +89,68 @@
 			} else {
 				loadingDestination.set(router, false);
 				loadingDestination = new Map(loadingDestination);
+			}
+		}
+	}
+
+	async function loadSpectrumData(router: string, file_path: string, source: boolean) {
+		// Set loading state
+		if (source) {
+			loadingSpectrumSource.set(router, true);
+			loadingSpectrumSource = new Map(loadingSpectrumSource);
+			errorsSpectrumSource.set(router, '');
+			errorsSpectrumSource = new Map(errorsSpectrumSource);
+		} else {
+			loadingSpectrumDestination.set(router, true);
+			loadingSpectrumDestination = new Map(loadingSpectrumDestination);
+			errorsSpectrumDestination.set(router, '');
+			errorsSpectrumDestination = new Map(errorsSpectrumDestination);
+		}
+
+		try {
+			const response = await fetch(
+				`/api/netflow/files/${data.slug}/spectrum?router=${encodeURIComponent(router)}&source=${source}`
+			);
+			if (!response.ok) {
+				throw new Error(`Failed to load spectrum data: ${response.statusText}`);
+			}
+			const result = await response.json();
+			console.log(
+				`Spectrum data loaded for ${router} (${source ? 'source' : 'destination'}):`,
+				result
+			);
+
+			// Store the result in the appropriate data map
+			if (source) {
+				spectrumDataSource.set(router, result);
+				spectrumDataSource = new Map(spectrumDataSource);
+			} else {
+				spectrumDataDestination.set(router, result);
+				spectrumDataDestination = new Map(spectrumDataDestination);
+			}
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+			console.error(
+				`Failed to load spectrum data for ${router} (${source ? 'source' : 'destination'}):`,
+				e
+			);
+
+			// Set error state
+			if (source) {
+				errorsSpectrumSource.set(router, errorMessage);
+				errorsSpectrumSource = new Map(errorsSpectrumSource);
+			} else {
+				errorsSpectrumDestination.set(router, errorMessage);
+				errorsSpectrumDestination = new Map(errorsSpectrumDestination);
+			}
+		} finally {
+			// Clear loading state
+			if (source) {
+				loadingSpectrumSource.set(router, false);
+				loadingSpectrumSource = new Map(loadingSpectrumSource);
+			} else {
+				loadingSpectrumDestination.set(router, false);
+				loadingSpectrumDestination = new Map(loadingSpectrumDestination);
 			}
 		}
 	}
@@ -147,66 +218,117 @@
 					</div>
 				</div>
 
-				<!-- MAAD Structure Function Analysis for this Router -->
+				<!-- MAAD Analysis for this Router -->
 				<div class="rounded-b-lg bg-purple-50 p-4">
-					<h4 class="text-md mb-3 font-semibold text-gray-800">Structure Function Analysis</h4>
+					<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
 
-					<!-- Side-by-side layout for Source and Destination graphs -->
-					<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-						<!-- Source Address Analysis -->
-						<div class="space-y-3">
-							<h5 class="text-sm font-medium text-blue-700">Source Address Analysis</h5>
-							{#if loadingSource.get(record.router)}
-								<div class="flex items-center justify-center py-6">
-									<div class="text-gray-600">Loading source address analysis...</div>
-								</div>
-							{:else if errorsSource.get(record.router)}
-								<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-									<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
-									<button
-										class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-										onclick={() => loadStructureFunctionData(record.router, record.file_path, true)}
-									>
-										Retry Source
-									</button>
-								</div>
-							{:else if structureFunctionDataSource.get(record.router)}
-								<!-- <div class="mb-2 text-xs text-green-600">
-									Debug: Source data loaded - {structureFunctionDataSource.get(record.router)
-										?.structureFunction?.length || 0} points
-								</div> -->
-								<StructureFunctionChart data={structureFunctionDataSource.get(record.router)} />
-							{/if}
+					<!-- Structure Function Analysis -->
+					<div class="mb-6">
+						<h5 class="text-md mb-3 font-medium text-gray-700">Structure Function τ(q)</h5>
+						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+							<!-- Source Address Analysis -->
+							<div class="space-y-3">
+								<h6 class="text-sm font-medium text-blue-700">Source Address Analysis</h6>
+								{#if loadingSource.get(record.router)}
+									<div class="flex items-center justify-center py-6">
+										<div class="text-gray-600">Loading source address analysis...</div>
+									</div>
+								{:else if errorsSource.get(record.router)}
+									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+										<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
+										<button
+											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+											onclick={() =>
+												loadStructureFunctionData(record.router, record.file_path, true)}
+										>
+											Retry Source
+										</button>
+									</div>
+								{:else if structureFunctionDataSource.get(record.router)}
+									<StructureFunctionChart data={structureFunctionDataSource.get(record.router)} />
+								{/if}
+							</div>
+
+							<!-- Destination Address Analysis -->
+							<div class="space-y-3">
+								<h6 class="text-sm font-medium text-purple-700">Destination Address Analysis</h6>
+								{#if loadingDestination.get(record.router)}
+									<div class="flex items-center justify-center py-6">
+										<div class="text-gray-600">Loading destination address analysis...</div>
+									</div>
+								{:else if errorsDestination.get(record.router)}
+									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+										<p>
+											Error loading destination analysis: {errorsDestination.get(record.router)}
+										</p>
+										<button
+											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+											onclick={() =>
+												loadStructureFunctionData(record.router, record.file_path, false)}
+										>
+											Retry Destination
+										</button>
+									</div>
+								{:else if structureFunctionDataDestination.get(record.router)}
+									<StructureFunctionChart
+										data={structureFunctionDataDestination.get(record.router)}
+									/>
+								{/if}
+							</div>
 						</div>
+					</div>
 
-						<!-- Destination Address Analysis -->
-						<div class="space-y-3">
-							<h5 class="text-sm font-medium text-purple-700">Destination Address Analysis</h5>
-							{#if loadingDestination.get(record.router)}
-								<div class="flex items-center justify-center py-6">
-									<div class="text-gray-600">Loading destination address analysis...</div>
-								</div>
-							{:else if errorsDestination.get(record.router)}
-								<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-									<p>Error loading destination analysis: {errorsDestination.get(record.router)}</p>
-									<button
-										class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-										onclick={() =>
-											loadStructureFunctionData(record.router, record.file_path, false)}
-									>
-										Retry Destination
-									</button>
-								</div>
-							{:else if structureFunctionDataDestination.get(record.router)}
-								<!-- <div class="mb-2 text-xs text-green-600">
-									Debug: Destination data loaded - {structureFunctionDataDestination.get(
-										record.router
-									)?.structureFunction?.length || 0} points
-								</div> -->
-								<StructureFunctionChart
-									data={structureFunctionDataDestination.get(record.router)}
-								/>
-							{/if}
+					<!-- Multifractal Spectrum Analysis -->
+					<div class="mb-4">
+						<h5 class="text-md mb-3 font-medium text-gray-700">Spectrum f(alpha)</h5>
+						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+							<!-- Source Address Spectrum -->
+							<div class="space-y-3">
+								<h6 class="text-sm font-medium text-blue-700">Source Address Spectrum</h6>
+								{#if loadingSpectrumSource.get(record.router)}
+									<div class="flex items-center justify-center py-6">
+										<div class="text-gray-600">Loading source spectrum analysis...</div>
+									</div>
+								{:else if errorsSpectrumSource.get(record.router)}
+									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+										<p>Error loading source spectrum: {errorsSpectrumSource.get(record.router)}</p>
+										<button
+											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+											onclick={() => loadSpectrumData(record.router, record.file_path, true)}
+										>
+											Retry Source
+										</button>
+									</div>
+								{:else if spectrumDataSource.get(record.router)}
+									<SpectrumChart data={spectrumDataSource.get(record.router)} />
+								{/if}
+							</div>
+
+							<!-- Destination Address Spectrum -->
+							<div class="space-y-3">
+								<h6 class="text-sm font-medium text-purple-700">Destination Address Spectrum</h6>
+								{#if loadingSpectrumDestination.get(record.router)}
+									<div class="flex items-center justify-center py-6">
+										<div class="text-gray-600">Loading destination spectrum analysis...</div>
+									</div>
+								{:else if errorsSpectrumDestination.get(record.router)}
+									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+										<p>
+											Error loading destination spectrum: {errorsSpectrumDestination.get(
+												record.router
+											)}
+										</p>
+										<button
+											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+											onclick={() => loadSpectrumData(record.router, record.file_path, false)}
+										>
+											Retry Destination
+										</button>
+									</div>
+								{:else if spectrumDataDestination.get(record.router)}
+									<SpectrumChart data={spectrumDataDestination.get(record.router)} />
+								{/if}
+							</div>
 						</div>
 					</div>
 				</div>
