@@ -20,7 +20,7 @@ jobs:
         run: |
           cd netflow-webapp
           ls -la .env* || echo "No .env files found"
-          cat .env || echo ".env file is empty or missing
+          cat .env || echo ".env file is empty or missing"
 
       - name: Typecheck
         run: cd netflow-webapp && npm run typecheck
