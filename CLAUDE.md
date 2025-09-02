@@ -199,4 +199,4 @@ The MAAD submodule provides advanced network security analysis capabilities usin
 - Use YYYY-MM-DD HH:mm:ss format for any dates
 - Keep commit messages brief. One sentence usually. Avoid adding bullet points for commit messages with 1-2 significant changes. Don't explain much of implementation details.
 
-- Never use any type aside within complex chart components, include an inline eslint disable
+- Avoid using the `any` type. If it is truly unavoidable in complex chart components, use a narrowly scoped `as any` cast and add an inline ESLint disable for `@typescript-eslint/no-explicit-any` with a short justification.
