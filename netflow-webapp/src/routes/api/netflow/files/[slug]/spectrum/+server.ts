@@ -134,10 +134,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		const data = await runSpectrumAnalysis(filePath, isSource);
 
 		if (data.length === 0) {
-			return json(
-				{ error: 'No data points generated from spectrum analysis' },
-				{ status: 422 }
-			);
+			return json({ error: 'No data points generated from spectrum analysis' }, { status: 422 });
 		}
 
 		const addressType = isSource ? 'Source' : 'Destination';
