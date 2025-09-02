@@ -20,15 +20,16 @@
 
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
-		for (const record of data.summary) {
+		const tasks = data.summary.map((record) => {
 			// Load source and destination data in parallel for both analyses
-			await Promise.all([
+			Promise.all([
 				loadStructureFunctionData(record.router, record.file_path, true), // source
 				loadStructureFunctionData(record.router, record.file_path, false), // destination
 				loadSpectrumData(record.router, record.file_path, true), // source spectrum
 				loadSpectrumData(record.router, record.file_path, false) // destination spectrum
 			]);
-		}
+		});
+		await Promise.all(tasks);
 	});
 
 	async function loadStructureFunctionData(router: string, file_path: string, source: boolean) {
@@ -167,7 +168,11 @@
 			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
 			<div>
-				Processed in DB: {new Date(data.summary[0].processed_at).toLocaleString()}
+				{#if data.summary?.length}
+					Processed in DB: {new Date(data.summary[0].processed_at).toLocaleString()}
+				{:else}
+					Processed in DB: N/A
+				{/if}
 			</div>
 		</div>
 	</div>
