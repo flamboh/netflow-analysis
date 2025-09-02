@@ -16,7 +16,8 @@
 		ChartTypeOption,
 		DataOption,
 		ClickedElement,
-		ChartConfig
+		ChartConfig,
+		ChartDataset
 	} from '$lib/components/netflow/types.ts';
 
 	interface Props {
@@ -33,20 +34,36 @@
 	let chartCanvas: HTMLCanvasElement;
 	let chart: Chart;
 
-	function getClickedElement(activeElements: any[]): ClickedElement | null {
+	function getClickedElement(
+		activeElements: { datasetIndex: number; index: number }[]
+	): ClickedElement | null {
 		if (activeElements.length > 0) {
 			const element = activeElements[0];
 			const datasetIndex = element.datasetIndex;
 			const index = element.index;
-			const dataset = chart.data.datasets[datasetIndex];
+			const dataset = chart.data.datasets[datasetIndex] as ChartDataset;
 			const label = chart.data.labels?.[index] as string;
-			const value = dataset.data[index];
-			return { dataset, label, value, datasetIndex, index };
+			const value = dataset.data[index] as number;
+			return {
+				dataset: {
+					label,
+					data: dataset.data,
+					backgroundColor: dataset.backgroundColor as string,
+					borderColor: dataset.borderColor as string
+				},
+				label,
+				value,
+				datasetIndex,
+				index
+			};
 		}
 		return null;
 	}
 
-	function handleChartClick(e: any, activeElements: any[]) {
+	function handleChartClick(
+		e: MouseEvent,
+		activeElements: { datasetIndex: number; index: number }[]
+	) {
 		// Always get the canvas position and convert to data values
 		const canvasPosition = getRelativePosition(e, chart);
 		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
@@ -210,7 +227,7 @@
 		];
 
 		// Parse data from results - matches original parsing logic
-		const datasets: any[] = [];
+		const datasets: ChartDataset[] = [];
 		let colorIndex = 0;
 
 		for (const option of dataOptions) {
@@ -243,7 +260,7 @@
 		const allAreBytesMetrics = selectedOptions.every((o) => o.label.includes('Bytes'));
 
 		// Original scales configuration
-		const scales: any = {
+		const scales: Record<string, object> = {
 			x: {
 				title: {
 					display: true,
@@ -261,7 +278,7 @@
 							text: 'Value'
 						},
 						ticks: {
-							callback: function (value: any) {
+							callback: function (value: string | number) {
 								const num = Number(value);
 
 								// Use binary units for bytes, decimal for others
@@ -293,7 +310,7 @@
 							text: 'Value (Log Scale)'
 						},
 						ticks: {
-							callback: function (value: any) {
+							callback: function (value: string | number) {
 								const num = Number(value);
 								if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
 								if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
@@ -341,7 +358,7 @@
 							fontFamily: 'system-ui, sans-serif'
 						}
 					}
-				} as any
+				} as Record<string, object>
 			}
 		};
 	}
@@ -389,9 +406,10 @@
 							fontFamily: 'system-ui, sans-serif'
 						}
 					}
-				} as any
+				} as Record<string, object>
 			}
-		});
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} as any);
 
 		return () => {
 			if (chart) {
@@ -405,7 +423,8 @@
 		if (chart && results.length > 0) {
 			const config = createChartConfig();
 			chart.data = config.data;
-			chart.options = config.options;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			chart.options = config.options as any;
 			chart.update();
 		}
 	});

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import NetflowDashboard from '$lib/components/netflow/NetflowDashboard.svelte';
 	import type { ChartState } from '$lib/components/netflow/types.ts';
-	import { onMount } from 'svelte';
 
 	// Optional: Pass initial state to the dashboard
 	const today = new Date().toJSON().slice(0, 10);
@@ -53,7 +52,7 @@
 
 <div class="min-h-screen bg-gray-100">
 	<main class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
-		{#each Array(numCharts) as _}
+		{#each Array(numCharts) as _, i (i)}
 			<NetflowDashboard {initialState} />
 		{/each}
 		<div class="flex justify-center gap-4">

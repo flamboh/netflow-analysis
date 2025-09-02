@@ -26,7 +26,6 @@
 	let startDate = $state(initialState.startDate || '2024-03-01');
 	let endDate = $state(initialState.endDate || today);
 	let routers = $state<RouterConfig>(initialState.routers || {});
-	let availableRouters = $state<string[]>([]);
 	let groupBy = $state<GroupByOption>(initialState.groupBy || 'date');
 	let chartType = $state<ChartTypeOption>(initialState.chartType || 'stacked');
 	let dataOptions = $state<DataOption[]>(
@@ -154,7 +153,6 @@
 			const response = await fetch('/api/routers');
 			if (response.ok) {
 				const routerList: string[] = await response.json();
-				availableRouters = routerList;
 
 				// Initialize routers with all enabled by default
 				if (Object.keys(routers).length === 0) {

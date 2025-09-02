@@ -42,7 +42,7 @@
 					showMessage = false;
 				}, 10000);
 			}
-		} catch (error) {
+		} catch {
 			updateMessage = 'Network error during database update';
 			showMessage = true;
 			setTimeout(() => {

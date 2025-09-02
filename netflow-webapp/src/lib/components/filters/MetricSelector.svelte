@@ -80,7 +80,7 @@
 	</div>
 
 	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
-		{#each dataOptions as option, index}
+		{#each dataOptions as option, index (index)}
 			<label class="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50">
 				<input
 					type="checkbox"

@@ -125,8 +125,13 @@
 						mode: 'index' as const,
 						intersect: false,
 						callbacks: {
-							title: (items: any[]) => `alpha = ${items[0]?.parsed?.x?.toFixed(6)}`,
-							label: (item: any) => {
+							title: (items: { parsed: { x: number } }[]) =>
+								`alpha = ${items[0]?.parsed?.x?.toFixed(6)}`,
+							label: (item: {
+								dataset: { label: string };
+								parsed: { y: number };
+								dataIndex: number;
+							}) => {
 								const value = item.parsed.y.toFixed(6);
 								return `${item.dataset.label}: ${value}`;
 							}
@@ -140,7 +145,8 @@
 			}
 		};
 
-		chart = new Chart(chartCanvas, config);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		chart = new Chart(chartCanvas, config as any);
 	}
 </script>
 
