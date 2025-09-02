@@ -20,15 +20,13 @@
 
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
-		const tasks = data.summary.map((record) => {
+		const tasks = data.summary.flatMap((record) => [
 			// Load source and destination data in parallel for both analyses
-			Promise.all([
-				loadStructureFunctionData(record.router, record.file_path, true), // source
-				loadStructureFunctionData(record.router, record.file_path, false), // destination
-				loadSpectrumData(record.router, record.file_path, true), // source spectrum
-				loadSpectrumData(record.router, record.file_path, false) // destination spectrum
-			]);
-		});
+			loadStructureFunctionData(record.router, record.file_path, true), // source
+			loadStructureFunctionData(record.router, record.file_path, false), // destination
+			loadSpectrumData(record.router, record.file_path, true), // source spectrum
+			loadSpectrumData(record.router, record.file_path, false) // destination spectrum
+		]);
 		await Promise.all(tasks);
 	});
 
