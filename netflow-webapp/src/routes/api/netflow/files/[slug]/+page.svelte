@@ -173,7 +173,7 @@
 	</div>
 
 	<div class="space-y-6">
-		{#each data.summary as record}
+		{#each data.summary as record (record.router)}
 			<div class="rounded-lg border bg-white shadow-sm">
 				<!-- Router Data Summary -->
 				<div class="bg-cisco-blue rounded-t-lg p-4">
@@ -224,7 +224,7 @@
 
 					<!-- Structure Function Analysis -->
 					<div class="mb-6">
-						<h5 class="text-md mb-3 font-medium text-gray-700">Structure Function τ(q)</h5>
+						<h5 class="text-md mb-3 font-medium text-gray-700">Structure Function tau(q)</h5>
 						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<!-- Source Address Analysis -->
 							<div class="space-y-3">

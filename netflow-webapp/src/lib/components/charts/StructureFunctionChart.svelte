@@ -59,7 +59,18 @@
 		const points = data.structureFunction;
 
 		// Generate error bar annotations for each data point
-		const errorBarAnnotations: any = {};
+		const errorBarAnnotations: Record<
+			string,
+			{
+				type: 'line';
+				xMin: number;
+				xMax: number;
+				yMin: number;
+				yMax: number;
+				borderColor: string;
+				borderWidth: number;
+			}
+		> = {};
 
 		points.forEach((point, index) => {
 			const capWidth = 0.02; // Width of error bar caps
@@ -158,8 +169,13 @@
 						mode: 'index' as const,
 						intersect: false,
 						callbacks: {
-							title: (items: any[]) => `q = ${items[0]?.parsed?.x?.toFixed(3)}`,
-							label: (item: any) => {
+							title: (items: { parsed: { x: number } }[]) =>
+								`q = ${items[0]?.parsed?.x?.toFixed(3)}`,
+							label: (item: {
+								dataset: { label: string };
+								parsed: { y: number };
+								dataIndex: number;
+							}) => {
 								const value = item.parsed.y.toFixed(6);
 								const pointIndex = item.dataIndex;
 								const point = points[pointIndex];
@@ -180,8 +196,8 @@
 				}
 			}
 		};
-
-		chart = new Chart(chartCanvas, config);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		chart = new Chart(chartCanvas, config as any);
 	}
 </script>
 

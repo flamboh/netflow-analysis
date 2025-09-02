@@ -27,18 +27,48 @@ export interface ChartState {
 }
 
 export interface ClickedElement {
-	dataset: any;
+	dataset: {
+		label: string;
+		data: number[];
+		backgroundColor?: string;
+		borderColor?: string;
+	};
 	label: string;
-	value: any;
+	value: number;
 	datasetIndex: number;
 	index: number;
 }
 
+export interface ChartDataset {
+	label: string;
+	data: number[];
+	backgroundColor?: string | string[];
+	borderColor?: string | string[];
+	borderWidth?: number;
+	fill?: boolean | string;
+	tension?: number;
+	pointRadius?: number;
+	pointHoverRadius?: number;
+	radius?: number;
+	hitRadius?: number;
+	hoverRadius?: number;
+}
+
 export interface ChartConfig {
-	type: string;
+	type: 'line' | 'bar' | 'stacked';
 	data: {
 		labels: string[];
-		datasets: any[];
+		datasets: ChartDataset[];
 	};
-	options: any;
+	options: {
+		onClick?: (
+			event: MouseEvent,
+			activeElements: { datasetIndex: number; index: number }[]
+		) => void;
+		responsive: boolean;
+		maintainAspectRatio?: boolean;
+		scales?: Record<string, object>;
+		plugins?: Record<string, object>;
+		interaction?: Record<string, object>;
+	};
 }
