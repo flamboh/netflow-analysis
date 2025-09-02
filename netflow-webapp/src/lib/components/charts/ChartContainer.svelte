@@ -46,7 +46,7 @@
 			const value = dataset.data[index] as number;
 			return {
 				dataset: {
-					label,
+					label: dataset.label,
 					data: dataset.data,
 					backgroundColor: dataset.backgroundColor as string,
 					borderColor: dataset.borderColor as string
