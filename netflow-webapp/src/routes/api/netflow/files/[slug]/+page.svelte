@@ -30,7 +30,7 @@
 		await Promise.all(tasks);
 	});
 
-	async function loadStructureFunctionData(router: string, file_path: string, source: boolean) {
+	async function loadStructureFunctionData(router: string, _file_path: string, source: boolean) {
 		// Set loading state
 		if (source) {
 			loadingSource.set(router, true);
