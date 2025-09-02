@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { spawn } from 'child_process';
+import { LOG_PATH } from '$env/static/private';
 import path from 'path';
 import fs from 'fs';
 import type { RequestHandler } from './$types';
@@ -8,7 +9,7 @@ export const POST: RequestHandler = async () => {
 	try {
 		// Path to the Python script relative to the project root
 		const scriptPath = path.join(process.cwd(), '..', 'netflow-db', 'flow_db.py');
-		const logDir = path.join(process.cwd(), '..', 'logs', 'flowStats');
+		const logDir = path.join(process.cwd(), LOG_PATH, 'flowStats');
 
 		// Create PST timestamp for log filename
 		const pstDate = new Date()
