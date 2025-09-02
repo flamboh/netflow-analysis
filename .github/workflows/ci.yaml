@@ -16,11 +16,8 @@ jobs:
         shell: bash
         run: cd netflow-webapp && find . -type f -name ".env.example" -exec sh -c 'cp "$1" "${1%.*}"' _ {} \;
 
-      - name: Debug - Check .env file
-        run: |
-          cd netflow-webapp
-          ls -la .env* || echo "No .env files found"
-          cat .env || echo ".env file is empty or missing"
+      - name: Generate types
+        run: cd netflow-webapp && npx svelte-kit sync
 
       - name: Typecheck
         run: cd netflow-webapp && npm run typecheck
