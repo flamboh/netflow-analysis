@@ -37,8 +37,12 @@ async function runSpectrumAnalysis(
 		});
 
 		// Parse CSV output from Spectrum
-		const lines = stdout.trim().split('\n');
-		const header = lines[0]; // alpha,f
+		const text = stdout.trim();
+		if (!text) {
+			throw new Error('Spectrum produced no output');
+		}
+		const lines = text.split('\n');
+		const header = lines[0]?.trim(); // alpha,f
 
 		if (header !== 'alpha,f') {
 			throw new Error('Unexpected Spectrum output format');

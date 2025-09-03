@@ -1,7 +1,7 @@
 import { DATABASE_PATH } from '$env/static/private';
 import Database from 'better-sqlite3';
 
-interface NetflowRecord {
+export interface NetflowRecord {
 	router: string;
 	file_path: string;
 }
