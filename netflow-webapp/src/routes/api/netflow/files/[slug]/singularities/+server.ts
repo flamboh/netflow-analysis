@@ -93,6 +93,10 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		);
 	}
 
+	if (sourceParam !== 'true' && sourceParam !== 'false') {
+		return json({ error: 'Source parameter must be "true" or "false"' }, { status: 400 });
+	}
+
 	const isSource = sourceParam === 'true';
 
 	try {

@@ -38,8 +38,12 @@ async function runStructureFunctionAnalysis(
 		});
 
 		// Parse CSV output from StructureFunction
-		const lines = stdout.trim().split('\n');
-		const header = lines[0]; // q,tauTilde,sd
+		const text = stdout.trim();
+		if (!text) {
+			throw new Error('StructureFunction produced no output');
+		}
+		const lines = text.split('\n');
+		const header = lines[0]?.trim(); // q,tauTilde,sd
 
 		if (header !== 'q,tauTilde,sd') {
 			throw new Error('Unexpected StructureFunction output format');
