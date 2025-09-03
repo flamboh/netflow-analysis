@@ -18,7 +18,7 @@ interface NetflowRecord {
 	file_path: string;
 }
 
-const DB_PATH = path.join(process.cwd(), DATABASE_PATH);
+const DB_PATH = DATABASE_PATH;
 let db: Database.Database | null = null;
 
 function getDb() {
