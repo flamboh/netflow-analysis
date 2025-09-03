@@ -7,7 +7,16 @@ from pathlib import Path
 
 # Load environment variables from .env file
 def load_env_file(env_path='../.env'):
-    """Load environment variables from .env file"""
+    """
+    Load environment variables from a dotenv-style file into os.environ.
+    
+    Reads the file at env_path (default '../.env'), ignoring empty lines and lines
+    starting with '#'. Each non-comment line containing '=' is split on the first
+    '=' and the left/right parts are stripped and set as KEY=VALUE in os.environ.
+    
+    If the file does not exist, prints an error message and exits the process with
+    status code 1.
+    """
     env_file = Path(env_path)
     if env_file.exists():
         with open(env_file, 'r') as f:
