@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Load environment variables from .env file
-def load_env_file(env_path='.env'):
+def load_env_file(env_path='../.env'):
     """Load environment variables from .env file"""
     env_file = Path(env_path)
     if env_file.exists():
