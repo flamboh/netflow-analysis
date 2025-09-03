@@ -3,43 +3,13 @@ import type { RequestHandler } from './$types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import Database from 'better-sqlite3';
-import { DATABASE_PATH } from '$env/static/private';
+import { getNetflowFilePath } from '../utils';
 
 const execAsync = promisify(exec);
 
 interface SpectrumPoint {
 	alpha: number;
 	f: number;
-}
-
-interface NetflowRecord {
-	router: string;
-	file_path: string;
-}
-
-const DB_PATH = DATABASE_PATH;
-let db: Database.Database | null = null;
-
-function getDb() {
-	if (!db) {
-		db = new Database(DB_PATH, { readonly: true });
-	}
-	return db;
-}
-
-async function getNetflowFilePath(slug: string, router: string): Promise<string | null> {
-	const filePattern = `nfcapd.${slug}`;
-	const query = `
-		SELECT file_path FROM netflow_stats
-		WHERE file_path LIKE '%' || ? AND router = ?
-		LIMIT 1
-	`;
-
-	const database = getDb();
-	const result = database.prepare(query).get(filePattern, router) as NetflowRecord | undefined;
-
-	return result?.file_path || null;
 }
 
 async function runSpectrumAnalysis(

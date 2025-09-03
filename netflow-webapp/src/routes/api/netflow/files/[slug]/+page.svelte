@@ -2,6 +2,7 @@
 	import type { PageProps } from './$types';
 	import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
 	import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
+	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
 	import { onMount } from 'svelte';
 
 	let { data }: PageProps = $props();
@@ -9,14 +10,20 @@
 	let structureFunctionDataDestination = $state(new Map());
 	let spectrumDataSource = $state(new Map());
 	let spectrumDataDestination = $state(new Map());
+	let singularitiesDataSource = $state(new Map());
+	let singularitiesDataDestination = $state(new Map());
 	let loadingSource = $state(new Map());
 	let loadingDestination = $state(new Map());
 	let loadingSpectrumSource = $state(new Map());
 	let loadingSpectrumDestination = $state(new Map());
+	let loadingSingularitiesSource = $state(new Map());
+	let loadingSingularitiesDestination = $state(new Map());
 	let errorsSource = $state(new Map());
 	let errorsDestination = $state(new Map());
 	let errorsSpectrumSource = $state(new Map());
 	let errorsSpectrumDestination = $state(new Map());
+	let errorsSingularitiesSource = $state(new Map());
+	let errorsSingularitiesDestination = $state(new Map());
 
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
@@ -25,7 +32,9 @@
 			loadStructureFunctionData(record.router, record.file_path, true), // source
 			loadStructureFunctionData(record.router, record.file_path, false), // destination
 			loadSpectrumData(record.router, record.file_path, true), // source spectrum
-			loadSpectrumData(record.router, record.file_path, false) // destination spectrum
+			loadSpectrumData(record.router, record.file_path, false), // destination spectrum
+			loadSingularitiesData(record.router, record.file_path, true), // source singularities
+			loadSingularitiesData(record.router, record.file_path, false) // destination singularities
 		]);
 		await Promise.all(tasks);
 	});
@@ -150,6 +159,68 @@
 			} else {
 				loadingSpectrumDestination.set(router, false);
 				loadingSpectrumDestination = new Map(loadingSpectrumDestination);
+			}
+		}
+	}
+
+	async function loadSingularitiesData(router: string, _file_path: string, source: boolean) {
+		// Set loading state
+		if (source) {
+			loadingSingularitiesSource.set(router, true);
+			loadingSingularitiesSource = new Map(loadingSingularitiesSource);
+			errorsSingularitiesSource.set(router, '');
+			errorsSingularitiesSource = new Map(errorsSingularitiesSource);
+		} else {
+			loadingSingularitiesDestination.set(router, true);
+			loadingSingularitiesDestination = new Map(loadingSingularitiesDestination);
+			errorsSingularitiesDestination.set(router, '');
+			errorsSingularitiesDestination = new Map(errorsSingularitiesDestination);
+		}
+
+		try {
+			const response = await fetch(
+				`/api/netflow/files/${data.slug}/singularities?router=${encodeURIComponent(router)}&source=${source}`
+			);
+			if (!response.ok) {
+				throw new Error(`Failed to load singularities data: ${response.statusText}`);
+			}
+			const result = await response.json();
+			console.log(
+				`Singularities data loaded for ${router} (${source ? 'source' : 'destination'}):`,
+				result
+			);
+
+			// Store the result in the appropriate data map
+			if (source) {
+				singularitiesDataSource.set(router, result);
+				singularitiesDataSource = new Map(singularitiesDataSource);
+			} else {
+				singularitiesDataDestination.set(router, result);
+				singularitiesDataDestination = new Map(singularitiesDataDestination);
+			}
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+			console.error(
+				`Failed to load singularities data for ${router} (${source ? 'source' : 'destination'}):`,
+				e
+			);
+
+			// Set error state
+			if (source) {
+				errorsSingularitiesSource.set(router, errorMessage);
+				errorsSingularitiesSource = new Map(errorsSingularitiesSource);
+			} else {
+				errorsSingularitiesDestination.set(router, errorMessage);
+				errorsSingularitiesDestination = new Map(errorsSingularitiesDestination);
+			}
+		} finally {
+			// Clear loading state
+			if (source) {
+				loadingSingularitiesSource.set(router, false);
+				loadingSingularitiesSource = new Map(loadingSingularitiesSource);
+			} else {
+				loadingSingularitiesDestination.set(router, false);
+				loadingSingularitiesDestination = new Map(loadingSingularitiesDestination);
 			}
 		}
 	}
@@ -334,6 +405,8 @@
 							</div>
 						</div>
 					</div>
+					<!-- Singularities Analysis -->
+					<SingularitiesList data={singularitiesDataSource.get(record.router)} />
 				</div>
 			</div>
 		{/each}
