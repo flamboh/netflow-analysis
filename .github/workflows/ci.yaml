@@ -14,7 +14,7 @@ jobs:
 
       - name: Copy .env.example files
         shell: bash
-        run: cd netflow-webapp && find . -type f -name ".env.example" -exec sh -c 'cp "$1" "${1%.*}"' _ {} \;
+        run: find . -type f -name ".env.example" -exec sh -c 'cp "$1" "${1%.*}"' _ {} \;
 
       - name: Generate types
         run: cd netflow-webapp && npx svelte-kit sync
