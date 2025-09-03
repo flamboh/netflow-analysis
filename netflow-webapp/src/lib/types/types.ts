@@ -40,3 +40,22 @@ export interface SpectrumData {
 		alphaRange: { min: number; max: number };
 	};
 }
+
+export interface SingularitiesList {
+	bottom: [string, number, number, number];
+	top: [string, number, number, number];
+}
+
+export interface SingularitiesData {
+	slug: string;
+	router: string;
+	filename: string;
+	singularities: SingularitiesList[];
+	metadata: {
+		dataSource: string;
+		uniqueIPCount?: number;
+		pointCount: number;
+		addressType: string;
+		alphaRange: { min: number; max: number };
+	};
+}
