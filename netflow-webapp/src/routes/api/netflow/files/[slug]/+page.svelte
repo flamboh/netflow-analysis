@@ -293,7 +293,7 @@
 				</div>
 
 				<!-- MAAD Analysis for this Router -->
-				<div class="rounded-b-lg bg-purple-50 p-4">
+				<div class="rounded-b-lg p-4">
 					<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
 
 					<!-- Structure Function Analysis -->
@@ -325,7 +325,7 @@
 
 							<!-- Destination Address Analysis -->
 							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-purple-700">Destination Address Analysis</h6>
+								<h6 class="text-sm font-medium text-blue-700">Destination Address Analysis</h6>
 								{#if loadingDestination.get(record.router)}
 									<div class="flex items-center justify-center py-6">
 										<div class="text-gray-600">Loading destination address analysis...</div>
@@ -380,7 +380,7 @@
 
 							<!-- Destination Address Spectrum -->
 							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-purple-700">Destination Address Spectrum</h6>
+								<h6 class="text-sm font-medium text-blue-700">Destination Address Spectrum</h6>
 								{#if loadingSpectrumDestination.get(record.router)}
 									<div class="flex items-center justify-center py-6">
 										<div class="text-gray-600">Loading destination spectrum analysis...</div>
@@ -406,7 +406,61 @@
 						</div>
 					</div>
 					<!-- Singularities Analysis -->
-					<SingularitiesList data={singularitiesDataSource.get(record.router)} />
+					<div class="space-y-4">
+						<h5 class="text-lg font-semibold">Singularities Analysis</h5>
+						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+							<!-- Source Address Singularities -->
+							<div class="space-y-3">
+								<h6 class="text-sm font-medium text-blue-700">Source Address Singularities</h6>
+								{#if loadingSingularitiesSource.get(record.router)}
+									<div class="flex items-center justify-center py-6">
+										<div class="text-gray-600">Loading source singularities analysis...</div>
+									</div>
+								{:else if errorsSingularitiesSource.get(record.router)}
+									<div class="rounded-lg border border-red-300 bg-red-50 p-4">
+										<p class="text-red-700">
+											Error loading source singularities: {errorsSingularitiesSource.get(
+												record.router
+											)}
+										</p>
+										<button
+											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+											onclick={() => loadSingularitiesData(record.router, record.file_path, true)}
+										>
+											Retry Source
+										</button>
+									</div>
+								{:else if singularitiesDataSource.get(record.router)}
+									<SingularitiesList data={singularitiesDataSource.get(record.router)} />
+								{/if}
+							</div>
+							<!-- Destination Address Singularities -->
+							<div class="space-y-3">
+								<h6 class="text-sm font-medium text-blue-700">Destination Address Singularities</h6>
+								{#if loadingSingularitiesDestination.get(record.router)}
+									<div class="flex items-center justify-center py-6">
+										<div class="text-gray-600">Loading destination singularities analysis...</div>
+									</div>
+								{:else if errorsSingularitiesDestination.get(record.router)}
+									<div class="rounded-lg border border-red-300 bg-red-50 p-4">
+										<p class="text-red-700">
+											Error loading destination singularities: {errorsSingularitiesDestination.get(
+												record.router
+											)}
+										</p>
+										<button
+											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+											onclick={() => loadSingularitiesData(record.router, record.file_path, false)}
+										>
+											Retry Destination
+										</button>
+									</div>
+								{:else if singularitiesDataDestination.get(record.router)}
+									<SingularitiesList data={singularitiesDataDestination.get(record.router)} />
+								{/if}
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 		{/each}

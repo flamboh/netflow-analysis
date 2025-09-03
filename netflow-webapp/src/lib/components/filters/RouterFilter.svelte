@@ -20,7 +20,7 @@
 <div class="router-filter flex flex-wrap items-center gap-4">
 	<span class="text-sm font-medium text-gray-700">Routers:</span>
 
-	{#each Object.keys(routers) as routerName, i (i)}
+	{#each Object.keys(routers) as routerName (routerName)}
 		<label class="flex cursor-pointer items-center gap-2">
 			<input
 				type="checkbox"

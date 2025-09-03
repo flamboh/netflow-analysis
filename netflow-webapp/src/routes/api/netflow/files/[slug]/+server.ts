@@ -3,70 +3,89 @@ import type { RequestHandler } from './$types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { getNetflowFilePath } from '../utils';
+import Database from 'better-sqlite3';
+import { DATABASE_PATH } from '$env/static/private';
 
 const execAsync = promisify(exec);
 
-interface Singularity {
-	rank: string;
-	address: string;
+interface SpectrumPoint {
 	alpha: number;
-	intercept: number;
-	r2: number;
-	nPls: number;
+	f: number;
 }
 
-async function runSingularitiesAnalysis(
+interface NetflowRecord {
+	router: string;
+	file_path: string;
+}
+
+const DB_PATH = DATABASE_PATH;
+let db: Database.Database | null = null;
+
+function getDb() {
+	if (!db) {
+		db = new Database(DB_PATH, { readonly: true });
+	}
+	return db;
+}
+
+async function getNetflowFilePath(slug: string, router: string): Promise<string | null> {
+	const filePattern = `nfcapd.${slug}`;
+	const query = `
+		SELECT file_path FROM netflow_stats
+		WHERE file_path LIKE '%' || ? AND router = ?
+		LIMIT 1
+	`;
+
+	const database = getDb();
+	const result = database.prepare(query).get(filePattern, router) as NetflowRecord | undefined;
+
+	return result?.file_path || null;
+}
+
+async function runSpectrumAnalysis(
 	filePath: string,
 	isSource: boolean,
 	timeoutMs: number = 60000
-): Promise<Singularity[]> {
+): Promise<SpectrumPoint[]> {
 	try {
-		// Use nfdump to extract IPv4 addresses (source or destination) and pipe directly to MAAD Singularities
+		// Use nfdump to extract IPv4 addresses (source or destination) and pipe directly to MAAD Spectrum
 		const maadPath = path.join(process.cwd(), '..', 'maad');
-		const singularitiesPath = path.join(maadPath, 'Singularities');
+		const spectrumPath = path.join(maadPath, 'Spectrum');
 
 		// Use %sa for source addresses, %da for destination addresses
 		const addressFormat = isSource ? '%sa' : '%da';
-		const topN = 10; // Get top 10 singularities
-		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:${addressFormat}' -q | "${singularitiesPath}" ${topN} /dev/stdin`;
+		const command = `nfdump -r "${filePath}" 'ipv4' -o 'fmt:${addressFormat}' -q | "${spectrumPath}" /dev/stdin`;
 
 		console.log(
-			`Executing combined nfdump + Singularities command for ${isSource ? 'source' : 'destination'} addresses`
+			`Executing combined nfdump + Spectrum command for ${isSource ? 'source' : 'destination'} addresses`
 		);
 
 		const { stdout } = await execAsync(command, {
 			timeout: timeoutMs,
-			maxBuffer: 10 * 1024 * 1024, // 10MB buffer should be sufficient for singularities output
+			maxBuffer: 10 * 1024 * 1024, // 10MB buffer should be sufficient for spectrum output
 			cwd: maadPath
 		});
 
-		// Parse labeled output from Singularities (format: rank:address,alpha,intercept,r2,nPls)
-		const lines = stdout
-			.trim()
-			.split('\n')
-			.filter((line) => line.length > 0);
+		// Parse CSV output from Spectrum
+		const lines = stdout.trim().split('\n');
+		const header = lines[0]; // alpha,f
 
-		const data: Singularity[] = lines.map((line) => {
-			const [rankPart, dataPart] = line.split(':');
-			const [address, alpha, intercept, r2, nPls] = dataPart.split(',');
-			return {
-				rank: rankPart,
-				address,
-				alpha: parseFloat(alpha),
-				intercept: parseFloat(intercept),
-				r2: parseFloat(r2),
-				nPls: parseInt(nPls)
-			};
+		if (header !== 'alpha,f') {
+			throw new Error('Unexpected Spectrum output format');
+		}
+
+		const data: SpectrumPoint[] = lines.slice(1).map((line) => {
+			const [alpha, f] = line.split(',').map(Number);
+			return { alpha, f };
 		});
 
 		console.log(
-			`Singularities analysis complete: ${data.length} data points generated for ${isSource ? 'source' : 'destination'} addresses`
+			`Spectrum analysis complete: ${data.length} data points generated for ${isSource ? 'source' : 'destination'} addresses`
 		);
 		return data;
 	} catch (error) {
 		console.error(
-			`Error running singularities analysis for ${isSource ? 'source' : 'destination'} addresses:`,
+			`Error running spectrum analysis for ${isSource ? 'source' : 'destination'} addresses:`,
 			error
 		);
 		throw error;
@@ -97,7 +116,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 	try {
 		console.log(
-			`Starting singularities analysis for ${router} - ${slug} (${isSource ? 'source' : 'destination'} addresses)`
+			`Starting spectrum analysis for ${router} - ${slug} (${isSource ? 'source' : 'destination'} addresses)`
 		);
 
 		// Get the absolute file path for the NetFlow file from the database
@@ -111,14 +130,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 		console.log(`Found NetFlow file: ${filePath}`);
 
-		// Run singularities analysis directly with nfdump piped to MAAD
-		const data = await runSingularitiesAnalysis(filePath, isSource);
+		// Run spectrum analysis directly with nfdump piped to MAAD
+		const data = await runSpectrumAnalysis(filePath, isSource);
 
 		if (data.length === 0) {
-			return json(
-				{ error: 'No data points generated from singularities analysis' },
-				{ status: 422 }
-			);
+			return json({ error: 'No data points generated from spectrum analysis' }, { status: 422 });
 		}
 
 		const addressType = isSource ? 'Source' : 'Destination';
@@ -127,16 +143,20 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			slug,
 			router,
 			filename: `nfcapd.${slug}`,
-			singularities: data,
+			spectrum: data,
 			metadata: {
 				dataSource: `NetFlow File: ${path.basename(filePath)} (${addressType} Addresses)`,
 				uniqueIPCount: -1, // Indicates real NetFlow data (IP count not tracked in new pipeline)
 				pointCount: data.length,
-				addressType: addressType
+				addressType: addressType,
+				alphaRange: {
+					min: Math.min(...data.map((d) => d.alpha)),
+					max: Math.max(...data.map((d) => d.alpha))
+				}
 			}
 		});
 	} catch (error) {
-		console.error('Singularities analysis failed:', error);
+		console.error('Spectrum analysis failed:', error);
 
 		// Provide more specific error messages based on error type
 		if (error instanceof Error) {
@@ -158,11 +178,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			if (error.message.includes('nfdump')) {
 				return json({ error: 'Failed to process NetFlow file with nfdump' }, { status: 422 });
 			}
-			if (error.message.includes('Singularities')) {
-				return json({ error: 'MAAD singularities analysis failed' }, { status: 500 });
+			if (error.message.includes('Spectrum')) {
+				return json({ error: 'MAAD spectrum analysis failed' }, { status: 500 });
 			}
 		}
 
-		return json({ error: 'Failed to generate singularities analysis' }, { status: 500 });
+		return json({ error: 'Failed to generate spectrum analysis' }, { status: 500 });
 	}
 };
