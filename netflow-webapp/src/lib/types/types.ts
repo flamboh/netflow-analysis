@@ -41,21 +41,24 @@ export interface SpectrumData {
 	};
 }
 
-export interface SingularitiesList {
-	bottom: [string, number, number, number];
-	top: [string, number, number, number];
+export interface Singularity {
+	rank: string;
+	address: string;
+	alpha: number;
+	intercept: number;
+	r2: number;
+	nPls: number;
 }
 
 export interface SingularitiesData {
 	slug: string;
 	router: string;
 	filename: string;
-	singularities: SingularitiesList[];
+	singularities: Singularity[];
 	metadata: {
 		dataSource: string;
 		uniqueIPCount?: number;
 		pointCount: number;
 		addressType: string;
-		alphaRange: { min: number; max: number };
 	};
 }
