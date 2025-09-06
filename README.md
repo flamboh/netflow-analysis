@@ -15,10 +15,16 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 
 ### Data Processing Pipeline
 
+STATS
 1. Raw netflow files from a configurable location
 2. Python script (`netflow-db/db.py`) processes files using `nfdump` and populates SQLite database
 3. SvelteKit API queries database with `better-sqlite3` for fast aggregation
 4. Frontend renders interactive charts with real-time filtering
+
+MAAD
+1. Raw netflow files are processed on demand for source/destination IP addresses
+2. IPv4 addresses are piped into MAAD CLI
+3. Charts are rendered on the frontend
 
 ### Database Schema
 
