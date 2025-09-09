@@ -66,7 +66,6 @@
 				uniqueIPCountDestination = new Map(uniqueIPCountDestination);
 			}
 		} catch (e) {
-			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
 			console.error(
 				`Failed to load unique IP count for ${router} (${source ? 'source' : 'destination'}):`,
 				e
