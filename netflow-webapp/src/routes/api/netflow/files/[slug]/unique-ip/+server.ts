@@ -9,7 +9,8 @@ const execAsync = promisify(exec);
 async function getUniqueIPCount(filePath: string, isSource: boolean): Promise<number> {
 	const command = `nfdump -r "${filePath}"  -o 'fmt:${isSource ? '%sa' : '%da'}' -q`;
 	const { stdout } = await execAsync(command, {
-		maxBuffer: 10 * 1024 * 1024 * 10
+		maxBuffer: 10 * 1024 * 1024 * 10,
+		timeout: 60_000
 	});
 	const uniqueIPs = new Set(stdout.trim().split('\n'));
 	return uniqueIPs.size;
