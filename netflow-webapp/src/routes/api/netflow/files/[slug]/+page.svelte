@@ -299,10 +299,20 @@
 						{record.file_path}
 					</h3>
 					<h3 class="text-md mb-2 font-semibold">
-						Unique IP Count (Source): {uniqueIPCountSource.get(record.router)}
+						Unique IP Count (Source):
+						{#if uniqueIPCountSource.get(record.router)}
+							{uniqueIPCountSource.get(record.router)}
+						{:else}
+							Loading...
+						{/if}
 					</h3>
 					<h3 class="text-md mb-2 font-semibold">
-						Unique IP Count (Destination): {uniqueIPCountDestination.get(record.router)}
+						Unique IP Count (Destination):
+						{#if uniqueIPCountDestination.get(record.router)}
+							{uniqueIPCountDestination.get(record.router)}
+						{:else}
+							Loading...
+						{/if}
 					</h3>
 					<div class="grid grid-cols-4 gap-4 text-sm">
 						<div>
