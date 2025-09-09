@@ -24,6 +24,10 @@
 	let errorsSpectrumDestination = $state(new Map());
 	let errorsSingularitiesSource = $state(new Map());
 	let errorsSingularitiesDestination = $state(new Map());
+	let loadingUniqueIPCountSource = $state(new Map());
+	let loadingUniqueIPCountDestination = $state(new Map());
+	let uniqueIPCountSource = $state(new Map());
+	let uniqueIPCountDestination = $state(new Map());
 
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
@@ -34,10 +38,49 @@
 			loadSpectrumData(record.router, record.file_path, true), // source spectrum
 			loadSpectrumData(record.router, record.file_path, false), // destination spectrum
 			loadSingularitiesData(record.router, record.file_path, true), // source singularities
-			loadSingularitiesData(record.router, record.file_path, false) // destination singularities
+			loadSingularitiesData(record.router, record.file_path, false), // destination singularities
+			loadUniqueIPCount(record.router, record.file_path, true), // source unique IP count
+			loadUniqueIPCount(record.router, record.file_path, false) // destination unique IP count
 		]);
 		await Promise.all(tasks);
 	});
+
+	async function loadUniqueIPCount(router: string, file_path: string, source: boolean) {
+		try {
+			const response = await fetch(
+				`/api/netflow/files/${data.slug}/unique-ip?router=${encodeURIComponent(router)}&source=${source}`
+			);
+			if (!response.ok) {
+				throw new Error(`Failed to load unique IP count: ${response.statusText}`);
+			}
+			const result = await response.json();
+			console.log(
+				`Unique IP count loaded for ${router} (${source ? 'source' : 'destination'}):`,
+				result
+			);
+			if (source) {
+				uniqueIPCountSource.set(router, result.uniqueIPCount);
+				uniqueIPCountSource = new Map(uniqueIPCountSource);
+			} else {
+				uniqueIPCountDestination.set(router, result.uniqueIPCount);
+				uniqueIPCountDestination = new Map(uniqueIPCountDestination);
+			}
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+			console.error(
+				`Failed to load unique IP count for ${router} (${source ? 'source' : 'destination'}):`,
+				e
+			);
+		} finally {
+			if (source) {
+				loadingUniqueIPCountSource.set(router, false);
+				loadingUniqueIPCountSource = new Map(loadingUniqueIPCountSource);
+			} else {
+				loadingUniqueIPCountDestination.set(router, false);
+				loadingUniqueIPCountDestination = new Map(loadingUniqueIPCountDestination);
+			}
+		}
+	}
 
 	async function loadStructureFunctionData(router: string, _file_path: string, source: boolean) {
 		// Set loading state
@@ -255,6 +298,12 @@
 					<h3 class="text-md mb-2 font-semibold">
 						Absolute Path: <br />
 						{record.file_path}
+					</h3>
+					<h3 class="text-md mb-2 font-semibold">
+						Unique IP Count (Source): {uniqueIPCountSource.get(record.router)}
+					</h3>
+					<h3 class="text-md mb-2 font-semibold">
+						Unique IP Count (Destination): {uniqueIPCountDestination.get(record.router)}
 					</h3>
 					<div class="grid grid-cols-4 gap-4 text-sm">
 						<div>
