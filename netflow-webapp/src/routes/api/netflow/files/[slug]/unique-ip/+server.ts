@@ -7,13 +7,13 @@ import type { RequestHandler } from './$types';
 const execAsync = promisify(exec);
 
 async function getUniqueIPCount(filePath: string, isSource: boolean): Promise<number> {
-	const command = `nfdump -r "${filePath}"  -o 'fmt:${isSource ? '%sa' : '%da'}' -q`;
+	const command = `nfdump -r "${filePath}"  -o 'fmt:${isSource ? '%sa' : '%da'}' -q -s ${isSource ? 'srcip' : 'dstip'} -n 0 | wc -l`;
 	const { stdout } = await execAsync(command, {
 		maxBuffer: 10 * 1024 * 1024 * 10,
 		timeout: 60_000
 	});
-	const uniqueIPs = new Set(stdout.trim().split('\n'));
-	return uniqueIPs.size;
+	const uniqueIPs = parseInt(stdout.trim());
+	return uniqueIPs;
 }
 
 export const GET: RequestHandler = async ({ params, url }) => {
