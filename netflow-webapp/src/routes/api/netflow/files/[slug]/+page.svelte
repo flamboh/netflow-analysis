@@ -24,10 +24,10 @@
 	let errorsSpectrumDestination = $state(new Map());
 	let errorsSingularitiesSource = $state(new Map());
 	let errorsSingularitiesDestination = $state(new Map());
-	let loadingUniqueIPCountSource = $state(new Map());
-	let loadingUniqueIPCountDestination = $state(new Map());
-	let uniqueIPCountSource = $state(new Map());
-	let uniqueIPCountDestination = $state(new Map());
+	let loadingIPCountsSource = $state(new Map());
+	let loadingIPCountsDestination = $state(new Map());
+	let IPCountsSource = $state(new Map());
+	let IPCountsDestination = $state(new Map());
 
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
@@ -39,13 +39,13 @@
 			loadSpectrumData(record.router, record.file_path, false), // destination spectrum
 			loadSingularitiesData(record.router, record.file_path, true), // source singularities
 			loadSingularitiesData(record.router, record.file_path, false), // destination singularities
-			loadUniqueIPCount(record.router, record.file_path, true), // source unique IP count
-			loadUniqueIPCount(record.router, record.file_path, false) // destination unique IP count
+			loadIPCounts(record.router, true), // source IP count
+			loadIPCounts(record.router, false) // destination IP count
 		]);
 		await Promise.all(tasks);
 	});
 
-	async function loadUniqueIPCount(router: string, file_path: string, source: boolean) {
+	async function loadIPCounts(router: string, source: boolean) {
 		try {
 			const response = await fetch(
 				`/api/netflow/files/${data.slug}/unique-ip?router=${encodeURIComponent(router)}&source=${source}`
@@ -59,11 +59,11 @@
 				result
 			);
 			if (source) {
-				uniqueIPCountSource.set(router, result.uniqueIPCount);
-				uniqueIPCountSource = new Map(uniqueIPCountSource);
+				IPCountsSource.set(router, result);
+				IPCountsSource = new Map(IPCountsSource);
 			} else {
-				uniqueIPCountDestination.set(router, result.uniqueIPCount);
-				uniqueIPCountDestination = new Map(uniqueIPCountDestination);
+				IPCountsDestination.set(router, result);
+				IPCountsDestination = new Map(IPCountsDestination);
 			}
 		} catch (e) {
 			console.error(
@@ -72,11 +72,11 @@
 			);
 		} finally {
 			if (source) {
-				loadingUniqueIPCountSource.set(router, false);
-				loadingUniqueIPCountSource = new Map(loadingUniqueIPCountSource);
+				loadingIPCountsSource.set(router, false);
+				loadingIPCountsSource = new Map(loadingIPCountsSource);
 			} else {
-				loadingUniqueIPCountDestination.set(router, false);
-				loadingUniqueIPCountDestination = new Map(loadingUniqueIPCountDestination);
+				loadingIPCountsDestination.set(router, false);
+				loadingIPCountsDestination = new Map(loadingIPCountsDestination);
 			}
 		}
 	}
@@ -299,17 +299,29 @@
 						{record.file_path}
 					</h3>
 					<h3 class="text-md mb-2 font-semibold">
-						Unique IP Count (Source):
-						{#if uniqueIPCountSource.get(record.router)}
-							{uniqueIPCountSource.get(record.router)}
+						Unique/Total IP Count (Source):
+						{#if IPCountsSource.get(record.router)}
+							{IPCountsSource.get(record.router).uniqueIPCount}/{IPCountsSource.get(record.router)
+								.totalIPCount} or {Math.round(
+								(IPCountsSource.get(record.router).uniqueIPCount /
+									IPCountsSource.get(record.router).totalIPCount) *
+									100
+							)}%
 						{:else}
 							Loading...
 						{/if}
 					</h3>
 					<h3 class="text-md mb-2 font-semibold">
-						Unique IP Count (Destination):
-						{#if uniqueIPCountDestination.get(record.router)}
-							{uniqueIPCountDestination.get(record.router)}
+						Unique/Total IP Count (Destination):
+						{#if IPCountsDestination.get(record.router)}
+							{IPCountsDestination.get(record.router).uniqueIPCount}/{IPCountsDestination.get(
+								record.router
+							).totalIPCount}
+							or {Math.round(
+								(IPCountsDestination.get(record.router).uniqueIPCount /
+									IPCountsDestination.get(record.router).totalIPCount) *
+									100
+							)}%
 						{:else}
 							Loading...
 						{/if}
