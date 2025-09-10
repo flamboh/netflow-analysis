@@ -305,13 +305,11 @@
 					<h3 class="text-md mb-2 font-semibold">
 						Unique/Total IP Count (Source):
 						{#if IPCountsSource.get(record.router)}
-							{IPCountsSource.get(record.router)?.uniqueIPCount ?? 'N/A'}/{IPCountsSource.get(
-								record.router
-							)?.totalIPCount ?? 'N/A'}
-							or {(IPCountsSource.get(record.router)?.totalIPCount ?? 0) > 0
+							{@const ipCountsSource = IPCountsSource.get(record.router)}
+							{ipCountsSource?.uniqueIPCount ?? 'N/A'}/{ipCountsSource?.totalIPCount ?? 'N/A'}
+							or {(ipCountsSource?.totalIPCount ?? 0) > 0
 								? Math.round(
-										((IPCountsSource.get(record.router)?.uniqueIPCount ?? 0) /
-											(IPCountsSource.get(record.router)?.totalIPCount ?? 1)) *
+										((ipCountsSource?.uniqueIPCount ?? 0) / (ipCountsSource?.totalIPCount ?? 1)) *
 											100
 									)
 								: 0}%
@@ -322,12 +320,13 @@
 					<h3 class="text-md mb-2 font-semibold">
 						Unique/Total IP Count (Destination):
 						{#if IPCountsDestination.get(record.router)}
-							{IPCountsDestination.get(record.router)?.uniqueIPCount ??
-								'N/A'}/{IPCountsDestination.get(record.router)?.totalIPCount ?? 'N/A'}
-							or {(IPCountsDestination.get(record.router)?.totalIPCount ?? 0) > 0
+							{@const ipCountsDestination = IPCountsDestination.get(record.router)}
+							{ipCountsDestination?.uniqueIPCount ?? 'N/A'}/{ipCountsDestination?.totalIPCount ??
+								'N/A'}
+							or {(ipCountsDestination?.totalIPCount ?? 0) > 0
 								? Math.round(
-										((IPCountsDestination.get(record.router)?.uniqueIPCount ?? 0) /
-											(IPCountsDestination.get(record.router)?.totalIPCount ?? 1)) *
+										((ipCountsDestination?.uniqueIPCount ?? 0) /
+											(ipCountsDestination?.totalIPCount ?? 1)) *
 											100
 									)
 								: 0}%
