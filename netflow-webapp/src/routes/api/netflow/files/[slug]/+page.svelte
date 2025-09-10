@@ -302,11 +302,14 @@
 						Unique/Total IP Count (Source):
 						{#if IPCountsSource.get(record.router)}
 							{IPCountsSource.get(record.router).uniqueIPCount}/{IPCountsSource.get(record.router)
-								.totalIPCount} or {Math.round(
-								(IPCountsSource.get(record.router).uniqueIPCount /
-									IPCountsSource.get(record.router).totalIPCount) *
-									100
-							)}%
+								.totalIPCount}
+							or {IPCountsSource.get(record.router).totalIPCount > 0
+								? Math.round(
+										(IPCountsSource.get(record.router).uniqueIPCount /
+											IPCountsSource.get(record.router).totalIPCount) *
+											100
+									)
+								: 0}%
 						{:else}
 							Loading...
 						{/if}
