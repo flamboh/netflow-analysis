@@ -64,12 +64,14 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 		console.log(`Found NetFlow file: ${filePath}`);
 
-		const uniqueIPCount = await getUniqueIPCount(filePath, isSource);
-		const totalIPCount = await getTotalIPCount(filePath, isSource);
+		const [uniqueIPCount, totalIPCount] = await Promise.all([
+			getUniqueIPCount(filePath, isSource),
+			getTotalIPCount(filePath, isSource)
+		]);
 
 		return json({ uniqueIPCount, totalIPCount });
 	} catch (error) {
 		console.error(error);
-		return json({ error: 'Failed to get unique IP count' }, { status: 500 });
+		return json({ error: 'Failed to get IP counts' }, { status: 500 });
 	}
 };
