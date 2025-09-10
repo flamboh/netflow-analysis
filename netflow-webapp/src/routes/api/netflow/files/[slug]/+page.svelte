@@ -52,16 +52,13 @@
 	async function loadIPCounts(router: string, source: boolean) {
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/unique-ip?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${data.slug}/ip-counts?router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
-				throw new Error(`Failed to load unique IP count: ${response.statusText}`);
+				throw new Error(`Failed to load IP counts: ${response.statusText}`);
 			}
 			const result = await response.json();
-			console.log(
-				`Unique IP count loaded for ${router} (${source ? 'source' : 'destination'}):`,
-				result
-			);
+			console.log(`IP counts loaded for ${router} (${source ? 'source' : 'destination'}):`, result);
 			if (source) {
 				IPCountsSource.set(router, result);
 				IPCountsSource = new Map(IPCountsSource);
@@ -71,7 +68,7 @@
 			}
 		} catch (e) {
 			console.error(
-				`Failed to load unique IP count for ${router} (${source ? 'source' : 'destination'}):`,
+				`Failed to load IP counts for ${router} (${source ? 'source' : 'destination'}):`,
 				e
 			);
 		} finally {
