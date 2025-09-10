@@ -16,6 +16,16 @@ async function getUniqueIPCount(filePath: string, isSource: boolean): Promise<nu
 	return uniqueIPs;
 }
 
+async function getTotalIPCount(filePath: string, isSource: boolean): Promise<number> {
+	const command = `nfdump -r "${filePath}" -o 'fmt:${isSource ? '%sa' : '%da'}' -q -n 0 | wc -l`;
+	const { stdout } = await execAsync(command, {
+		maxBuffer: 10 * 1024 * 1024 * 10,
+		timeout: 60_000
+	});
+	const totalIPs = parseInt(stdout.trim());
+	return totalIPs;
+}
+
 export const GET: RequestHandler = async ({ params, url }) => {
 	const { slug } = params;
 	const router = url.searchParams.get('router');
@@ -55,8 +65,9 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		console.log(`Found NetFlow file: ${filePath}`);
 
 		const uniqueIPCount = await getUniqueIPCount(filePath, isSource);
+		const totalIPCount = await getTotalIPCount(filePath, isSource);
 
-		return json({ uniqueIPCount });
+		return json({ uniqueIPCount, totalIPCount });
 	} catch (error) {
 		console.error(error);
 		return json({ error: 'Failed to get unique IP count' }, { status: 500 });
