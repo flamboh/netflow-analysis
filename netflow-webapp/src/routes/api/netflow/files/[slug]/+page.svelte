@@ -24,10 +24,14 @@
 	let errorsSpectrumDestination = $state(new Map());
 	let errorsSingularitiesSource = $state(new Map());
 	let errorsSingularitiesDestination = $state(new Map());
-	let loadingIPCountsSource = $state(new Map());
-	let loadingIPCountsDestination = $state(new Map());
-	let IPCountsSource = $state(new Map());
-	let IPCountsDestination = $state(new Map());
+	type IPCounts = {
+		uniqueIPCount: number;
+		totalIPCount: number;
+	};
+	let loadingIPCountsSource = $state(new Map<string, boolean>());
+	let loadingIPCountsDestination = $state(new Map<string, boolean>());
+	let IPCountsSource = $state(new Map<string, IPCounts>());
+	let IPCountsDestination = $state(new Map<string, IPCounts>());
 
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
@@ -301,12 +305,13 @@
 					<h3 class="text-md mb-2 font-semibold">
 						Unique/Total IP Count (Source):
 						{#if IPCountsSource.get(record.router)}
-							{IPCountsSource.get(record.router).uniqueIPCount}/{IPCountsSource.get(record.router)
-								.totalIPCount}
-							or {IPCountsSource.get(record.router).totalIPCount > 0
+							{IPCountsSource.get(record.router)?.uniqueIPCount ?? 'N/A'}/{IPCountsSource.get(
+								record.router
+							)?.totalIPCount ?? 'N/A'}
+							or {(IPCountsSource.get(record.router)?.totalIPCount ?? 0) > 0
 								? Math.round(
-										(IPCountsSource.get(record.router).uniqueIPCount /
-											IPCountsSource.get(record.router).totalIPCount) *
+										((IPCountsSource.get(record.router)?.uniqueIPCount ?? 0) /
+											(IPCountsSource.get(record.router)?.totalIPCount ?? 1)) *
 											100
 									)
 								: 0}%
@@ -317,14 +322,15 @@
 					<h3 class="text-md mb-2 font-semibold">
 						Unique/Total IP Count (Destination):
 						{#if IPCountsDestination.get(record.router)}
-							{IPCountsDestination.get(record.router).uniqueIPCount}/{IPCountsDestination.get(
-								record.router
-							).totalIPCount}
-							or {Math.round(
-								(IPCountsDestination.get(record.router).uniqueIPCount /
-									IPCountsDestination.get(record.router).totalIPCount) *
-									100
-							)}%
+							{IPCountsDestination.get(record.router)?.uniqueIPCount ??
+								'N/A'}/{IPCountsDestination.get(record.router)?.totalIPCount ?? 'N/A'}
+							or {(IPCountsDestination.get(record.router)?.totalIPCount ?? 0) > 0
+								? Math.round(
+										((IPCountsDestination.get(record.router)?.uniqueIPCount ?? 0) /
+											(IPCountsDestination.get(record.router)?.totalIPCount ?? 1)) *
+											100
+									)
+								: 0}%
 						{:else}
 							Loading...
 						{/if}
