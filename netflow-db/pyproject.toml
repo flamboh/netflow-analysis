@@ -1,0 +1,19 @@
+[project]
+name = "netflow-db"
+version = "0.1.0"
+description = "Database backend for NetFlow Analysis"
+authors = [
+    {name = "flamboh",email = "oliver.boorstein@gmail.com"}
+]
+requires-python = ">=3.12,<4"
+dependencies = [
+    "hll (>=2.4.0,<3.0.0)"
+]
+
+[tool.poetry]
+package-mode = false
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
