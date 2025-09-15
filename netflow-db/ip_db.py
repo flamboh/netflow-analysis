@@ -1,7 +1,9 @@
 from HLL import HyperLogLog
+import pickle
 import subprocess
 import os
 import sys
+import sqlite3
 from pathlib import Path
 import datetime as dt
 from multiprocessing import Pool
@@ -46,25 +48,47 @@ def get_required_env(key):
 
 # Configuration from environment variables
 NETFLOW_DATA_PATH = get_required_env('NETFLOW_DATA_PATH')
+AVAILABLE_ROUTERS = get_required_env('AVAILABLE_ROUTERS').split(',')
+DATABASE_PATH = get_required_env('DATABASE_PATH')
 
 
-def process_file(current_time):
-  print(current_time)
-  hll = HyperLogLog()
-  file = f"{NETFLOW_DATA_PATH}/oh-ir1-gw/{current_time.strftime('%Y/%m/%d')}/nfcapd.{current_time.strftime('%Y%m%d%H%M')}"
-  if os.path.exists(file):
-    command = ["nfdump", "-r", file, "-q", "-o", "fmt:%sa", "-n", "0"]
-    result = subprocess.run(command, capture_output=True, text=True)
-    out = result.stdout.split("\n")
-    for line in out:
-      ip = line.strip()
-      hll.add(ip)
-    return hll, len(out) - 1
-  return hll, 0
+def process_file(conn, file_path, router, timestamp_unix):
+  source_ipv4_hll = HyperLogLog()
+  source_ipv6_hll = HyperLogLog()
+  destination_ipv4_hll = HyperLogLog()
+  destination_ipv6_hll = HyperLogLog()
+  total_ips = 0
+  if os.path.exists(file_path):
+    ipv4_command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv4"]
+    ipv6_command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv6", "-6"]
+    ipv4_result = subprocess.run(ipv4_command, capture_output=True, text=True)
+    ipv6_result = subprocess.run(ipv6_command, capture_output=True, text=True)
+
+    ipv4_out = ipv4_result.stdout.split("\n")
+    ipv6_out = ipv6_result.stdout.split("\n")
+    for line in ipv4_out:
+      source_ip, destination_ip = line.strip().split(",")
+      source_ipv4_hll.add(source_ip)
+      destination_ipv4_hll.add(destination_ip)
+      total_ips += 2
+    for line in ipv6_out:
+      source_ip, destination_ip = line.strip().split(",")
+      source_ipv6_hll.add(source_ip)
+      destination_ipv6_hll.add(destination_ip)
+      total_ips += 2
+    conn.execute("""
+      INSERT OR REPLACE INTO ip_stats (
+        file_path, router, timestamp,
+        source_ipv4_hll, destination_ipv4_hll, source_ipv6_hll, destination_ipv6_hll, source_ipv4_cardinality, destination_ipv4_cardinality, source_ipv6_cardinality, destination_ipv6_cardinality, total_ips
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (file_path, router, timestamp_unix, pickle.dumps(source_ipv4_hll), pickle.dumps(destination_ipv4_hll), pickle.dumps(source_ipv6_hll), pickle.dumps(destination_ipv6_hll), source_ipv4_hll.cardinality(), destination_ipv4_hll.cardinality(), source_ipv6_hll.cardinality(), destination_ipv6_hll.cardinality(), total_ips))
+    return total_ips
+  return -1
 
 def main():
   start_time = dt.datetime.now()
-  hll = HyperLogLog()
+  conn = sqlite3.connect(DATABASE_PATH)
+  cursor = conn.cursor()
 
   first_file = dt.datetime(2025, 7, 1, 0, 0)
   last_file = dt.datetime(2025, 7, 1, 23, 59)
@@ -75,7 +99,6 @@ def main():
     results = pool.map(process_file, all_files)
   for result in results:
     total += result[1]
-    hll.merge(result[0])
     
 
   print(hll.cardinality())
