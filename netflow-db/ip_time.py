@@ -52,58 +52,66 @@ MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '50'))
 
 
-def process_file(file_path, delta, start_time):
-    print(f"Processing {file_path} at {delta} interval")
-    file_paths = []
-    current_time = start_time
-    end_time = start_time + delta
-    while current_time < end_time:
-        timestamp_str = current_time.strftime('%Y%m%d%H%M')
-        file_path = f"{NETFLOW_DATA_PATH}/cc-ir1-gw/2025/01/01/nfcapd.{timestamp_str}"
-        if os.path.exists(file_path):
-            file_paths.append(file_path)
-        current_time += delta
+def process_file(file_path):
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv4"]
     ipv6_command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv6", "-6"]
     ipv4_result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     ipv6_result = subprocess.run(ipv6_command, capture_output=True, text=True, timeout=300)
+    return ipv4_result, ipv6_result
+
+
+def process_range(start_time, delta):
+    print(f"Processing {start_time} to {start_time + delta}")
+    file_paths = []
+    current_time = start_time
+
     sa_v4_set = set()
     sa_v6_set = set()
     da_v4_set = set()
     da_v6_set = set()
-    if ipv4_result.returncode == 0:
-        ipv4_out = ipv4_result.stdout.strip().split("\n")
-        for line in ipv4_out:
-            if line.strip() and ',' in line:
-                try:
-                    source_ip, destination_ip = line.strip().split(",")
-                    sa_v4_set.add(source_ip)
-                    da_v4_set.add(destination_ip)
-                except ValueError:
-                    continue
-    else:
-        print(f"Error processing {file_path}: {ipv4_result.stderr}")
-        return None
-    if ipv6_result.returncode == 0:
-        ipv6_out = ipv6_result.stdout.strip().split("\n")
-        for line in ipv6_out:
-            if line.strip() and ',' in line:
-                try:
-                    source_ip, destination_ip = line.strip().split(",")
-                    sa_v6_set.add(source_ip)
-                    da_v6_set.add(destination_ip)
-                except ValueError:
-                    continue
-    else:
-        print(f"Error processing {file_path}: {ipv6_result.stderr}")
-        return None
+
+
+    while current_time < start_time + delta:
+        timestamp_str = current_time.strftime('%Y%m%d%H%M')
+        file_path = f"{NETFLOW_DATA_PATH}/cc-ir1-gw/2025/01/01/nfcapd.{timestamp_str}"
+        if os.path.exists(file_path):
+            file_paths.append(file_path)
+        current_time += timedelta(minutes=5)
+    for file_path in file_paths:
+        ipv4_result, ipv6_result = process_file(file_path)
+        if ipv4_result.returncode == 0:
+            ipv4_out = ipv4_result.stdout.strip().split("\n")
+            for line in ipv4_out:
+                if line.strip() and ',' in line:
+                    try:
+                        source_ip, destination_ip = line.strip().split(",")
+                        sa_v4_set.add(source_ip)
+                        da_v4_set.add(destination_ip)
+                    except ValueError:
+                        continue
+        else:
+            print(f"Error processing {file_path}: {ipv4_result.stderr}")
+            return None
+        if ipv6_result.returncode == 0:
+            ipv6_out = ipv6_result.stdout.strip().split("\n")
+            for line in ipv6_out:
+                if line.strip() and ',' in line:
+                    try:
+                        source_ip, destination_ip = line.strip().split(",")
+                        sa_v6_set.add(source_ip)
+                        da_v6_set.add(destination_ip)
+                    except ValueError:
+                        continue
+        else:
+            print(f"Error processing {file_path}: {ipv6_result.stderr}")
+            return None
     return len(sa_v4_set), len(da_v4_set), len(sa_v6_set), len(da_v6_set)
 
 def main():
 
     start_time = datetime(2025, 1, 1)
 
-    deltas = [timedelta(minutes=5), timedelta(minutes=30), timedelta(hours=1), timedelta(days=1)]
+    deltas = [timedelta(minutes=5)]
     times = []
 
     for delta in deltas:
@@ -112,14 +120,11 @@ def main():
       print(f"processing 1 day at {delta} interval")
       tasks = []
       while current_time < datetime(2025, 1, 2):
-          timestamp_str = current_time.strftime('%Y%m%d%H%M')
-          file_path = f"{NETFLOW_DATA_PATH}/cc-ir1-gw/2025/01/01/nfcapd.{timestamp_str}"
-          if os.path.exists(file_path):
-              tasks.append((file_path, delta))
+          tasks.append((current_time, delta))
           current_time += delta
       print(f"Found {len(tasks)} tasks")
       with Pool(processes=MAX_WORKERS) as pool:
-          results = pool.map(process_file, tasks)
+          results = pool.starmap(process_range, tasks)
       for result in results:
           print(result)
 
@@ -131,3 +136,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+"""
+0:05:00 time taken: 0:02:38.367055
+0:30:00 time taken: 0:02:43.804424
+1:00:00 time taken: 0:02:41.268907
+1 day, 0:00:00 time taken: 0:18:45.726445
+
+assuming parallel processing at a scale greater than 1 day, each bucket takes ~ 2:40 per day
+"""
