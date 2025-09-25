@@ -58,7 +58,7 @@ def init_database():
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE ip_stats (
+        CREATE TABLE IF NOT EXISTS ip_stats (
             router TEXT NOT NULL,
             granularity TEXT NOT NULL CHECK (granularity IN ('5m','30m','1h','1d')),
             bucket_start INTEGER NOT NULL,
@@ -75,6 +75,7 @@ def init_database():
     conn.close()
 
 def process_file(file_path):
+    print(f"Processing {file_path}")
     sa_v4_res = set()
     da_v4_res = set()
     sa_v6_res = set()
@@ -110,28 +111,30 @@ def process_file(file_path):
 
 
 class Result:
-    def __init__(self, router, granularity, bucket_start, bucket_end):
+    def __init__(self, router, granularity):
         self.router = router
         self.granularity = granularity
-        self.bucket_start = bucket_start
-        self.bucket_end = bucket_end
         self.sa_v4_res = set()
         self.da_v4_res = set()
         self.sa_v6_res = set()
         self.da_v6_res = set()
 
+
     def update_result(self, sa_v4_res, da_v4_res, sa_v6_res, da_v6_res):
+        print(f"Updating result for {self.router} {self.granularity}")
         self.sa_v4_res.update(sa_v4_res)
         self.da_v4_res.update(da_v4_res)
         self.sa_v6_res.update(sa_v6_res)
         self.da_v6_res.update(da_v6_res)
-        return self
-    def write_result(self, conn):
+
+
+    def write_result(self, bucket_start, bucket_end, conn):
+        print(f"Writing result for {self.router} {self.granularity}")
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO ip_stats (router, granularity, bucket_start, bucket_end, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.router, self.granularity, self.bucket_start, self.bucket_end, len(self.sa_v4_res), len(self.da_v4_res), len(self.sa_v6_res), len(self.da_v6_res)))
+        """, (self.router, self.granularity, bucket_start.timestamp(), bucket_end.timestamp(), len(self.sa_v4_res), len(self.da_v4_res), len(self.sa_v6_res), len(self.da_v6_res)))
         self.sa_v4_res = set()
         self.da_v4_res = set()
         self.sa_v6_res = set()
@@ -152,13 +155,13 @@ def process_day(start_day):
     print(f"Processing {start_day}")
     current_time = start_day
     for router in AVAILABLE_ROUTERS:
-        results = [Result(router, "5m", current_time, current_time + timedelta(minutes=5)), Result(router, "30m", current_time, current_time + timedelta(minutes=30)), Result(router, "1h", current_time, current_time + timedelta(hours=1)), Result(router, "1d", current_time, current_time + timedelta(days=1))]
+        results = [Result(router, "5m"), Result(router, "30m"), Result(router, "1h"), Result(router, "1d")]
         mins = 0
 
         end_time = start_day + timedelta(days=1)
         while current_time < end_time:
             timestamp_str = current_time.strftime('%Y%m%d%H%M')
-            file_path = f"{NETFLOW_DATA_PATH}/{router}/2025/01/01/nfcapd.{timestamp_str}"
+            file_path = f"{NETFLOW_DATA_PATH}/{router}/{timestamp_str[:4]}/{timestamp_str[4:6]}/{timestamp_str[6:8]}/nfcapd.{timestamp_str}"
             if os.path.exists(file_path):
                 sa_v4_res, da_v4_res, sa_v6_res, da_v6_res = process_file(file_path) 
 
@@ -168,15 +171,15 @@ def process_day(start_day):
                 results[buckets["1d"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
 
 
-                results[buckets["5m"]].write_result(conn)
-                if mins % 30 == 0:
-                    results[buckets["30m"]].write_result(conn)
-                if mins % 60 == 0:
-                    results[buckets["1h"]].write_result(conn)
-                if mins % 1440 == 0:
-                    results[buckets["1d"]].write_result(conn)
-                mins += 5
-                current_time += timedelta(minutes=5)
+                results[buckets["5m"]].write_result(current_time, current_time + timedelta(minutes=5), conn)
+                if mins != 0 and mins % 30 == 0:
+                    results[buckets["30m"]].write_result(current_time, current_time + timedelta(minutes=30), conn)
+                if mins != 0 and mins % 60 == 0:
+                    results[buckets["1h"]].write_result(current_time, current_time + timedelta(hours=1), conn)
+                if mins != 0 and mins % 1440 == 0:
+                    results[buckets["1d"]].write_result(current_time, current_time + timedelta(days=1), conn)
+            mins += 5
+            current_time += timedelta(minutes=5)
        
     return 0
 
@@ -190,7 +193,7 @@ def main():
     current_time = start_time
     delta = timedelta(days=1)
     tasks = []
-    while current_time < datetime(2025, 1, 4):
+    while current_time < datetime(2025, 2, 1):
         tasks.append(current_time)
         current_time += delta
     print(f"Found {len(tasks)} tasks")
