@@ -153,8 +153,8 @@ def process_day(start_day):
     }
     conn = sqlite3.connect(DATABASE_PATH)
     print(f"Processing {start_day}")
-    current_time = start_day
     for router in AVAILABLE_ROUTERS:
+        current_time = start_day
         results = [Result(router, "5m"), Result(router, "30m"), Result(router, "1h"), Result(router, "1d")]
         mins = 0
 
@@ -176,10 +176,12 @@ def process_day(start_day):
                     results[buckets["30m"]].write_result(current_time, current_time + timedelta(minutes=30), conn)
                 if mins != 0 and mins % 60 == 0:
                     results[buckets["1h"]].write_result(current_time, current_time + timedelta(hours=1), conn)
-                if mins != 0 and mins % 1440 == 0:
-                    results[buckets["1d"]].write_result(current_time, current_time + timedelta(days=1), conn)
             mins += 5
             current_time += timedelta(minutes=5)
+        results[buckets["5m"]].write_result(current_time, current_time + timedelta(minutes=5), conn)
+        results[buckets["30m"]].write_result(current_time, current_time + timedelta(minutes=30), conn)
+        results[buckets["1h"]].write_result(current_time, current_time + timedelta(hours=1), conn)
+        results[buckets["1d"]].write_result(current_time, current_time + timedelta(days=1), conn)
        
     return 0
 
@@ -193,7 +195,8 @@ def main():
     current_time = start_time
     delta = timedelta(days=1)
     tasks = []
-    while current_time < datetime(2025, 2, 1):
+    now = datetime.now()
+    while current_time < now:
         tasks.append(current_time)
         current_time += delta
     print(f"Found {len(tasks)} tasks")
