@@ -132,7 +132,7 @@ class Result:
         print(f"Writing result for {self.router} {self.granularity}")
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO ip_stats (router, granularity, bucket_start, bucket_end, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
+            INSERT OR IGNORE INTO ip_stats (router, granularity, bucket_start, bucket_end, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (self.router, self.granularity, bucket_start.timestamp(), bucket_end.timestamp(), len(self.sa_v4_res), len(self.da_v4_res), len(self.sa_v6_res), len(self.da_v6_res)))
         self.sa_v4_res = set()
