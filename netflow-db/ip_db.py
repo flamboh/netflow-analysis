@@ -191,11 +191,11 @@ def main():
     delta = timedelta(days=1)
     tasks = []
     while current_time < datetime(2025, 1, 4):
-        tasks.append((current_time))
+        tasks.append(current_time)
         current_time += delta
     print(f"Found {len(tasks)} tasks")
     with Pool(processes=MAX_WORKERS) as pool:
-        pool.starmap(process_day, tasks)
+        pool.map(process_day, tasks)
 
     print(f"Time taken: {datetime.now() - timer}")
 if __name__ == "__main__":
