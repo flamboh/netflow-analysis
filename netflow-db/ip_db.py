@@ -178,10 +178,10 @@ def process_day(start_day):
                     results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
             mins += 5
             current_time += timedelta(minutes=5)
-        results[buckets["5m"]].write_result(current_time, current_time + timedelta(minutes=5), conn)
-        results[buckets["30m"]].write_result(current_time, current_time + timedelta(minutes=30), conn)
-        results[buckets["1h"]].write_result(current_time, current_time + timedelta(hours=1), conn)
-        results[buckets["1d"]].write_result(current_time, current_time + timedelta(days=1), conn)
+        results[buckets["5m"]].write_result(current_time - timedelta(minutes=5), current_time, conn)
+        results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
+        results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
+        results[buckets["1d"]].write_result(current_time - timedelta(days=1), current_time, conn)
        
     return 0
 
