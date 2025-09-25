@@ -152,6 +152,8 @@ def process_day(start_day):
         "1d": 3
     }
     conn = sqlite3.connect(DATABASE_PATH)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=60000;")
     print(f"Processing {start_day}")
     for router in AVAILABLE_ROUTERS:
         current_time = start_day
