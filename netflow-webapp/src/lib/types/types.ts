@@ -22,6 +22,44 @@ export interface NetflowStatsResult {
 	data: string;
 }
 
+export const IP_GRANULARITIES = ['5m', '30m', '1h', '1d'] as const;
+
+export type IpGranularity = (typeof IP_GRANULARITIES)[number];
+
+export type IpMetricKey =
+	| 'saIpv4Count'
+	| 'daIpv4Count'
+	| 'saIpv6Count'
+	| 'daIpv6Count';
+
+export interface IpStatsCounts {
+	saIpv4Count: number;
+	daIpv4Count: number;
+	saIpv6Count: number;
+	daIpv6Count: number;
+}
+
+export interface IpStatsBucket extends IpStatsCounts {
+	router: string;
+	granularity: IpGranularity;
+	bucketStart: number;
+	bucketEnd: number;
+	processedAt?: string;
+}
+
+export interface IpStatsResponse {
+	buckets: IpStatsBucket[];
+	availableGranularities: IpGranularity[];
+}
+
+export interface IpChartState {
+	startDate: string;
+	endDate: string;
+	granularity: IpGranularity;
+	selectedRouters: string[];
+	activeMetrics: IpMetricKey[];
+}
+
 export interface SpectrumPoint {
 	alpha: number;
 	f: number;
