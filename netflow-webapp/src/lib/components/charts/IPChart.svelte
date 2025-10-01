@@ -339,27 +339,29 @@
 			<h3 class="text-lg font-semibold text-gray-900">IP Activity Visualization</h3>
 		</div>
 		<div class="p-4">
-			{#if loading}
-				<div class="flex h-[480px] items-center justify-center">
-					<div class="text-gray-500">Loading IP data...</div>
-				</div>
-			{:else if error}
-				<div class="flex h-[480px] items-center justify-center">
-					<div class="text-red-500">{error}</div>
-				</div>
-			{:else if chartState.activeMetrics.length === 0}
-				<div class="flex h-[480px] items-center justify-center">
-					<div class="text-gray-500">Select at least one metric to display.</div>
-				</div>
-			{:else if buckets.length === 0}
-				<div class="flex h-[480px] items-center justify-center">
-					<div class="text-gray-500">No IP data for the selected window.</div>
-				</div>
-			{:else}
-				<div class="h-[480px]">
-					<canvas bind:this={chartCanvas} aria-label="IP statistics chart"></canvas>
-				</div>
-			{/if}
+			<div class="resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 min-h-[240px] h-[320px]">
+				{#if loading}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-gray-500">Loading IP data...</div>
+					</div>
+				{:else if error}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-red-500">{error}</div>
+					</div>
+				{:else if chartState.activeMetrics.length === 0}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-gray-500">Select at least one metric to display.</div>
+					</div>
+				{:else if buckets.length === 0}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-gray-500">No IP data for the selected window.</div>
+					</div>
+				{:else}
+					<div class="h-full">
+						<canvas bind:this={chartCanvas} aria-label="IP statistics chart"></canvas>
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>
