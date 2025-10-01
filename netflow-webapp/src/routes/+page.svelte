@@ -3,36 +3,44 @@
 	import IPChart from '$lib/components/charts/IPChart.svelte';
 	import type { ChartState } from '$lib/components/netflow/types.ts';
 
-	// Optional: Pass initial state to the NetFlow dashboard
-	const today = new Date().toJSON().slice(0, 10);
-	const initialState: Partial<ChartState> = {
-		startDate: '2025-01-01',
-		endDate: today,
-		groupBy: 'date',
-		chartType: 'stacked',
-		dataOptions: [
-			{ label: 'Flows', index: 0, checked: true },
-			{ label: 'Flows TCP', index: 1, checked: true },
-			{ label: 'Flows UDP', index: 2, checked: true },
-			{ label: 'Flows ICMP', index: 3, checked: true },
-			{ label: 'Flows Other', index: 4, checked: true },
-			{ label: 'Packets', index: 5, checked: false },
-			{ label: 'Packets TCP', index: 6, checked: false },
-			{ label: 'Packets UDP', index: 7, checked: false },
-			{ label: 'Packets ICMP', index: 8, checked: false },
-			{ label: 'Packets Other', index: 9, checked: false },
-			{ label: 'Bytes', index: 10, checked: false },
-			{ label: 'Bytes TCP', index: 11, checked: false },
-			{ label: 'Bytes UDP', index: 12, checked: false },
-			{ label: 'Bytes ICMP', index: 13, checked: false },
-			{ label: 'Bytes Other', index: 14, checked: false }
-		]
-	};
+// Shared date range controlled by NetFlow dashboard
+const today = new Date().toJSON().slice(0, 10);
+let startDate = '2025-01-01';
+let endDate = today;
 
-	const dashboards = [
-		{ id: 0, kind: 'netflow' as const },
-		{ id: 1, kind: 'ip' as const }
-	];
+$: netflowInitialState = {
+	startDate,
+	endDate,
+	groupBy: 'date',
+	chartType: 'stacked',
+	dataOptions: [
+		{ label: 'Flows', index: 0, checked: true },
+		{ label: 'Flows TCP', index: 1, checked: true },
+		{ label: 'Flows UDP', index: 2, checked: true },
+		{ label: 'Flows ICMP', index: 3, checked: true },
+		{ label: 'Flows Other', index: 4, checked: true },
+		{ label: 'Packets', index: 5, checked: false },
+		{ label: 'Packets TCP', index: 6, checked: false },
+		{ label: 'Packets UDP', index: 7, checked: false },
+		{ label: 'Packets ICMP', index: 8, checked: false },
+		{ label: 'Packets Other', index: 9, checked: false },
+		{ label: 'Bytes', index: 10, checked: false },
+		{ label: 'Bytes TCP', index: 11, checked: false },
+		{ label: 'Bytes UDP', index: 12, checked: false },
+		{ label: 'Bytes ICMP', index: 13, checked: false },
+		{ label: 'Bytes Other', index: 14, checked: false }
+	]
+} satisfies Partial<ChartState>;
+
+const dashboards = [
+	{ id: 0, kind: 'netflow' as const },
+	{ id: 1, kind: 'ip' as const }
+];
+
+function handleDateChange(event: CustomEvent<{ startDate: string; endDate: string }>) {
+	startDate = event.detail.startDate;
+	endDate = event.detail.endDate;
+}
 </script>
 
 <svelte:head>
@@ -44,9 +52,9 @@
 	<main class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
 		{#each dashboards as chart (chart.id)}
 			{#if chart.kind === 'netflow'}
-				<NetflowDashboard {initialState} />
+				<NetflowDashboard initialState={netflowInitialState} on:dateChange={handleDateChange} />
 			{:else if chart.kind === 'ip'}
-				<IPChart />
+				<IPChart {startDate} {endDate} />
 			{/if}
 		{/each}
 	</main>

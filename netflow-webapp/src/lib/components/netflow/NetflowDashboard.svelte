@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
 	import ChartControls from '$lib/components/charts/ChartControls.svelte';
@@ -20,6 +20,8 @@
 	}
 
 	let { initialState = {} }: Props = $props();
+
+	const dispatch = createEventDispatcher<{ dateChange: { startDate: string; endDate: string } }>();
 
 	// Initialize default state
 	const today = new Date().toJSON().slice(0, 10);
@@ -48,9 +50,13 @@
 		]
 	);
 
-	let results = $state<NetflowDataPoint[]>([]);
-	let loading = $state(false);
-	let error = $state<string | null>(null);
+let results = $state<NetflowDataPoint[]>([]);
+let loading = $state(false);
+let error = $state<string | null>(null);
+
+function notifyDateChange() {
+	dispatch('dateChange', { startDate, endDate });
+}
 
 	function dataOptionsToBinary(): number {
 		return dataOptions.reduce(
@@ -93,40 +99,41 @@
 			} else {
 				error = `Failed to load data: ${response.status} ${response.statusText}`;
 			}
-		} catch (err) {
-			error = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-		} finally {
-			loading = false;
-		}
+	} catch (err) {
+		error = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+	} finally {
+		loading = false;
 	}
+	notifyDateChange();
+}
 
 	function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
-		groupBy = newGroupBy;
-		startDate = newStartDate;
-		endDate = newEndDate;
-		loadData();
-	}
+	groupBy = newGroupBy;
+	startDate = newStartDate;
+	endDate = newEndDate;
+	loadData();
+}
 
 	function handleNavigateToFile(slug: string) {
 		goto(`/api/netflow/files/${slug}`);
 	}
 
 	function handleReset() {
-		groupBy = 'date';
-		startDate = '2025-01-01';
-		endDate = today;
-		loadData();
-	}
+	groupBy = 'date';
+	startDate = '2025-01-01';
+	endDate = today;
+	loadData();
+}
 
 	function handleStartDateChange(date: string) {
-		startDate = date;
-		loadData();
-	}
+	startDate = date;
+	loadData();
+}
 
 	function handleEndDateChange(date: string) {
-		endDate = date;
-		loadData();
-	}
+	endDate = date;
+	loadData();
+}
 
 	function handleRouterChange(newRouters: RouterConfig) {
 		routers = newRouters;

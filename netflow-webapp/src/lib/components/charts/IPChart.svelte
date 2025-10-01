@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { Chart } from 'chart.js/auto';
-	import DateRangeFilter from '$lib/components/filters/DateRangeFilter.svelte';
 	import RouterFilter from '$lib/components/filters/RouterFilter.svelte';
 	import type { RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
@@ -26,14 +25,15 @@
 		{ key: 'daIpv6Count', label: 'Destination IPv6', color: '#ef4444' }
 	];
 
+	const props = $props<{ startDate?: string; endDate?: string }>();
 	const today = new Date();
 	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
-	const defaultEndDate = formatDate(today);
-	const defaultStartDate = '2025-01-01';
+	const getStartDate = () => props.startDate ?? '2025-01-01';
+	const getEndDate = () => props.endDate ?? formatDate(today);
 
 	let chartState = $state<IpChartState>({
-		startDate: defaultStartDate,
-		endDate: defaultEndDate,
+		startDate: getStartDate(),
+		endDate: getEndDate(),
 		granularity: '1d',
 		selectedRouters: [],
 		activeMetrics: ['saIpv4Count', 'daIpv4Count']
@@ -44,6 +44,7 @@
 	let buckets = $state<IpStatsBucket[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+	let routersLoaded = $state(false);
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
 	let chart: Chart<'line'> | null = null;
@@ -196,13 +197,17 @@
 			routerConfig = initialConfig;
 			chartState = {
 				...chartState,
+				startDate: getStartDate(),
+				endDate: getEndDate(),
 				selectedRouters: Object.keys(initialConfig)
 			};
+			routersLoaded = true;
 			if (chartState.selectedRouters.length > 0) {
 				await loadData();
 			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load routers';
+			routersLoaded = true;
 		}
 	}
 
@@ -246,16 +251,6 @@
 		}
 	}
 
-	function handleStartDateChange(date: string) {
-		chartState = { ...chartState, startDate: date };
-		loadData();
-	}
-
-	function handleEndDateChange(date: string) {
-		chartState = { ...chartState, endDate: date };
-		loadData();
-	}
-
 	function handleRouterChange(newRouterConfig: RouterConfig) {
 		routerConfig = newRouterConfig;
 		const nextSelected = Object.entries(newRouterConfig)
@@ -289,6 +284,19 @@
 	onDestroy(() => {
 		destroyChart();
 	});
+
+	$effect(() => {
+		if (!routersLoaded) {
+			return;
+		}
+		const externalStart = getStartDate();
+		const externalEnd = getEndDate();
+		const shouldSync = chartState.startDate !== externalStart || chartState.endDate !== externalEnd;
+		if (shouldSync) {
+			chartState = { ...chartState, startDate: externalStart, endDate: externalEnd };
+			loadData();
+		}
+	});
 </script>
 
 <div class="space-y-6">
@@ -308,13 +316,6 @@
 				</select>
 			</label>
 		</div>
-
-		<DateRangeFilter
-			startDate={chartState.startDate}
-			endDate={chartState.endDate}
-			onStartDateChange={handleStartDateChange}
-			onEndDateChange={handleEndDateChange}
-		/>
 
 		<RouterFilter routers={routerConfig} onRouterChange={handleRouterChange} />
 
