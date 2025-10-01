@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+import { onDestroy, onMount } from 'svelte';
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import { goto } from '$app/navigation';
@@ -31,12 +31,16 @@
 
 	let { results, groupBy, chartType, dataOptions, onDrillDown, onNavigateToFile }: Props = $props();
 
-	let chartCanvas: HTMLCanvasElement;
-	let chart: Chart;
+let chartCanvas: HTMLCanvasElement;
+let chart: Chart | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
-	function getClickedElement(
-		activeElements: { datasetIndex: number; index: number }[]
-	): ClickedElement | null {
+function getClickedElement(
+    activeElements: { datasetIndex: number; index: number }[]
+): ClickedElement | null {
+    if (!chart) {
+        return null;
+    }
 		if (activeElements.length > 0) {
 			const element = activeElements[0];
 			const datasetIndex = element.datasetIndex;
@@ -60,10 +64,13 @@
 		return null;
 	}
 
-	function handleChartClick(
-		e: MouseEvent,
-		activeElements: { datasetIndex: number; index: number }[]
-	) {
+function handleChartClick(
+    e: MouseEvent,
+    activeElements: { datasetIndex: number; index: number }[]
+) {
+    if (!chart) {
+        return;
+    }
 		// Always get the canvas position and convert to data values
 		const canvasPosition = getRelativePosition(e, chart);
 		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
@@ -323,15 +330,16 @@
 					}
 		};
 
-		return {
-			type: 'line',
-			data: {
+    return {
+        type: 'line',
+        data: {
 				labels,
 				datasets
 			},
-			options: {
-				onClick: handleChartClick,
-				responsive: true,
+        options: {
+            onClick: handleChartClick,
+            responsive: true,
+            maintainAspectRatio: false,
 				scales: scales,
 				plugins: {
 					legend: {
@@ -363,20 +371,21 @@
 		};
 	}
 
-	onMount(() => {
+onMount(() => {
 		// Register the crosshair plugin
 		Chart.register(verticalCrosshairPlugin);
 
 		// Initialize empty chart (matches original)
-		chart = new Chart(chartCanvas, {
+    chart = new Chart(chartCanvas, {
 			type: 'line',
 			data: {
 				labels: [],
 				datasets: [] // Start with no datasets
 			},
-			options: {
-				onClick: handleChartClick,
-				responsive: true,
+        options: {
+            onClick: handleChartClick,
+            responsive: true,
+            maintainAspectRatio: false,
 				scales: {
 					x: {
 						title: {
@@ -411,33 +420,49 @@
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} as any);
 
-		return () => {
-			if (chart) {
-				chart.destroy();
-			}
-		};
-	});
+    const container = chartCanvas.parentElement;
+    if (container) {
+        resizeObserver = new ResizeObserver(() => {
+            chart?.resize();
+        });
+        resizeObserver.observe(container);
+    }
+
+    return () => {
+        resizeObserver?.disconnect();
+        resizeObserver = null;
+        chart?.destroy();
+        chart = null;
+    };
+});
+
+onDestroy(() => {
+    chart?.destroy();
+    chart = null;
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+});
 
 	// Update chart when props change (matches original loadData behavior)
 	$effect(() => {
-		if (chart && results.length > 0) {
-			const config = createChartConfig();
-			chart.data = config.data;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			chart.options = config.options as any;
-			chart.update();
-		}
-	});
+    if (chart && results.length > 0) {
+        const config = createChartConfig();
+        chart.data = config.data;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        chart.options = config.options as any;
+        chart.update();
+    }
+});
 </script>
 
 <div class="chart-container">
-	<canvas bind:this={chartCanvas} class="h-[600px] w-full"></canvas>
+    <canvas bind:this={chartCanvas} class="h-full w-full"></canvas>
 </div>
 
 <style>
-	.chart-container {
-		position: relative;
-		height: 600px;
-		width: 100%;
-	}
+    .chart-container {
+        position: relative;
+        height: 100%;
+        width: 100%;
+    }
 </style>
