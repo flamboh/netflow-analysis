@@ -6,7 +6,7 @@
 	// Optional: Pass initial state to the NetFlow dashboard
 	const today = new Date().toJSON().slice(0, 10);
 	const initialState: Partial<ChartState> = {
-		startDate: '2024-03-01',
+		startDate: '2025-01-01',
 		endDate: today,
 		groupBy: 'date',
 		chartType: 'stacked',

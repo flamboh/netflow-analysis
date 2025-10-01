@@ -23,7 +23,7 @@
 
 	// Initialize default state
 	const today = new Date().toJSON().slice(0, 10);
-	let startDate = $state(initialState.startDate || '2024-03-01');
+	let startDate = $state(initialState.startDate || '2025-01-01');
 	let endDate = $state(initialState.endDate || today);
 	let routers = $state<RouterConfig>(initialState.routers || {});
 	let groupBy = $state<GroupByOption>(initialState.groupBy || 'date');
@@ -113,7 +113,7 @@
 
 	function handleReset() {
 		groupBy = 'date';
-		startDate = '2024-03-01';
+		startDate = '2025-01-01';
 		endDate = today;
 		loadData();
 	}

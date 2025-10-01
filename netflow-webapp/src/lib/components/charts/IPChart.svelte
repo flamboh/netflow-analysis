@@ -29,12 +29,12 @@
 	const today = new Date();
 	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
 	const defaultEndDate = formatDate(today);
-	const defaultStartDate = formatDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
+	const defaultStartDate = '2025-01-01';
 
 	let chartState = $state<IpChartState>({
 		startDate: defaultStartDate,
 		endDate: defaultEndDate,
-		granularity: '1h',
+		granularity: '1d',
 		selectedRouters: [],
 		activeMetrics: ['saIpv4Count', 'daIpv4Count']
 	});
@@ -114,17 +114,21 @@
 			return;
 		}
 
-		const labels = selectedBuckets.map((bucket) => formatBucketLabel(bucket, chartState.granularity));
-		const datasets = METRIC_OPTIONS.filter((option) => activeMetrics.includes(option.key)).map((option) => ({
-			label: option.label,
-			data: selectedBuckets.map((bucket) => bucket[option.key]),
-			borderColor: option.color,
-			backgroundColor: withAlpha(option.color, 0.2),
-			tension: 0.3,
-			fill: false,
-			pointRadius: 0,
-			pointHoverRadius: 4
-		}));
+		const labels = selectedBuckets.map((bucket) =>
+			formatBucketLabel(bucket, chartState.granularity)
+		);
+		const datasets = METRIC_OPTIONS.filter((option) => activeMetrics.includes(option.key)).map(
+			(option) => ({
+				label: option.label,
+				data: selectedBuckets.map((bucket) => bucket[option.key]),
+				borderColor: option.color,
+				backgroundColor: withAlpha(option.color, 0.2),
+				tension: 0.3,
+				fill: false,
+				pointRadius: 0,
+				pointHoverRadius: 4
+			})
+		);
 
 		if (!chart) {
 			chart = new Chart(canvas, {
@@ -295,8 +299,8 @@
 				Granularity
 				<select
 					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-					 onchange={handleGranularityChange}
-					 value={chartState.granularity}
+					onchange={handleGranularityChange}
+					value={chartState.granularity}
 				>
 					{#each availableGranularities as option (option)}
 						<option value={option}>{option}</option>
