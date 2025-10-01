@@ -25,9 +25,7 @@ const DATA_OPTIONS = [
 ];
 
 function getGroupByQuery(groupBy: string) {
-	if (groupBy === 'month') {
-		return "strftime('%Y-%m', timestamp, 'unixepoch')";
-	} else if (groupBy === 'date') {
+	if (groupBy === 'date') {
 		return "strftime('%Y-%m-%d', timestamp, 'unixepoch')";
 	} else if (groupBy === 'hour') {
 		return "strftime('%Y-%m-%d %H:00:00', timestamp, 'unixepoch', 'localtime')";
@@ -61,7 +59,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	// const endTime = url.searchParams.get('endTime') || '0100';
 	const routersParam = url.searchParams.get('routers') || '';
 	const dataOptionsBinary = parseInt(url.searchParams.get('dataOptions') || '0');
-	const groupBy = url.searchParams.get('groupBy') || 'month';
+	const groupBy = url.searchParams.get('groupBy') || 'date';
 
 	// Parse routers
 	const routers = routersParam.split(',').filter((r) => r.length > 0);

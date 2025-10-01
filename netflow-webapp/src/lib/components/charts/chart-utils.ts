@@ -2,12 +2,6 @@ import type { GroupByOption, NetflowDataPoint } from '$lib/components/netflow/ty
 
 export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption): string[] {
 	switch (groupBy) {
-		case 'month':
-			return results.map((item) => {
-				const year = item.time.slice(0, 4);
-				const month = item.time.slice(4, 6);
-				return `${year}-${month}`;
-			});
 		case 'date':
 			return results.map((item) => {
 				const year = item.time.slice(0, 4);
@@ -49,8 +43,6 @@ export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption
 
 export function getXAxisTitle(groupBy: GroupByOption): string {
 	switch (groupBy) {
-		case 'month':
-			return 'Month';
 		case 'date':
 			return 'Date';
 		case 'hour':
@@ -101,8 +93,6 @@ export function generateColors(count: number): string[] {
 
 export function parseClickedLabel(label: string, groupBy: GroupByOption): Date {
 	switch (groupBy) {
-		case 'month':
-			return new Date(label + '-01');
 		case 'date':
 			return new Date(label);
 		case 'hour':

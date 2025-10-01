@@ -35,7 +35,6 @@
 			onchange={handleGroupByChange}
 			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
 		>
-			<option value="month">Month</option>
 			<option value="date">Date</option>
 			<option value="hour">Hour</option>
 			<option value="30min">30 Minutes</option>
