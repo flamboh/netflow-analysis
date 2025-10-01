@@ -16,7 +16,7 @@
 		showMessage = false;
 
 		try {
-			const response = await fetch('/api/database', {
+			const response = await fetch('/api/database/netflow', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
@@ -80,7 +80,7 @@
 
 {#if showMessage}
 	<div
-		class="fixed top-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 transform px-4"
+		class="fixed left-1/2 top-4 z-50 w-full max-w-md -translate-x-1/2 transform px-4"
 		transition:fade={{ duration: 300 }}
 	>
 		<div
