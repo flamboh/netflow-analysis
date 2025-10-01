@@ -33,7 +33,7 @@
 			id="groupBy"
 			value={groupBy}
 			onchange={handleGroupByChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 		>
 			<option value="date">Date</option>
 			<option value="hour">Hour</option>
@@ -48,7 +48,7 @@
 			id="chartType"
 			value={chartType}
 			onchange={handleChartTypeChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
 		>
 			<option value="stacked">Stacked Area</option>
 			<option value="line">Line Chart</option>
@@ -58,7 +58,7 @@
 	<button
 		type="button"
 		onclick={handleReset}
-		class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+		class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
 	>
 		Reset View
 	</button>

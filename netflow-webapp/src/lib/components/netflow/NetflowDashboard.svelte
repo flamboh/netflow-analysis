@@ -199,38 +199,40 @@
 		</div>
 
 		<div class="p-4">
-		<ChartControls
-			{groupBy}
-			{chartType}
-			onGroupByChange={handleGroupByChange}
-			onChartTypeChange={handleChartTypeChange}
-			onReset={handleReset}
-		/>
+			<ChartControls
+				{groupBy}
+				{chartType}
+				onGroupByChange={handleGroupByChange}
+				onChartTypeChange={handleChartTypeChange}
+				onReset={handleReset}
+			/>
 
-		<div class="resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 min-h-[320px] h-[600px]">
-			{#if loading}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading data...</div>
-				</div>
-			{:else if error}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">Error: {error}</div>
-				</div>
-			{:else if results.length === 0}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No data available for the selected filters</div>
-				</div>
-			{:else}
-				<ChartContainer
-					{results}
-					{groupBy}
-					{chartType}
-					{dataOptions}
-					onDrillDown={handleDrillDown}
-					onNavigateToFile={handleNavigateToFile}
-				/>
-			{/if}
-		</div>
+			<div
+				class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			>
+				{#if loading}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-gray-500">Loading data...</div>
+					</div>
+				{:else if error}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-red-500">Error: {error}</div>
+					</div>
+				{:else if results.length === 0}
+					<div class="flex h-full items-center justify-center">
+						<div class="text-gray-500">No data available for the selected filters</div>
+					</div>
+				{:else}
+					<ChartContainer
+						{results}
+						{groupBy}
+						{chartType}
+						{dataOptions}
+						onDrillDown={handleDrillDown}
+						onNavigateToFile={handleNavigateToFile}
+					/>
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>
