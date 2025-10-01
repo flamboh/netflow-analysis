@@ -40,7 +40,6 @@ export interface IpStatsCounts {
 }
 
 export interface IpStatsBucket extends IpStatsCounts {
-	router: string;
 	granularity: IpGranularity;
 	bucketStart: number;
 	bucketEnd: number;
@@ -50,6 +49,7 @@ export interface IpStatsBucket extends IpStatsCounts {
 export interface IpStatsResponse {
 	buckets: IpStatsBucket[];
 	availableGranularities: IpGranularity[];
+	requestedRouters: string[];
 }
 
 export interface IpChartState {
