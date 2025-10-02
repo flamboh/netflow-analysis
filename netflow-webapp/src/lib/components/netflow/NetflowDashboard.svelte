@@ -21,7 +21,11 @@
 
 	let { initialState = {} }: Props = $props();
 
-	const dispatch = createEventDispatcher<{ dateChange: { startDate: string; endDate: string } }>();
+const dispatch = createEventDispatcher<{
+	dateChange: { startDate: string; endDate: string };
+	groupByChange: { groupBy: GroupByOption };
+	routersChange: { routers: RouterConfig };
+}>();
 
 	// Initialize default state
 	const today = new Date().toJSON().slice(0, 10);
@@ -54,8 +58,23 @@ let results = $state<NetflowDataPoint[]>([]);
 let loading = $state(false);
 let error = $state<string | null>(null);
 
+const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
+	{ value: 'date', label: 'Day' },
+	{ value: 'hour', label: 'Hour' },
+	{ value: '30min', label: '30 Minutes' },
+	{ value: '5min', label: '5 Minutes' }
+];
+
 function notifyDateChange() {
 	dispatch('dateChange', { startDate, endDate });
+}
+
+function notifyGroupByChange() {
+	dispatch('groupByChange', { groupBy });
+}
+
+function notifyRoutersChange() {
+	dispatch('routersChange', { routers });
 }
 
 	function dataOptionsToBinary(): number {
@@ -99,50 +118,65 @@ function notifyDateChange() {
 			} else {
 				error = `Failed to load data: ${response.status} ${response.statusText}`;
 			}
-	} catch (err) {
-		error = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-	} finally {
-		loading = false;
+		} catch (err) {
+			error = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+		} finally {
+			loading = false;
+			notifyDateChange();
+		}
 	}
-	notifyDateChange();
-}
 
-	function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
+function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
 	groupBy = newGroupBy;
 	startDate = newStartDate;
 	endDate = newEndDate;
 	loadData();
+	notifyGroupByChange();
 }
 
 	function handleNavigateToFile(slug: string) {
 		goto(`/api/netflow/files/${slug}`);
 	}
 
-	function handleReset() {
+function handleReset() {
 	groupBy = 'date';
 	startDate = '2025-01-01';
 	endDate = today;
 	loadData();
+	notifyGroupByChange();
 }
 
 	function handleStartDateChange(date: string) {
-	startDate = date;
-	loadData();
-}
+		startDate = date;
+		loadData();
+	}
 
 	function handleEndDateChange(date: string) {
-	endDate = date;
-	loadData();
-}
+		endDate = date;
+		loadData();
+	}
 
 	function handleRouterChange(newRouters: RouterConfig) {
 		routers = newRouters;
+		loadData();
+		notifyRoutersChange();
+	}
+
+	function handleGranularitySelect(event: Event) {
+		const target = event.currentTarget as HTMLSelectElement;
+		const next = target.value as GroupByOption;
+		if (next === groupBy) {
+			return;
+		}
+		groupBy = next;
+		notifyGroupByChange();
 		loadData();
 	}
 
 	function handleGroupByChange(newGroupBy: GroupByOption) {
 		groupBy = newGroupBy;
 		loadData();
+		notifyGroupByChange();
 	}
 
 	function handleChartTypeChange(newChartType: ChartTypeOption) {
@@ -172,6 +206,10 @@ function notifyDateChange() {
 			}
 		} catch (err) {
 			console.error('Failed to load routers:', err);
+		} finally {
+			if (Object.keys(routers).length > 0) {
+				notifyRoutersChange();
+			}
 		}
 	}
 
@@ -181,12 +219,27 @@ function notifyDateChange() {
 		if (Object.keys(routers).length > 0) {
 			loadData();
 		}
+		notifyGroupByChange();
 	});
 </script>
 
 <div class="netflow-dashboard space-y-6">
 	<div class="filters-section space-y-4 rounded-lg border bg-white p-4 shadow-sm">
-		<h2 class="text-lg font-semibold text-gray-900">Filters</h2>
+		<div class="flex items-center justify-between">
+			<h2 class="text-lg font-semibold text-gray-900">Filters</h2>
+			<label class="text-sm text-gray-600">
+				Granularity
+				<select
+					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					value={groupBy}
+					onchange={handleGranularitySelect}
+				>
+					{#each GROUP_BY_OPTIONS as option (option.value)}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</label>
+		</div>
 
 		<DateRangeFilter
 			{startDate}
@@ -212,6 +265,7 @@ function notifyDateChange() {
 				onGroupByChange={handleGroupByChange}
 				onChartTypeChange={handleChartTypeChange}
 				onReset={handleReset}
+				showGroupBy={false}
 			/>
 
 			<div

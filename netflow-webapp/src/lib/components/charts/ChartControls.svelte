@@ -7,9 +7,17 @@
 		onGroupByChange?: (groupBy: GroupByOption) => void;
 		onChartTypeChange?: (chartType: ChartTypeOption) => void;
 		onReset?: () => void;
+		showGroupBy?: boolean;
 	}
 
-	let { groupBy, chartType, onGroupByChange, onChartTypeChange, onReset }: Props = $props();
+	let {
+		groupBy,
+		chartType,
+		onGroupByChange,
+		onChartTypeChange,
+		onReset,
+		showGroupBy = true
+	}: Props = $props();
 
 	function handleGroupByChange(event: Event) {
 		const target = event.target as HTMLSelectElement;
@@ -27,20 +35,22 @@
 </script>
 
 <div class="chart-controls mb-4 flex flex-wrap gap-4 rounded-lg bg-gray-50 p-4">
-	<div class="flex items-center gap-2">
-		<label for="groupBy" class="text-sm font-medium text-gray-700">Group by:</label>
-		<select
-			id="groupBy"
-			value={groupBy}
-			onchange={handleGroupByChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-		>
-			<option value="date">Date</option>
-			<option value="hour">Hour</option>
-			<option value="30min">30 Minutes</option>
-			<option value="5min">5 Minutes</option>
-		</select>
-	</div>
+	{#if showGroupBy}
+		<div class="flex items-center gap-2">
+			<label for="groupBy" class="text-sm font-medium text-gray-700">Group by:</label>
+			<select
+				id="groupBy"
+				value={groupBy}
+				onchange={handleGroupByChange}
+				class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+			>
+				<option value="date">Date</option>
+				<option value="hour">Hour</option>
+				<option value="30min">30 Minutes</option>
+				<option value="5min">5 Minutes</option>
+			</select>
+		</div>
+	{/if}
 
 	<div class="flex items-center gap-2">
 		<label for="chartType" class="text-sm font-medium text-gray-700">Chart type:</label>

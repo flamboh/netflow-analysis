@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { Chart } from 'chart.js/auto';
-	import RouterFilter from '$lib/components/filters/RouterFilter.svelte';
 	import type { RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
-		IP_GRANULARITIES,
 		type IpChartState,
 		type IpGranularity,
 		type IpMetricKey,
@@ -25,26 +23,42 @@
 		{ key: 'daIpv6Count', label: 'Destination IPv6', color: '#ef4444' }
 	];
 
-	const props = $props<{ startDate?: string; endDate?: string }>();
-	const today = new Date();
-	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
-	const getStartDate = () => props.startDate ?? '2025-01-01';
-	const getEndDate = () => props.endDate ?? formatDate(today);
+const props = $props<{ startDate?: string; endDate?: string; granularity?: IpGranularity; routers?: RouterConfig }>();
+const today = new Date();
+const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
+const getStartDate = () => props.startDate ?? '2025-01-01';
+const getEndDate = () => props.endDate ?? formatDate(today);
+const getGranularity = () => props.granularity ?? chartState.granularity;
 
-	let chartState = $state<IpChartState>({
-		startDate: getStartDate(),
-		endDate: getEndDate(),
-		granularity: '1d',
-		selectedRouters: [],
-		activeMetrics: ['saIpv4Count', 'daIpv4Count']
-	});
+function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
+	if (!config) {
+		return [];
+	}
+	return Object.entries(config)
+		.filter(([, enabled]) => enabled)
+		.map(([name]) => name.trim())
+		.filter((name) => name.length > 0)
+		.sort();
+}
 
-	let routerConfig = $state<RouterConfig>({});
-	let availableGranularities = $state<IpGranularity[]>([...IP_GRANULARITIES]);
-	let buckets = $state<IpStatsBucket[]>([]);
-	let loading = $state(false);
-	let error = $state<string | null>(null);
-	let routersLoaded = $state(false);
+function arraysEqual(a: string[], b: string[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	return a.every((value, index) => value === b[index]);
+}
+
+let chartState = $state<IpChartState>({
+	startDate: getStartDate(),
+	endDate: getEndDate(),
+	granularity: '1d',
+	selectedRouters: [],
+	activeMetrics: ['saIpv4Count', 'daIpv4Count']
+});
+
+let buckets = $state<IpStatsBucket[]>([]);
+let loading = $state(false);
+let error = $state<string | null>(null);
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
 	let chart: Chart<'line'> | null = null;
@@ -180,37 +194,6 @@
 		}
 	}
 
-	async function loadRouters() {
-		try {
-			const response = await fetch('/api/routers');
-			if (!response.ok) {
-				throw new Error(`Router request failed: ${response.status}`);
-			}
-			const routerList = (await response.json()) as string[];
-			const initialConfig: RouterConfig = {};
-			routerList.forEach((router) => {
-				const trimmed = router.trim();
-				if (trimmed.length > 0) {
-					initialConfig[trimmed] = true;
-				}
-			});
-			routerConfig = initialConfig;
-			chartState = {
-				...chartState,
-				startDate: getStartDate(),
-				endDate: getEndDate(),
-				selectedRouters: Object.keys(initialConfig)
-			};
-			routersLoaded = true;
-			if (chartState.selectedRouters.length > 0) {
-				await loadData();
-			}
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load routers';
-			routersLoaded = true;
-		}
-	}
-
 	async function loadData() {
 		const selectedRouters = chartState.selectedRouters;
 		if (selectedRouters.length === 0) {
@@ -238,7 +221,6 @@
 				throw new Error(message || 'Failed to load IP statistics');
 			}
 			const data = (await response.json()) as IpStatsResponse;
-			availableGranularities = data.availableGranularities;
 			buckets = data.buckets;
 			loading = false;
 			await tick();
@@ -251,23 +233,6 @@
 		}
 	}
 
-	function handleRouterChange(newRouterConfig: RouterConfig) {
-		routerConfig = newRouterConfig;
-		const nextSelected = Object.entries(newRouterConfig)
-			.filter(([, isEnabled]) => isEnabled)
-			.map(([name]) => name.trim())
-			.filter((name) => name.length > 0);
-		chartState = { ...chartState, selectedRouters: nextSelected };
-		loadData();
-	}
-
-	function handleGranularityChange(event: Event) {
-		const target = event.currentTarget as HTMLSelectElement;
-		const value = target.value as IpGranularity;
-		chartState = { ...chartState, granularity: value };
-		loadData();
-	}
-
 	function handleMetricToggle(metric: IpMetricKey) {
 		const isActive = chartState.activeMetrics.includes(metric);
 		const nextMetrics = isActive
@@ -277,47 +242,55 @@
 		renderChart();
 	}
 
-	onMount(async () => {
-		await loadRouters();
-	});
+onMount(() => {
+	const initialRouters = deriveSelectedRouters(props.routers);
+	if (initialRouters.length > 0) {
+		chartState = {
+			...chartState,
+			startDate: getStartDate(),
+			endDate: getEndDate(),
+			selectedRouters: initialRouters
+		};
+		loadData();
+	}
+});
 
-	onDestroy(() => {
+onDestroy(() => {
+	destroyChart();
+});
+
+$effect(() => {
+	const externalStart = getStartDate();
+	const externalEnd = getEndDate();
+	const externalGranularity = getGranularity();
+	const externalRouters = deriveSelectedRouters(props.routers);
+	const shouldSync =
+		chartState.startDate !== externalStart ||
+		chartState.endDate !== externalEnd ||
+		chartState.granularity !== externalGranularity ||
+		!arraysEqual(chartState.selectedRouters, externalRouters);
+	if (!shouldSync) {
+		return;
+	}
+	chartState = {
+		...chartState,
+		startDate: externalStart,
+		endDate: externalEnd,
+		granularity: externalGranularity,
+		selectedRouters: externalRouters
+	};
+	if (externalRouters.length > 0) {
+		loadData();
+	} else {
+		buckets = [];
 		destroyChart();
-	});
-
-	$effect(() => {
-		if (!routersLoaded) {
-			return;
-		}
-		const externalStart = getStartDate();
-		const externalEnd = getEndDate();
-		const shouldSync = chartState.startDate !== externalStart || chartState.endDate !== externalEnd;
-		if (shouldSync) {
-			chartState = { ...chartState, startDate: externalStart, endDate: externalEnd };
-			loadData();
-		}
-	});
+	}
+});
 </script>
 
 <div class="space-y-6">
 	<div class="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
-		<div class="flex items-center justify-between">
-			<h2 class="text-lg font-semibold text-gray-900">IP Statistics Filters</h2>
-			<label class="text-sm text-gray-600">
-				Granularity
-				<select
-					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-					onchange={handleGranularityChange}
-					value={chartState.granularity}
-				>
-					{#each availableGranularities as option (option)}
-						<option value={option}>{option}</option>
-					{/each}
-				</select>
-			</label>
-		</div>
-
-		<RouterFilter routers={routerConfig} onRouterChange={handleRouterChange} />
+		<h2 class="text-lg font-semibold text-gray-900">IP Statistics Filters</h2>
 
 		<div class="flex flex-wrap items-center gap-4">
 			<span class="text-sm font-medium text-gray-700">Metrics:</span>
