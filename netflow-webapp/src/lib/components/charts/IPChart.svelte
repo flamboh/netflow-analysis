@@ -187,11 +187,7 @@
 					maintainAspectRatio: false,
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
-						legend: { position: 'top' },
-						title: {
-							display: true,
-							text: 'Unique IP Counts'
-						}
+						legend: { position: 'top' }
 					},
 					scales: {
 						x: {
@@ -322,7 +318,7 @@
 
 <div class="rounded-lg border bg-white shadow-sm">
 	<div class="border-b p-4">
-		<h3 class="text-lg font-semibold text-gray-900">IP Activity Visualization</h3>
+		<h3 class="text-lg font-semibold text-gray-900">Unique IP Counts</h3>
 	</div>
 	<div class="p-4">
 		<div
@@ -346,7 +342,7 @@
 				</div>
 			{:else}
 				<div class="h-full">
-					<canvas bind:this={chartCanvas} aria-label="IP statistics chart"></canvas>
+					<canvas bind:this={chartCanvas} aria-label="IP chart"></canvas>
 				</div>
 			{/if}
 		</div>
