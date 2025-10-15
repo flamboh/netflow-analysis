@@ -1,16 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import PrimaryFilters from '$lib/components/filters/PrimaryFilters.svelte';
 	import NetflowDashboard from '$lib/components/netflow/NetflowDashboard.svelte';
 	import IPChart from '$lib/components/charts/IPChart.svelte';
-	import type { ChartState, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
-	import type { IpGranularity, IpMetricKey } from '$lib/types/types';
+	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
+	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
+	import { IP_METRIC_OPTIONS, type IpGranularity, type IpMetricKey } from '$lib/types/types';
 
-	// Shared date range controlled by NetFlow dashboard
+	const DEFAULT_START_DATE = '2025-01-01';
 	const today = new Date().toJSON().slice(0, 10);
-	let startDate = '2025-01-01';
+
+	let startDate = DEFAULT_START_DATE;
 	let endDate = today;
 	let selectedGroupBy: GroupByOption = 'date';
 	let selectedRouters: RouterConfig = {};
-	let ipMetrics: IpMetricKey[] = ['saIpv4Count', 'daIpv4Count'];
+	let dataOptions: DataOption[] = DEFAULT_DATA_OPTIONS.map((option) => ({ ...option }));
+	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
+	let ipMetrics: IpMetricKey[] = [...defaultIpMetrics];
 
 	const GROUP_BY_TO_IP: Record<GroupByOption, IpGranularity> = {
 		date: '1d',
@@ -19,36 +25,37 @@
 		'5min': '5m'
 	};
 
-	$: netflowInitialState = {
-		startDate,
-		endDate,
-		groupBy: selectedGroupBy,
-		chartType: 'stacked',
-		dataOptions: [
-			{ label: 'Flows', index: 0, checked: true },
-			{ label: 'Flows TCP', index: 1, checked: true },
-			{ label: 'Flows UDP', index: 2, checked: true },
-			{ label: 'Flows ICMP', index: 3, checked: true },
-			{ label: 'Flows Other', index: 4, checked: true },
-			{ label: 'Packets', index: 5, checked: false },
-			{ label: 'Packets TCP', index: 6, checked: false },
-			{ label: 'Packets UDP', index: 7, checked: false },
-			{ label: 'Packets ICMP', index: 8, checked: false },
-			{ label: 'Packets Other', index: 9, checked: false },
-			{ label: 'Bytes', index: 10, checked: false },
-			{ label: 'Bytes TCP', index: 11, checked: false },
-			{ label: 'Bytes UDP', index: 12, checked: false },
-			{ label: 'Bytes ICMP', index: 13, checked: false },
-			{ label: 'Bytes Other', index: 14, checked: false }
-		]
-	} satisfies Partial<ChartState>;
-
 	$: ipGranularity = GROUP_BY_TO_IP[selectedGroupBy];
 
-	const dashboards = [
-		{ id: 0, kind: 'netflow' as const },
-		{ id: 1, kind: 'ip' as const }
-	];
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/routers');
+			if (!response.ok) {
+				throw new Error(`Failed to load routers: ${response.statusText}`);
+			}
+
+			const routerList = (await response.json()) as string[];
+			if (routerList.length === 0) {
+				return;
+			}
+
+			const routerConfig: RouterConfig = {};
+			routerList.forEach((router) => {
+				routerConfig[router] = true;
+			});
+			selectedRouters = routerConfig;
+		} catch (err) {
+			console.error(err);
+		}
+	});
+
+	function handleStartDateChange(event: CustomEvent<{ startDate: string }>) {
+		startDate = event.detail.startDate;
+	}
+
+	function handleEndDateChange(event: CustomEvent<{ endDate: string }>) {
+		endDate = event.detail.endDate;
+	}
 
 	function handleDateChange(event: CustomEvent<{ startDate: string; endDate: string }>) {
 		startDate = event.detail.startDate;
@@ -63,6 +70,10 @@
 		selectedRouters = event.detail.routers;
 	}
 
+	function handleDataOptionsChange(event: CustomEvent<{ options: DataOption[] }>) {
+		dataOptions = event.detail.options;
+	}
+
 	function handleIpMetricsChange(event: CustomEvent<{ metrics: IpMetricKey[] }>) {
 		ipMetrics = event.detail.metrics;
 	}
@@ -75,24 +86,37 @@
 
 <div class="min-h-screen bg-gray-100">
 	<main class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
-		{#each dashboards as chart (chart.id)}
-			{#if chart.kind === 'netflow'}
-				<NetflowDashboard
-					initialState={netflowInitialState}
-					on:dateChange={handleDateChange}
-					on:groupByChange={handleGroupByChange}
-					on:routersChange={handleRoutersChange}
-				/>
-			{:else if chart.kind === 'ip'}
-				<IPChart
-					{startDate}
-					{endDate}
-					granularity={ipGranularity}
-					routers={selectedRouters}
-					activeMetrics={ipMetrics}
-					on:ipMetricsChange={handleIpMetricsChange}
-				/>
-			{/if}
-		{/each}
+		<PrimaryFilters
+			{startDate}
+			{endDate}
+			groupBy={selectedGroupBy}
+			routers={selectedRouters}
+			{dataOptions}
+			{ipMetrics}
+			on:startDateChange={handleStartDateChange}
+			on:endDateChange={handleEndDateChange}
+			on:groupByChange={handleGroupByChange}
+			on:routersChange={handleRoutersChange}
+			on:dataOptionsChange={handleDataOptionsChange}
+			on:ipMetricsChange={handleIpMetricsChange}
+		/>
+
+		<NetflowDashboard
+			{startDate}
+			{endDate}
+			groupBy={selectedGroupBy}
+			routers={selectedRouters}
+			{dataOptions}
+			on:dateChange={handleDateChange}
+			on:groupByChange={handleGroupByChange}
+		/>
+
+		<IPChart
+			{startDate}
+			{endDate}
+			granularity={ipGranularity}
+			routers={selectedRouters}
+			activeMetrics={ipMetrics}
+		/>
 	</main>
 </div>
