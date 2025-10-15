@@ -26,11 +26,7 @@ export const IP_GRANULARITIES = ['5m', '30m', '1h', '1d'] as const;
 
 export type IpGranularity = (typeof IP_GRANULARITIES)[number];
 
-export type IpMetricKey =
-	| 'saIpv4Count'
-	| 'daIpv4Count'
-	| 'saIpv6Count'
-	| 'daIpv6Count';
+export type IpMetricKey = 'saIpv4Count' | 'daIpv4Count' | 'saIpv6Count' | 'daIpv6Count';
 
 export interface IpStatsCounts {
 	saIpv4Count: number;

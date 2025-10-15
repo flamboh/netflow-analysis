@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { Chart } from 'chart.js/auto';
 	import type { RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
-		type IpChartState,
 		type IpGranularity,
 		type IpMetricKey,
 		type IpStatsBucket,
@@ -23,42 +22,48 @@
 		{ key: 'daIpv6Count', label: 'Destination IPv6', color: '#ef4444' }
 	];
 
-const props = $props<{ startDate?: string; endDate?: string; granularity?: IpGranularity; routers?: RouterConfig }>();
-const today = new Date();
-const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
-const getStartDate = () => props.startDate ?? '2025-01-01';
-const getEndDate = () => props.endDate ?? formatDate(today);
-const getGranularity = () => props.granularity ?? chartState.granularity;
+	const DEFAULT_METRICS: IpMetricKey[] = ['saIpv4Count', 'daIpv4Count'];
 
-function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
-	if (!config) {
-		return [];
+	const props = $props<{
+		startDate?: string;
+		endDate?: string;
+		granularity?: IpGranularity;
+		routers?: RouterConfig;
+		activeMetrics?: IpMetricKey[];
+	}>();
+	const today = new Date();
+	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
+	const getStartDate = () => props.startDate ?? '2025-01-01';
+	const getEndDate = () => props.endDate ?? formatDate(today);
+	const getGranularity = () => props.granularity ?? '1d';
+
+	function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
+		if (!config) {
+			return [];
+		}
+		return Object.entries(config)
+			.filter(([, enabled]) => enabled)
+			.map(([name]) => name.trim())
+			.filter((name) => name.length > 0)
+			.sort();
 	}
-	return Object.entries(config)
-		.filter(([, enabled]) => enabled)
-		.map(([name]) => name.trim())
-		.filter((name) => name.length > 0)
-		.sort();
-}
 
-function arraysEqual(a: string[], b: string[]): boolean {
-	if (a.length !== b.length) {
-		return false;
+	function arraysEqual<T>(a: T[], b: T[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		return a.every((value, index) => value === b[index]);
 	}
-	return a.every((value, index) => value === b[index]);
-}
 
-let chartState = $state<IpChartState>({
-	startDate: getStartDate(),
-	endDate: getEndDate(),
-	granularity: '1d',
-	selectedRouters: [],
-	activeMetrics: ['saIpv4Count', 'daIpv4Count']
-});
+	let activeMetrics = $state<IpMetricKey[]>(props.activeMetrics ?? DEFAULT_METRICS);
+	let currentGranularity = $state<IpGranularity>(props.granularity ?? '1d');
+	const dispatch = createEventDispatcher<{
+		ipMetricsChange: { metrics: IpMetricKey[] };
+	}>();
 
-let buckets = $state<IpStatsBucket[]>([]);
-let loading = $state(false);
-let error = $state<string | null>(null);
+	let buckets = $state<IpStatsBucket[]>([]);
+	let loading = $state(false);
+	let error = $state<string | null>(null);
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
 	let chart: Chart<'line'> | null = null;
@@ -117,7 +122,6 @@ let error = $state<string | null>(null);
 			return;
 		}
 
-		const activeMetrics = chartState.activeMetrics;
 		const selectedBuckets = buckets;
 
 		if (activeMetrics.length === 0 || selectedBuckets.length === 0) {
@@ -129,9 +133,7 @@ let error = $state<string | null>(null);
 			return;
 		}
 
-		const labels = selectedBuckets.map((bucket) =>
-			formatBucketLabel(bucket, chartState.granularity)
-		);
+		const labels = selectedBuckets.map((bucket) => formatBucketLabel(bucket, currentGranularity));
 		const datasets = METRIC_OPTIONS.filter((option) => activeMetrics.includes(option.key)).map(
 			(option) => ({
 				label: option.label,
@@ -164,7 +166,7 @@ let error = $state<string | null>(null);
 						x: {
 							title: {
 								display: true,
-								text: `Time (${chartState.granularity})`
+								text: `Time (${currentGranularity})`
 							}
 						},
 						y: {
@@ -183,7 +185,7 @@ let error = $state<string | null>(null);
 			chart.options.scales = {
 				x: {
 					...chart.options.scales?.x,
-					title: { display: true, text: `Time (${chartState.granularity})` }
+					title: { display: true, text: `Time (${currentGranularity})` }
 				},
 				y: {
 					...chart.options.scales?.y,
@@ -194,24 +196,26 @@ let error = $state<string | null>(null);
 		}
 	}
 
-	async function loadData() {
-		const selectedRouters = chartState.selectedRouters;
-		if (selectedRouters.length === 0) {
-			error = 'Select at least one router to view IP statistics';
-			buckets = [];
-			destroyChart();
-			return;
-		}
+	type FilterInputs = {
+		startDate: string;
+		endDate: string;
+		granularity: IpGranularity;
+		routers: string[];
+	};
 
+	let lastFiltersKey = '';
+	let requestToken = 0;
+
+	async function loadData(filters: FilterInputs, token: number) {
 		loading = true;
-		destroyChart();
 		error = null;
+		destroyChart();
 
 		const params = new URLSearchParams({
-			startDate: toEpochSeconds(chartState.startDate).toString(),
-			endDate: toEpochSeconds(chartState.endDate, true).toString(),
-			granularity: chartState.granularity,
-			routers: selectedRouters.join(',')
+			startDate: toEpochSeconds(filters.startDate).toString(),
+			endDate: toEpochSeconds(filters.endDate, true).toString(),
+			granularity: filters.granularity,
+			routers: filters.routers.join(',')
 		});
 
 		try {
@@ -221,11 +225,17 @@ let error = $state<string | null>(null);
 				throw new Error(message || 'Failed to load IP statistics');
 			}
 			const data = (await response.json()) as IpStatsResponse;
+			if (token !== requestToken) {
+				return;
+			}
 			buckets = data.buckets;
 			loading = false;
 			await tick();
 			renderChart();
 		} catch (err) {
+			if (token !== requestToken) {
+				return;
+			}
 			error = err instanceof Error ? err.message : 'Unexpected error loading IP statistics';
 			buckets = [];
 			loading = false;
@@ -234,58 +244,54 @@ let error = $state<string | null>(null);
 	}
 
 	function handleMetricToggle(metric: IpMetricKey) {
-		const isActive = chartState.activeMetrics.includes(metric);
+		const isActive = activeMetrics.includes(metric);
 		const nextMetrics = isActive
-			? chartState.activeMetrics.filter((item) => item !== metric)
-			: [...chartState.activeMetrics, metric];
-		chartState = { ...chartState, activeMetrics: nextMetrics };
+			? activeMetrics.filter((item) => item !== metric)
+			: [...activeMetrics, metric];
+		activeMetrics = nextMetrics;
+		dispatch('ipMetricsChange', { metrics: nextMetrics });
 		renderChart();
 	}
 
-onMount(() => {
-	const initialRouters = deriveSelectedRouters(props.routers);
-	if (initialRouters.length > 0) {
-		chartState = {
-			...chartState,
+	onDestroy(() => {
+		destroyChart();
+	});
+
+	$effect(() => {
+		const filters: FilterInputs = {
 			startDate: getStartDate(),
 			endDate: getEndDate(),
-			selectedRouters: initialRouters
+			granularity: getGranularity(),
+			routers: deriveSelectedRouters(props.routers)
 		};
-		loadData();
-	}
-});
 
-onDestroy(() => {
-	destroyChart();
-});
+		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
+		if (!arraysEqual(activeMetrics, incomingMetrics)) {
+			activeMetrics = [...incomingMetrics];
+			// renderChart keeps chart in sync with new metrics without re-fetching data
+			renderChart();
+		}
 
-$effect(() => {
-	const externalStart = getStartDate();
-	const externalEnd = getEndDate();
-	const externalGranularity = getGranularity();
-	const externalRouters = deriveSelectedRouters(props.routers);
-	const shouldSync =
-		chartState.startDate !== externalStart ||
-		chartState.endDate !== externalEnd ||
-		chartState.granularity !== externalGranularity ||
-		!arraysEqual(chartState.selectedRouters, externalRouters);
-	if (!shouldSync) {
-		return;
-	}
-	chartState = {
-		...chartState,
-		startDate: externalStart,
-		endDate: externalEnd,
-		granularity: externalGranularity,
-		selectedRouters: externalRouters
-	};
-	if (externalRouters.length > 0) {
-		loadData();
-	} else {
-		buckets = [];
-		destroyChart();
-	}
-});
+		currentGranularity = filters.granularity;
+
+		if (filters.routers.length === 0) {
+			error = 'Select at least one router to view IP statistics';
+			buckets = [];
+			destroyChart();
+			lastFiltersKey = JSON.stringify(filters);
+			loading = false;
+			return;
+		}
+
+		const nextKey = JSON.stringify(filters);
+		if (nextKey === lastFiltersKey) {
+			return;
+		}
+
+		lastFiltersKey = nextKey;
+		const token = ++requestToken;
+		loadData(filters, token);
+	});
 </script>
 
 <div class="space-y-6">
@@ -298,7 +304,7 @@ $effect(() => {
 				<label class="flex cursor-pointer items-center gap-2">
 					<input
 						type="checkbox"
-						checked={chartState.activeMetrics.includes(option.key)}
+						checked={activeMetrics.includes(option.key)}
 						onchange={() => handleMetricToggle(option.key)}
 						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
@@ -313,7 +319,9 @@ $effect(() => {
 			<h3 class="text-lg font-semibold text-gray-900">IP Activity Visualization</h3>
 		</div>
 		<div class="p-4">
-			<div class="resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 min-h-[240px] h-[320px]">
+			<div
+				class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			>
 				{#if loading}
 					<div class="flex h-full items-center justify-center">
 						<div class="text-gray-500">Loading IP data...</div>
@@ -322,7 +330,7 @@ $effect(() => {
 					<div class="flex h-full items-center justify-center">
 						<div class="text-red-500">{error}</div>
 					</div>
-				{:else if chartState.activeMetrics.length === 0}
+				{:else if activeMetrics.length === 0}
 					<div class="flex h-full items-center justify-center">
 						<div class="text-gray-500">Select at least one metric to display.</div>
 					</div>

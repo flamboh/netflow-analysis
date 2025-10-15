@@ -21,11 +21,11 @@
 
 	let { initialState = {} }: Props = $props();
 
-const dispatch = createEventDispatcher<{
-	dateChange: { startDate: string; endDate: string };
-	groupByChange: { groupBy: GroupByOption };
-	routersChange: { routers: RouterConfig };
-}>();
+	const dispatch = createEventDispatcher<{
+		dateChange: { startDate: string; endDate: string };
+		groupByChange: { groupBy: GroupByOption };
+		routersChange: { routers: RouterConfig };
+	}>();
 
 	// Initialize default state
 	const today = new Date().toJSON().slice(0, 10);
@@ -54,28 +54,28 @@ const dispatch = createEventDispatcher<{
 		]
 	);
 
-let results = $state<NetflowDataPoint[]>([]);
-let loading = $state(false);
-let error = $state<string | null>(null);
+	let results = $state<NetflowDataPoint[]>([]);
+	let loading = $state(false);
+	let error = $state<string | null>(null);
 
-const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
-	{ value: 'date', label: 'Day' },
-	{ value: 'hour', label: 'Hour' },
-	{ value: '30min', label: '30 Minutes' },
-	{ value: '5min', label: '5 Minutes' }
-];
+	const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
+		{ value: 'date', label: 'Day' },
+		{ value: 'hour', label: 'Hour' },
+		{ value: '30min', label: '30 Minutes' },
+		{ value: '5min', label: '5 Minutes' }
+	];
 
-function notifyDateChange() {
-	dispatch('dateChange', { startDate, endDate });
-}
+	function notifyDateChange() {
+		dispatch('dateChange', { startDate, endDate });
+	}
 
-function notifyGroupByChange() {
-	dispatch('groupByChange', { groupBy });
-}
+	function notifyGroupByChange() {
+		dispatch('groupByChange', { groupBy });
+	}
 
-function notifyRoutersChange() {
-	dispatch('routersChange', { routers });
-}
+	function notifyRoutersChange() {
+		dispatch('routersChange', { routers });
+	}
 
 	function dataOptionsToBinary(): number {
 		return dataOptions.reduce(
@@ -126,25 +126,25 @@ function notifyRoutersChange() {
 		}
 	}
 
-function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
-	groupBy = newGroupBy;
-	startDate = newStartDate;
-	endDate = newEndDate;
-	loadData();
-	notifyGroupByChange();
-}
+	function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
+		groupBy = newGroupBy;
+		startDate = newStartDate;
+		endDate = newEndDate;
+		loadData();
+		notifyGroupByChange();
+	}
 
 	function handleNavigateToFile(slug: string) {
 		goto(`/api/netflow/files/${slug}`);
 	}
 
-function handleReset() {
-	groupBy = 'date';
-	startDate = '2025-01-01';
-	endDate = today;
-	loadData();
-	notifyGroupByChange();
-}
+	function handleReset() {
+		groupBy = 'date';
+		startDate = '2025-01-01';
+		endDate = today;
+		loadData();
+		notifyGroupByChange();
+	}
 
 	function handleStartDateChange(date: string) {
 		startDate = date;
@@ -230,7 +230,7 @@ function handleReset() {
 			<label class="text-sm text-gray-600">
 				Granularity
 				<select
-					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 					value={groupBy}
 					onchange={handleGranularitySelect}
 				>
