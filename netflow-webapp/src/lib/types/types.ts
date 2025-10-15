@@ -28,11 +28,21 @@ export type IpGranularity = (typeof IP_GRANULARITIES)[number];
 
 export type IpMetricKey = 'saIpv4Count' | 'daIpv4Count' | 'saIpv6Count' | 'daIpv6Count';
 
-export const IP_METRIC_OPTIONS: { key: IpMetricKey; label: string; color: string }[] = [
-	{ key: 'saIpv4Count', label: 'Source IPv4', color: '#2563eb' },
-	{ key: 'daIpv4Count', label: 'Destination IPv4', color: '#10b981' },
-	{ key: 'saIpv6Count', label: 'Source IPv6', color: '#f59e0b' },
-	{ key: 'daIpv6Count', label: 'Destination IPv6', color: '#ef4444' }
+export type IpMetricFamily = 'ipv4' | 'ipv6';
+export type IpMetricVariant = 'source' | 'destination';
+
+export interface IpMetricOption {
+	key: IpMetricKey;
+	label: string;
+	family: IpMetricFamily;
+	variant: IpMetricVariant;
+}
+
+export const IP_METRIC_OPTIONS: IpMetricOption[] = [
+	{ key: 'saIpv4Count', label: 'Source IPv4', family: 'ipv4', variant: 'source' },
+	{ key: 'daIpv4Count', label: 'Destination IPv4', family: 'ipv4', variant: 'destination' },
+	{ key: 'saIpv6Count', label: 'Source IPv6', family: 'ipv6', variant: 'source' },
+	{ key: 'daIpv6Count', label: 'Destination IPv6', family: 'ipv6', variant: 'destination' }
 ];
 
 export interface IpStatsCounts {
@@ -43,6 +53,7 @@ export interface IpStatsCounts {
 }
 
 export interface IpStatsBucket extends IpStatsCounts {
+	router: string;
 	granularity: IpGranularity;
 	bucketStart: number;
 	bucketEnd: number;

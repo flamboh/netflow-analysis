@@ -6,6 +6,7 @@
 		IP_METRIC_OPTIONS,
 		type IpGranularity,
 		type IpMetricKey,
+		type IpMetricOption,
 		type IpStatsBucket,
 		type IpStatsResponse
 	} from '$lib/types/types';
@@ -77,21 +78,27 @@
 		return `${year}-${month}-${day} ${hours}:${minutes}`;
 	}
 
-	function withAlpha(hex: string, alpha: number): string {
-		const parsed = hex.replace('#', '');
-		const bigint = parseInt(parsed, 16);
-		// Handle shorthand hex colours
-		if (parsed.length === 3) {
-			const r = parseInt(parsed[0] + parsed[0], 16);
-			const g = parseInt(parsed[1] + parsed[1], 16);
-			const b = parseInt(parsed[2] + parsed[2], 16);
-			return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	const HUE_STEP = 70;
+	const FAMILY_STYLES: Record<
+		IpMetricOption['family'],
+		{
+			hue: number;
+			saturation: number;
+			lightness: { source: number; destination: number };
 		}
+	> = {
+		ipv4: { hue: 130, saturation: 65, lightness: { source: 58, destination: 38 } },
+		ipv6: { hue: 25, saturation: 72, lightness: { source: 60, destination: 40 } }
+	};
 
-		const r = (bigint >> 16) & 255;
-		const g = (bigint >> 8) & 255;
-		const b = bigint & 255;
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	function buildColors(option: IpMetricOption, routerIndex: number) {
+		const style = FAMILY_STYLES[option.family];
+		const hue = (style.hue + routerIndex * HUE_STEP) % 360;
+		const lightness =
+			option.variant === 'source' ? style.lightness.source : style.lightness.destination;
+		const stroke = `hsl(${hue}, ${style.saturation}%, ${lightness}%)`;
+		const fill = `hsla(${hue}, ${style.saturation}%, ${lightness}%, 0.18)`;
+		return { stroke, fill };
 	}
 
 	function destroyChart() {
@@ -118,19 +125,58 @@
 			return;
 		}
 
-		const labels = selectedBuckets.map((bucket) => formatBucketLabel(bucket, currentGranularity));
-		const datasets = IP_METRIC_OPTIONS.filter((option) => activeMetrics.includes(option.key)).map(
-			(option) => ({
-				label: option.label,
-				data: selectedBuckets.map((bucket) => bucket[option.key]),
-				borderColor: option.color,
-				backgroundColor: withAlpha(option.color, 0.2),
-				tension: 0.3,
-				fill: false,
-				pointRadius: 0,
-				pointHoverRadius: 4
+		const bucketStarts = Array.from(
+			new Set(selectedBuckets.map((bucket) => bucket.bucketStart))
+		).sort((a, b) => a - b);
+		const routers = Array.from(new Set(selectedBuckets.map((bucket) => bucket.router))).sort();
+
+		const labelSamples = new Map<number, IpStatsBucket>();
+		selectedBuckets.forEach((bucket) => {
+			if (!labelSamples.has(bucket.bucketStart)) {
+				labelSamples.set(bucket.bucketStart, bucket);
+			}
+		});
+
+		const labels = bucketStarts.map((bucketStart) => {
+			const bucket = labelSamples.get(bucketStart);
+			return bucket ? formatBucketLabel(bucket, currentGranularity) : '';
+		});
+
+		const bucketMap = new Map<string, IpStatsBucket>();
+		selectedBuckets.forEach((bucket) => {
+			bucketMap.set(`${bucket.router}-${bucket.bucketStart}`, bucket);
+		});
+
+		const datasets = routers.flatMap((router, routerIndex) =>
+			IP_METRIC_OPTIONS.filter((option) => activeMetrics.includes(option.key)).map((option) => {
+				const { stroke, fill } = buildColors(option, routerIndex);
+				const data = bucketStarts.map((bucketStart) => {
+					const bucket = bucketMap.get(`${router}-${bucketStart}`);
+					return bucket ? bucket[option.key] : null;
+				});
+
+				return {
+					label: `${option.label} – ${router}`,
+					data,
+					borderColor: stroke,
+					backgroundColor: fill,
+					tension: 0.3,
+					fill: false,
+					pointRadius: 0,
+					pointHoverRadius: 4,
+					spanGaps: true
+				};
 			})
 		);
+
+		if (datasets.length === 0 || labels.length === 0) {
+			if (chart) {
+				chart.data.labels = [];
+				chart.data.datasets = [];
+				chart.update();
+			}
+			return;
+		}
 
 		if (!chart) {
 			chart = new Chart(canvas, {

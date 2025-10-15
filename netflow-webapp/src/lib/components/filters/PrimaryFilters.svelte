@@ -78,7 +78,7 @@
 		<label class="text-sm text-gray-600">
 			Granularity
 			<select
-				class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 				value={props.groupBy}
 				onchange={handleGroupBySelect}
 				aria-label="Select aggregation granularity"

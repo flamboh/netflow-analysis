@@ -55,6 +55,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const query = `
 			SELECT
+				router,
 				bucket_start AS bucketStart,
 				bucket_end   AS bucketEnd,
 				granularity,
@@ -68,8 +69,8 @@ export const GET: RequestHandler = async ({ url }) => {
 				AND router IN (${placeholders})
 				AND bucket_start >= ?
 				AND bucket_start < ?
-			GROUP BY bucket_start, bucket_end, granularity
-			ORDER BY bucket_start ASC
+			GROUP BY router, bucket_start, bucket_end, granularity
+			ORDER BY router ASC, bucket_start ASC
 		`;
 
 		const stmt = db.prepare(query);
