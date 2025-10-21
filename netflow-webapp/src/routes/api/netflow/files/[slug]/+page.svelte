@@ -269,7 +269,7 @@
 	}
 </script>
 
-<div class="container mx-auto p-6">
+<div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
 	<h1 class="mb-4 text-2xl text-black">
 		NetFlow File: {data.fileInfo.filename}
 	</h1>

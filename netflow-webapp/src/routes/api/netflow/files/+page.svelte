@@ -30,7 +30,7 @@
 	}
 </script>
 
-<div class="container mx-auto p-6">
+<div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
 	<h1 class="mb-4 text-2xl text-black">NetFlow Files</h1>
 
 	<div class="mb-6 rounded-lg border bg-blue-50 p-4">
@@ -46,7 +46,7 @@
 					bind:value={timestamp}
 					onkeydown={handleKeydown}
 					placeholder="202501011200"
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 					maxlength="12"
 				/>
 				{#if error}
@@ -55,7 +55,7 @@
 			</div>
 			<button
 				onclick={navigateToFile}
-				class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+				class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 			>
 				Go to File
 			</button>

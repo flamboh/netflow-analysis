@@ -55,7 +55,7 @@
 </script>
 
 <header class="border-b bg-white shadow-sm">
-	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+	<div class="mx-auto max-w-[90vw] px-4 sm:px-2 lg:px-4">
 		<div class="flex items-center justify-between py-6">
 			<div>
 				<h1 class="text-3xl font-bold text-gray-900 hover:underline">
@@ -80,7 +80,7 @@
 
 {#if showMessage}
 	<div
-		class="fixed top-4 left-1/2 z-50 w-full max-w-md -translate-x-1/2 transform px-4"
+		class="fixed left-1/2 top-4 z-50 w-full max-w-md -translate-x-1/2 transform px-4"
 		transition:fade={{ duration: 300 }}
 	>
 		<div
