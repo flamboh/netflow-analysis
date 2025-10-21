@@ -13,6 +13,66 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 
 ## Architecture
 
+## Database
+
+### Data Access
+
+```zsh
+> cd netflow-db
+> sqlite3 flowStats.db
+```
+
+Now you're connected to the database. Try some of the following to explore the shape of the database
+
+```zsh
+sqlite> .tables
+sqlite> .schema ip_stats
+sqlite> .schema netflow_stats
+```
+
+Some example queries:
+
+```sql
+-- Netflow dashboard: daily flow/packet summary for selected routers and time window
+SELECT
+    DATE(time_start, 'unixepoch') AS day,
+    router,
+    SUM(flows_total) AS flows,
+    SUM(packets_total) AS packets,
+    SUM(bytes_total) AS bytes
+FROM netflow_stats
+WHERE router IN ('router1', 'router2')
+  AND time_start BETWEEN strftime('%s', '2025-01-01') AND strftime('%s', '2025-01-08')
+GROUP BY day, router
+ORDER BY day ASC, router ASC;
+
+-- Drilldown: 30-minute granularity for flows vs protocols (mirrors chart drill interaction)
+SELECT
+    strftime('%Y-%m-%d %H:%M', time_start, 'unixepoch') AS bucket,
+    SUM(flows_tcp) AS flows_tcp,
+    SUM(flows_udp) AS flows_udp,
+    SUM(flows_icmp) AS flows_icmp
+FROM netflow_stats
+WHERE router = 'router1'
+  AND time_start BETWEEN strftime('%s', '2025-01-03') AND strftime('%s', '2025-01-04')
+GROUP BY bucket
+ORDER BY bucket;
+
+-- IP statistics chart: per-router unique source/destination IP counts
+SELECT
+    router,
+    bucket_start,
+    sa_ipv4_count,
+    da_ipv4_count,
+    sa_ipv6_count,
+    da_ipv6_count
+FROM ip_stats
+WHERE granularity = '1h'
+  AND router IN ('router1', 'router2')
+  AND bucket_start BETWEEN strftime('%s', '2025-01-01') AND strftime('%s', '2025-01-02')
+ORDER BY router, bucket_start;
+```
+
 ### Data Processing Pipeline
 
 STATS
