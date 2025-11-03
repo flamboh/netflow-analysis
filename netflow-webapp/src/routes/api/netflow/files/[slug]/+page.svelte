@@ -33,6 +33,25 @@
 	let IPCountsSource = $state(new Map<string, IPCounts>());
 	let IPCountsDestination = $state(new Map<string, IPCounts>());
 
+	function getNextSlug(slug: string) {
+		if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
+			return slug;
+		}
+		const year = parseInt(slug.slice(0, 4), 10);
+		const month = parseInt(slug.slice(4, 6), 10) - 1;
+		const day = parseInt(slug.slice(6, 8), 10);
+		const hour = parseInt(slug.slice(8, 10), 10);
+		const minute = parseInt(slug.slice(10, 12), 10);
+		const nextDate = new Date(year, month, day, hour, minute + 5);
+
+		return `${nextDate.getFullYear()}${String(nextDate.getMonth() + 1).padStart(2, '0')}${String(nextDate.getDate()).padStart(2, '0')}${String(nextDate.getHours()).padStart(2, '0')}${String(nextDate.getMinutes()).padStart(2, '0')}`;
+	}
+
+	let nextSlug = $state(getNextSlug(data.slug));
+
+	$effect(() => {
+		nextSlug = getNextSlug(data.slug);
+	});
 	onMount(async () => {
 		// Load structure function and spectrum data for each router (both source and destination)
 		const tasks = data.summary.flatMap((record) => [
@@ -269,14 +288,20 @@
 	}
 </script>
 
-<div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="mb-4 text-2xl text-black">
+<div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
+	<h1 class="mb-2 flex items-center justify-between text-2xl text-black">
 		NetFlow File: {data.fileInfo.filename}
+		<a
+			class="w-24 rounded bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700"
+			href={`/api/netflow/files/${nextSlug}`}
+		>
+			Next File
+		</a>
 	</h1>
 
-	<div class="mb-6 rounded-lg border bg-blue-100 p-4">
+	<div class="mb-2 rounded-lg border bg-blue-100 p-4">
 		<h2 class="mb-2 text-lg font-semibold">File Information</h2>
-		<div class="grid grid-cols-3 gap-4">
+		<div class="grid grid-cols-3 gap-2">
 			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
 			<div>
@@ -289,7 +314,7 @@
 		</div>
 	</div>
 
-	<div class="space-y-6">
+	<div class="space-y-2">
 		{#each data.summary as record (record.router)}
 			<div class="rounded-lg border bg-white shadow-sm">
 				<!-- Router Data Summary -->
