@@ -7,7 +7,7 @@
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import { IP_METRIC_OPTIONS, type IpGranularity, type IpMetricKey } from '$lib/types/types';
 
-	const DEFAULT_START_DATE = '2025-01-01';
+	const DEFAULT_START_DATE = '2025-02-11';
 	const today = new Date().toJSON().slice(0, 10);
 
 	let startDate = DEFAULT_START_DATE;
