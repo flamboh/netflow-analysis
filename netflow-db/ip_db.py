@@ -164,6 +164,8 @@ def process_day(start_day):
         while current_time < end_time:
             timestamp_str = current_time.strftime('%Y%m%d%H%M')
             file_path = f"{NETFLOW_DATA_PATH}/{router}/{timestamp_str[:4]}/{timestamp_str[4:6]}/{timestamp_str[6:8]}/nfcapd.{timestamp_str}"
+            bucket_end = current_time + timedelta(minutes=5)
+
             if os.path.exists(file_path):
                 sa_v4_res, da_v4_res, sa_v6_res, da_v6_res = process_file(file_path) 
 
@@ -173,16 +175,16 @@ def process_day(start_day):
                 results[buckets["1d"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
 
 
-                results[buckets["5m"]].write_result(current_time - timedelta(minutes=5), current_time, conn)
-                if mins != 0 and mins % 30 == 0:
-                    results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
-                if mins != 0 and mins % 60 == 0:
-                    results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
+                results[buckets["5m"]].write_result(current_time, bucket_end, conn)
+
             mins += 5
-            current_time += timedelta(minutes=5)
-        results[buckets["5m"]].write_result(current_time - timedelta(minutes=5), current_time, conn)
-        results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
-        results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
+            current_time = bucket_end
+
+            if mins % 30 == 0:
+                results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
+            if mins % 60 == 0:
+                results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
+
         results[buckets["1d"]].write_result(current_time - timedelta(days=1), current_time, conn)
        
     return 0
@@ -191,14 +193,14 @@ def main():
 
     init_database()
 
-    start_time = datetime(2025, 1, 1)
+    start_time = datetime(2025, 2, 11)
 
     timer = datetime.now()
     current_time = start_time
     delta = timedelta(days=1)
     tasks = []
-    now = datetime.now()
-    while current_time < now:
+    end = datetime(2025, 3, 1)
+    while current_time < end:
         tasks.append(current_time)
         current_time += delta
     print(f"Found {len(tasks)} tasks")
@@ -208,4 +210,3 @@ def main():
     print(f"Time taken: {datetime.now() - timer}")
 if __name__ == "__main__":
     main()
-
