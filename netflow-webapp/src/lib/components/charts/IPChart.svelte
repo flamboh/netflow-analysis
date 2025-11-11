@@ -1,7 +1,10 @@
 <script lang="ts">
-	import { onDestroy, tick } from 'svelte';
-	import { Chart } from 'chart.js/auto';
-	import type { RouterConfig } from '$lib/components/netflow/types.ts';
+	import { createEventDispatcher, onDestroy, tick } from 'svelte';
+	import { goto } from '$app/navigation';
+import { Chart } from 'chart.js/auto';
+import { getRelativePosition } from 'chart.js/helpers';
+import type { ActiveElement, ChartEvent } from 'chart.js';
+	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
 		IP_METRIC_OPTIONS,
 		type IpGranularity,
@@ -10,8 +13,26 @@
 		type IpStatsBucket,
 		type IpStatsResponse
 	} from '$lib/types/types';
+	import { generateSlugFromLabel, parseClickedLabel } from './chart-utils';
 
-	const DEFAULT_METRICS: IpMetricKey[] = ['saIpv4Count', 'daIpv4Count'];
+const DEFAULT_METRICS: IpMetricKey[] = ['saIpv4Count', 'daIpv4Count'];
+const IP_TO_GROUP_BY: Record<IpGranularity, GroupByOption> = {
+	'1d': 'date',
+	'1h': 'hour',
+	'30m': '30min',
+	'5m': '5min'
+};
+const GROUP_BY_TRANSITIONS: Record<GroupByOption, GroupByOption | null> = {
+	date: 'hour',
+	hour: '30min',
+	'30min': '5min',
+	'5min': null
+};
+
+const dispatch = createEventDispatcher<{
+	dateChange: { startDate: string; endDate: string };
+	groupByChange: { groupBy: GroupByOption };
+}>();
 
 	const props = $props<{
 		startDate?: string;
@@ -101,12 +122,100 @@
 		return { stroke, fill };
 	}
 
-	function destroyChart() {
-		if (chart) {
-			chart.destroy();
-			chart = null;
+function destroyChart() {
+	if (chart) {
+		chart.destroy();
+		chart = null;
+	}
+}
+
+function emitDrilldown(nextGroupBy: GroupByOption, start: Date, end: Date) {
+	dispatch('groupByChange', { groupBy: nextGroupBy });
+	dispatch('dateChange', {
+		startDate: formatDate(start),
+		endDate: formatDate(end)
+	});
+}
+
+function getLabelFromIndex(index: number): string | null {
+	if (!chart || !chart.data.labels) {
+		return null;
+	}
+	const labels = chart.data.labels as string[];
+	if (index < 0 || index >= labels.length) {
+		return null;
+	}
+	return labels[index] ?? null;
+}
+
+function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
+	if (!chart || !chart.data.labels) {
+		return;
+	}
+
+	const groupBy = IP_TO_GROUP_BY[currentGranularity];
+	if (!groupBy) {
+		return;
+	}
+
+	const labels = chart.data.labels as string[];
+	if (labels.length === 0) {
+		return;
+	}
+
+	const canvasPosition = getRelativePosition(event, chart);
+	const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+
+	let labelIndex: number | null = null;
+	if (typeof dataX === 'number' && Number.isFinite(dataX)) {
+		const roundedIndex = Math.round(dataX);
+		if (roundedIndex >= 0 && roundedIndex < labels.length) {
+			labelIndex = roundedIndex;
+		} else if (roundedIndex < 0) {
+			labelIndex = 0;
+		} else {
+			labelIndex = labels.length - 1;
 		}
 	}
+
+	const fallbackIndex = activeElements.length > 0 ? activeElements[0].index : null;
+	const targetIndex = labelIndex ?? fallbackIndex;
+	const label = targetIndex !== null ? getLabelFromIndex(targetIndex) : labels[0];
+
+	if (!label) {
+		return;
+	}
+
+	const clickedDate = parseClickedLabel(label, groupBy);
+	const activeLabel = fallbackIndex !== null ? getLabelFromIndex(fallbackIndex) : null;
+
+	if (groupBy === '5min') {
+		const labelForSlug = activeLabel ?? label;
+		const slug = generateSlugFromLabel(labelForSlug, '5min');
+		if (slug) {
+			goto(`/api/netflow/files/${slug}`);
+		}
+		return;
+	}
+
+	const nextGroupBy = GROUP_BY_TRANSITIONS[groupBy];
+	if (!nextGroupBy) {
+		return;
+	}
+
+	if (groupBy === 'date') {
+		const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+		const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
+		emitDrilldown(nextGroupBy, startOfMonth, endOfMonth);
+	} else if (groupBy === 'hour') {
+		const startOfWeek = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+		const endOfWeek = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+		emitDrilldown(nextGroupBy, startOfWeek, endOfWeek);
+	} else if (groupBy === '30min') {
+		const endDate = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
+		emitDrilldown(nextGroupBy, clickedDate, endDate);
+	}
+}
 
 	function renderChart() {
 		const canvas = chartCanvas;
@@ -183,6 +292,7 @@
 				type: 'line',
 				data: { labels, datasets },
 				options: {
+					onClick: handleChartClick,
 					responsive: true,
 					maintainAspectRatio: false,
 					interaction: { mode: 'index', intersect: false },
@@ -219,6 +329,7 @@
 					title: { display: true, text: 'Unique IPs' }
 				}
 			};
+			chart.options.onClick = handleChartClick;
 			chart.update();
 		}
 	}

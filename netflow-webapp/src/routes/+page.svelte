@@ -117,6 +117,8 @@
 			granularity={ipGranularity}
 			routers={selectedRouters}
 			activeMetrics={ipMetrics}
+			on:dateChange={handleDateChange}
+			on:groupByChange={handleGroupByChange}
 		/>
 	</main>
 </div>
