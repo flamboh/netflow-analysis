@@ -71,18 +71,7 @@ let IPCountsDestination = $state(new Map<string, IPCounts>());
 		await Promise.all(tasks);
 	});
 
-	function setIpCountLoading(router: string, source: boolean, value: boolean) {
-		if (source) {
-			loadingIPCountsSource.set(router, value);
-			loadingIPCountsSource = new Map(loadingIPCountsSource);
-		} else {
-			loadingIPCountsDestination.set(router, value);
-			loadingIPCountsDestination = new Map(loadingIPCountsDestination);
-		}
-	}
-
 	async function loadIPCounts(router: string, source: boolean) {
-		setIpCountLoading(router, source, true);
 		try {
 			const response = await fetch(
 				`/api/netflow/files/${data.slug}/ip-counts?router=${encodeURIComponent(router)}&source=${source}`
@@ -104,8 +93,6 @@ let IPCountsDestination = $state(new Map<string, IPCounts>());
 				`Failed to load IP counts for ${router} (${source ? 'source' : 'destination'}):`,
 				e
 			);
-		} finally {
-			setIpCountLoading(router, source, false);
 		}
 	}
 
@@ -335,27 +322,13 @@ let IPCountsDestination = $state(new Map<string, IPCounts>());
 					<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
 						<div>
 							<h3 class="text-md font-semibold">Unique IP Count (Source)</h3>
-							{#if loadingIPCountsSource.get(record.router)}
-								<div class="text-gray-600">Loading...</div>
-							{:else if IPCountsSource.get(record.router)}
-								{@const ipCountsSource = IPCountsSource.get(record.router)}
-								<div>IPv4: {formatCount(ipCountsSource?.ipv4Count)}</div>
-								<div>IPv6: {formatCount(ipCountsSource?.ipv6Count)}</div>
-							{:else}
-								<div class="text-gray-500">No IP stats available.</div>
-							{/if}
+							<div>IPv4: {formatCount(IPCountsSource.get(record.router)?.ipv4Count)}</div>
+							<div>IPv6: {formatCount(IPCountsSource.get(record.router)?.ipv6Count)}</div>
 						</div>
 						<div>
 							<h3 class="text-md font-semibold">Unique IP Count (Destination)</h3>
-							{#if loadingIPCountsDestination.get(record.router)}
-								<div class="text-gray-600">Loading...</div>
-							{:else if IPCountsDestination.get(record.router)}
-								{@const ipCountsDestination = IPCountsDestination.get(record.router)}
-								<div>IPv4: {formatCount(ipCountsDestination?.ipv4Count)}</div>
-								<div>IPv6: {formatCount(ipCountsDestination?.ipv6Count)}</div>
-							{:else}
-								<div class="text-gray-500">No IP stats available.</div>
-							{/if}
+							<div>IPv4: {formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}</div>
+							<div>IPv6: {formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}</div>
 						</div>
 					</div>
 					<div class="grid grid-cols-4 gap-4 text-sm">

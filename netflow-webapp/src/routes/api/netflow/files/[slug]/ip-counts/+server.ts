@@ -24,7 +24,7 @@ function slugToBucketStart(slug: string): number | null {
 		return null;
 	}
 
-	const date = new Date(Date.UTC(year, month, day, hour, minute));
+	const date = new Date(year, month, day, hour, minute);
 	return Math.floor(date.getTime() / 1000);
 }
 
