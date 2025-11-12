@@ -191,7 +191,7 @@ def process_day(task):
             if end_time - start_day >= timedelta(days=1):
                 results[buckets["1d"]].write_result(end_time - timedelta(days=1), end_time, conn)
         
-    return 0
+        return 0
 
 
 def determine_start_day():
