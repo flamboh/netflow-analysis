@@ -217,22 +217,18 @@ function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
 	}
 }
 
-	function renderChart() {
-		const canvas = chartCanvas;
-		if (!canvas) {
-			return;
-		}
+function renderChart() {
+	const selectedBuckets = buckets;
 
-		const selectedBuckets = buckets;
+	if (activeMetrics.length === 0 || selectedBuckets.length === 0) {
+		destroyChart();
+		return;
+	}
 
-		if (activeMetrics.length === 0 || selectedBuckets.length === 0) {
-			if (chart) {
-				chart.data.labels = [];
-				chart.data.datasets = [];
-				chart.update();
-			}
-			return;
-		}
+	const canvas = chartCanvas;
+	if (!canvas) {
+		return;
+	}
 
 		const bucketStarts = Array.from(
 			new Set(selectedBuckets.map((bucket) => bucket.bucketStart))
@@ -401,8 +397,11 @@ function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
 		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
 		if (!arraysEqual(activeMetrics, incomingMetrics)) {
 			activeMetrics = [...incomingMetrics];
-			// renderChart keeps chart in sync with new metrics without re-fetching data
-			renderChart();
+			// wait for the DOM to reconcile (canvas may re-mount) before painting
+			void (async () => {
+				await tick();
+				renderChart();
+			})();
 		}
 
 		currentGranularity = filters.granularity;
