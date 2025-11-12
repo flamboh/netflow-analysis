@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
-import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
-import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
-import { onMount } from 'svelte';
-import { afterNavigate } from '$app/navigation';
+	import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
+	import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
+	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
+	import { onMount } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 	let structureFunctionDataSource = $state(new Map());
@@ -25,12 +25,12 @@ import { afterNavigate } from '$app/navigation';
 	let errorsSpectrumDestination = $state(new Map());
 	let errorsSingularitiesSource = $state(new Map());
 	let errorsSingularitiesDestination = $state(new Map());
-type IPCounts = {
-	ipv4Count: number | null;
-	ipv6Count: number | null;
-};
-let IPCountsSource = $state(new Map<string, IPCounts>());
-let IPCountsDestination = $state(new Map<string, IPCounts>());
+	type IPCounts = {
+		ipv4Count: number | null;
+		ipv6Count: number | null;
+	};
+	let IPCountsSource = $state(new Map<string, IPCounts>());
+	let IPCountsDestination = $state(new Map<string, IPCounts>());
 	const formatCount = (value: number | null | undefined) => {
 		return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : 'N/A';
 	};
@@ -66,8 +66,6 @@ let IPCountsDestination = $state(new Map<string, IPCounts>());
 		loadingSpectrumDestination = new Map();
 		loadingSingularitiesSource = new Map();
 		loadingSingularitiesDestination = new Map();
-		loadingIPCountsSource = new Map();
-		loadingIPCountsDestination = new Map();
 		errorsSource = new Map();
 		errorsDestination = new Map();
 		errorsSpectrumSource = new Map();
