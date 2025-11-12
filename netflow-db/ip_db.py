@@ -52,7 +52,6 @@ FIRST_RUN = os.environ.get('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
 MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '50'))
 DATA_START_DATE = datetime(2024, 3, 1)
-DATA_START_DATE = datetime(2024, 3, 1)
 
 def init_database():
 
