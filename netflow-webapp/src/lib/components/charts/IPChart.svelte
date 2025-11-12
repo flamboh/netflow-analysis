@@ -34,13 +34,14 @@ const dispatch = createEventDispatcher<{
 	groupByChange: { groupBy: GroupByOption };
 }>();
 
-	const props = $props<{
-		startDate?: string;
-		endDate?: string;
-		granularity?: IpGranularity;
-		routers?: RouterConfig;
-		activeMetrics?: IpMetricKey[];
-	}>();
+const props = $props<{
+	startDate?: string;
+	endDate?: string;
+	granularity?: IpGranularity;
+	routers?: RouterConfig;
+	activeMetrics?: IpMetricKey[];
+	onDrilldownStart?: () => void;
+}>();
 	const today = new Date();
 	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
 	const getStartDate = () => props.startDate ?? '2025-01-01';
@@ -206,6 +207,8 @@ function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
 	if (!nextGroupBy) {
 		return;
 	}
+
+	props.onDrilldownStart?.();
 
 	if (groupBy === 'date') {
 		const rangeStart = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);

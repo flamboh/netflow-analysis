@@ -11,13 +11,14 @@
 		RouterConfig
 	} from './types.ts';
 
-	const props = $props<{
-		startDate: string;
-		endDate: string;
-		groupBy: GroupByOption;
-		routers: RouterConfig;
-		dataOptions: DataOption[];
-	}>();
+const props = $props<{
+	startDate: string;
+	endDate: string;
+	groupBy: GroupByOption;
+	routers: RouterConfig;
+	dataOptions: DataOption[];
+	onDrilldownStart?: () => void;
+}>();
 
 	const dispatch = createEventDispatcher<{
 		dateChange: { startDate: string; endDate: string };
@@ -90,10 +91,11 @@
 		}
 	}
 
-	function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
-		dispatch('groupByChange', { groupBy: newGroupBy });
-		dispatch('dateChange', { startDate: newStartDate, endDate: newEndDate });
-	}
+function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
+	props.onDrilldownStart?.();
+	dispatch('groupByChange', { groupBy: newGroupBy });
+	dispatch('dateChange', { startDate: newStartDate, endDate: newEndDate });
+}
 
 	function handleNavigateToFile(slug: string) {
 		goto(`/api/netflow/files/${slug}`);
