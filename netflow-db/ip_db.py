@@ -152,45 +152,45 @@ def process_day(task):
         "1h": 2,
         "1d": 3
     }
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA busy_timeout=60000;")
-    print(f"Processing window {start_day} -> {day_end}")
-    for router in AVAILABLE_ROUTERS:
-        current_time = start_day
-        results = [Result(router, "5m"), Result(router, "30m"), Result(router, "1h"), Result(router, "1d")]
-        mins = 0
+    with sqlite3.connect(DATABASE_PATH) as conn:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=60000;")
+        print(f"Processing window {start_day} -> {day_end}")
+        for router in AVAILABLE_ROUTERS:
+            current_time = start_day
+            results = [Result(router, "5m"), Result(router, "30m"), Result(router, "1h"), Result(router, "1d")]
+            mins = 0
 
-        end_time = day_end
-        while current_time < end_time:
-            timestamp_str = current_time.strftime('%Y%m%d%H%M')
-            file_path = f"{NETFLOW_DATA_PATH}/{router}/{timestamp_str[:4]}/{timestamp_str[4:6]}/{timestamp_str[6:8]}/nfcapd.{timestamp_str}"
-            bucket_end = current_time + timedelta(minutes=5)
-            if bucket_end > end_time:
-                bucket_end = end_time
+            end_time = day_end
+            while current_time < end_time:
+                timestamp_str = current_time.strftime('%Y%m%d%H%M')
+                file_path = f"{NETFLOW_DATA_PATH}/{router}/{timestamp_str[:4]}/{timestamp_str[4:6]}/{timestamp_str[6:8]}/nfcapd.{timestamp_str}"
+                bucket_end = current_time + timedelta(minutes=5)
+                if bucket_end > end_time:
+                    bucket_end = end_time
 
-            if os.path.exists(file_path):
-                sa_v4_res, da_v4_res, sa_v6_res, da_v6_res = process_file(file_path) 
+                if os.path.exists(file_path):
+                    sa_v4_res, da_v4_res, sa_v6_res, da_v6_res = process_file(file_path) 
 
-                results[buckets["5m"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-                results[buckets["30m"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-                results[buckets["1h"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-                results[buckets["1d"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
+                    results[buckets["5m"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
+                    results[buckets["30m"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
+                    results[buckets["1h"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
+                    results[buckets["1d"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
 
 
-                results[buckets["5m"]].write_result(current_time, bucket_end, conn)
+                    results[buckets["5m"]].write_result(current_time, bucket_end, conn)
 
-            mins += 5
-            current_time = bucket_end
+                mins += 5
+                current_time = bucket_end
 
-            if mins % 30 == 0:
-                results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
-            if mins % 60 == 0:
-                results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
+                if mins % 30 == 0:
+                    results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
+                if mins % 60 == 0:
+                    results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
 
-        if end_time - start_day >= timedelta(days=1):
-            results[buckets["1d"]].write_result(end_time - timedelta(days=1), end_time, conn)
-       
+            if end_time - start_day >= timedelta(days=1):
+                results[buckets["1d"]].write_result(end_time - timedelta(days=1), end_time, conn)
+        
     return 0
 
 
