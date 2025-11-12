@@ -10,13 +10,13 @@
 	const DEFAULT_START_DATE = '2025-02-11';
 	const today = new Date().toJSON().slice(0, 10);
 
-	let startDate = DEFAULT_START_DATE;
-	let endDate = today;
-	let selectedGroupBy: GroupByOption = 'date';
-	let selectedRouters: RouterConfig = {};
-	let dataOptions: DataOption[] = DEFAULT_DATA_OPTIONS.map((option) => ({ ...option }));
+	let startDate = $state(DEFAULT_START_DATE);
+	let endDate = $state(today);
+	let selectedGroupBy = $state<GroupByOption>('date');
+	let selectedRouters = $state<RouterConfig>({});
+	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
 	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
-	let ipMetrics: IpMetricKey[] = [...defaultIpMetrics];
+	let ipMetrics = $state<IpMetricKey[]>([...defaultIpMetrics]);
 
 	const GROUP_BY_TO_IP: Record<GroupByOption, IpGranularity> = {
 		date: '1d',
@@ -25,7 +25,54 @@
 		'5min': '5m'
 	};
 
-	$: ipGranularity = GROUP_BY_TO_IP[selectedGroupBy];
+	type AppState = {
+		startDate: string;
+		endDate: string;
+		groupBy: GroupByOption;
+		routers: RouterConfig;
+		dataOptions: DataOption[];
+		ipMetrics: IpMetricKey[];
+	};
+
+	let isRestoringState = $state(false);
+
+	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
+
+	function cloneRouters(config: RouterConfig): RouterConfig {
+		const next: RouterConfig = {};
+		Object.entries(config).forEach(([router, enabled]) => {
+			next[router] = enabled;
+		});
+		return next;
+	}
+
+	function cloneDataOptions(options: DataOption[]): DataOption[] {
+		return options.map((option) => ({ ...option }));
+	}
+
+	function getCurrentState(): AppState {
+		return {
+			startDate,
+			endDate,
+			groupBy: selectedGroupBy,
+			routers: cloneRouters(selectedRouters),
+			dataOptions: cloneDataOptions(dataOptions),
+			ipMetrics: [...ipMetrics]
+		};
+	}
+
+	function pushHistoryEntry() {
+		if (typeof window === 'undefined') {
+			return;
+		}
+		const snapshot = getCurrentState();
+		const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+		window.history.pushState(snapshot, '', url);
+	}
+
+	function handleDrilldownStart() {
+		pushHistoryEntry();
+	}
 
 	onMount(async () => {
 		try {
@@ -47,6 +94,44 @@
 		} catch (err) {
 			console.error(err);
 		}
+	});
+
+	onMount(() => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		const handlePopState = (event: PopStateEvent) => {
+			const state = event.state as AppState | null;
+			if (!state) {
+				return;
+			}
+			isRestoringState = true;
+			startDate = state.startDate;
+			endDate = state.endDate;
+			selectedGroupBy = state.groupBy;
+			selectedRouters = cloneRouters(state.routers);
+			dataOptions = cloneDataOptions(state.dataOptions);
+			ipMetrics = [...state.ipMetrics];
+			isRestoringState = false;
+		};
+
+		const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+		window.history.replaceState(getCurrentState(), '', url);
+		window.addEventListener('popstate', handlePopState);
+
+		return () => {
+			window.removeEventListener('popstate', handlePopState);
+		};
+	});
+
+	$effect(() => {
+		if (typeof window === 'undefined' || isRestoringState) {
+			return;
+		}
+		const snapshot = getCurrentState();
+		const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+		window.history.replaceState(snapshot, '', url);
 	});
 
 	function handleStartDateChange(event: CustomEvent<{ startDate: string }>) {
@@ -101,24 +186,26 @@
 			on:ipMetricsChange={handleIpMetricsChange}
 		/>
 
-		<NetflowDashboard
-			{startDate}
-			{endDate}
-			groupBy={selectedGroupBy}
-			routers={selectedRouters}
-			{dataOptions}
-			on:dateChange={handleDateChange}
-			on:groupByChange={handleGroupByChange}
-		/>
+	<NetflowDashboard
+		{startDate}
+		{endDate}
+		groupBy={selectedGroupBy}
+		routers={selectedRouters}
+		{dataOptions}
+		onDrilldownStart={handleDrilldownStart}
+		on:dateChange={handleDateChange}
+		on:groupByChange={handleGroupByChange}
+	/>
 
-		<IPChart
+	<IPChart
 			{startDate}
 			{endDate}
-			granularity={ipGranularity}
-			routers={selectedRouters}
-			activeMetrics={ipMetrics}
-			on:dateChange={handleDateChange}
-			on:groupByChange={handleGroupByChange}
-		/>
+		granularity={ipGranularity}
+		routers={selectedRouters}
+		activeMetrics={ipMetrics}
+		onDrilldownStart={handleDrilldownStart}
+		on:dateChange={handleDateChange}
+		on:groupByChange={handleGroupByChange}
+	/>
 	</main>
 </div>
