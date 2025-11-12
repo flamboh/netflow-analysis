@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { PageProps } from './$types';
-	import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
-	import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
-	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
-	import { onMount } from 'svelte';
+import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
+import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
+import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
+import { onMount } from 'svelte';
+import { afterNavigate } from '$app/navigation';
 
 	let { data }: PageProps = $props();
 	let structureFunctionDataSource = $state(new Map());
@@ -47,36 +48,79 @@
 		return `${nextDate.getFullYear()}${String(nextDate.getMonth() + 1).padStart(2, '0')}${String(nextDate.getDate()).padStart(2, '0')}${String(nextDate.getHours()).padStart(2, '0')}${String(nextDate.getMinutes()).padStart(2, '0')}`;
 	}
 
-	let nextSlug = $state(getNextSlug(data.slug));
+	const nextSlug = $derived(getNextSlug(data.slug));
+	let currentSlug = $state(data.slug);
+	let loadToken = 0;
 
-	$effect(() => {
-		nextSlug = getNextSlug(data.slug);
-	});
-	onMount(async () => {
-		// Load structure function and spectrum data for each router (both source and destination)
+	function resetDataStores() {
+		structureFunctionDataSource = new Map();
+		structureFunctionDataDestination = new Map();
+		spectrumDataSource = new Map();
+		spectrumDataDestination = new Map();
+		singularitiesDataSource = new Map();
+		singularitiesDataDestination = new Map();
+		loadingSource = new Map();
+		loadingDestination = new Map();
+		loadingSpectrumSource = new Map();
+		loadingSpectrumDestination = new Map();
+		loadingSingularitiesSource = new Map();
+		loadingSingularitiesDestination = new Map();
+		loadingIPCountsSource = new Map();
+		loadingIPCountsDestination = new Map();
+		errorsSource = new Map();
+		errorsDestination = new Map();
+		errorsSpectrumSource = new Map();
+		errorsSpectrumDestination = new Map();
+		errorsSingularitiesSource = new Map();
+		errorsSingularitiesDestination = new Map();
+		IPCountsSource = new Map();
+		IPCountsDestination = new Map();
+	}
+
+	async function loadAllData(slug: string) {
+		if (!data.summary || data.summary.length === 0) {
+			resetDataStores();
+			return;
+		}
+		const token = ++loadToken;
+		resetDataStores();
 		const tasks = data.summary.flatMap((record) => [
-			// Load source and destination data in parallel for both analyses
-			loadStructureFunctionData(record.router, record.file_path, true), // source
-			loadStructureFunctionData(record.router, record.file_path, false), // destination
-			loadSpectrumData(record.router, record.file_path, true), // source spectrum
-			loadSpectrumData(record.router, record.file_path, false), // destination spectrum
-			loadSingularitiesData(record.router, record.file_path, true), // source singularities
-			loadSingularitiesData(record.router, record.file_path, false), // destination singularities
-			loadIPCounts(record.router, true), // source IP count
-			loadIPCounts(record.router, false) // destination IP count
+			loadStructureFunctionData(token, slug, record.router, true),
+			loadStructureFunctionData(token, slug, record.router, false),
+			loadSpectrumData(token, slug, record.router, true),
+			loadSpectrumData(token, slug, record.router, false),
+			loadSingularitiesData(token, slug, record.router, true),
+			loadSingularitiesData(token, slug, record.router, false),
+			loadIPCounts(token, slug, record.router, true),
+			loadIPCounts(token, slug, record.router, false)
 		]);
 		await Promise.all(tasks);
+	}
+
+	onMount(() => {
+		currentSlug = data.slug;
+		void loadAllData(data.slug);
 	});
 
-	async function loadIPCounts(router: string, source: boolean) {
+	afterNavigate(() => {
+		if (data.slug !== currentSlug) {
+			currentSlug = data.slug;
+			void loadAllData(data.slug);
+		}
+	});
+
+	async function loadIPCounts(token: number, slug: string, router: string, source: boolean) {
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/ip-counts?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/ip-counts?router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load IP counts: ${response.statusText}`);
 			}
 			const result = await response.json();
+			if (token !== loadToken) {
+				return;
+			}
 			console.log(`IP counts loaded for ${router} (${source ? 'source' : 'destination'}):`, result);
 			if (source) {
 				IPCountsSource.set(router, result);
@@ -101,7 +145,12 @@
 		}
 	}
 
-	async function loadStructureFunctionData(router: string, _file_path: string, source: boolean) {
+	async function loadStructureFunctionData(
+		token: number,
+		slug: string,
+		router: string,
+		source: boolean
+	) {
 		// Set loading state
 		if (source) {
 			loadingSource.set(router, true);
@@ -117,12 +166,15 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/structure-function?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/structure-function?router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load structure function data: ${response.statusText}`);
 			}
 			const result = await response.json();
+			if (token !== loadToken) {
+				return;
+			}
 			console.log(
 				`Structure function data loaded for ${router} (${source ? 'source' : 'destination'}):`,
 				result
@@ -163,7 +215,7 @@
 		}
 	}
 
-	async function loadSpectrumData(router: string, file_path: string, source: boolean) {
+	async function loadSpectrumData(token: number, slug: string, router: string, source: boolean) {
 		// Set loading state
 		if (source) {
 			loadingSpectrumSource.set(router, true);
@@ -179,12 +231,15 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/spectrum?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/spectrum?router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load spectrum data: ${response.statusText}`);
 			}
 			const result = await response.json();
+			if (token !== loadToken) {
+				return;
+			}
 			console.log(
 				`Spectrum data loaded for ${router} (${source ? 'source' : 'destination'}):`,
 				result
@@ -225,7 +280,12 @@
 		}
 	}
 
-	async function loadSingularitiesData(router: string, _file_path: string, source: boolean) {
+	async function loadSingularitiesData(
+		token: number,
+		slug: string,
+		router: string,
+		source: boolean
+	) {
 		// Set loading state
 		if (source) {
 			loadingSingularitiesSource.set(router, true);
@@ -241,12 +301,15 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${data.slug}/singularities?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/singularities?router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load singularities data: ${response.statusText}`);
 			}
 			const result = await response.json();
+			if (token !== loadToken) {
+				return;
+			}
 			console.log(
 				`Singularities data loaded for ${router} (${source ? 'source' : 'destination'}):`,
 				result
@@ -285,6 +348,18 @@
 				loadingSingularitiesDestination = new Map(loadingSingularitiesDestination);
 			}
 		}
+	}
+
+	function reloadStructure(router: string, source: boolean) {
+		void loadStructureFunctionData(loadToken, data.slug, router, source);
+	}
+
+	function reloadSpectrum(router: string, source: boolean) {
+		void loadSpectrumData(loadToken, data.slug, router, source);
+	}
+
+	function reloadSingularities(router: string, source: boolean) {
+		void loadSingularitiesData(loadToken, data.slug, router, source);
 	}
 </script>
 
@@ -412,8 +487,7 @@
 										<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
 										<button
 											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() =>
-												loadStructureFunctionData(record.router, record.file_path, true)}
+											onclick={() => reloadStructure(record.router, true)}
 										>
 											Retry Source
 										</button>
@@ -437,8 +511,7 @@
 										</p>
 										<button
 											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() =>
-												loadStructureFunctionData(record.router, record.file_path, false)}
+											onclick={() => reloadStructure(record.router, false)}
 										>
 											Retry Destination
 										</button>
@@ -468,7 +541,7 @@
 										<p>Error loading source spectrum: {errorsSpectrumSource.get(record.router)}</p>
 										<button
 											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => loadSpectrumData(record.router, record.file_path, true)}
+											onclick={() => reloadSpectrum(record.router, true)}
 										>
 											Retry Source
 										</button>
@@ -494,7 +567,7 @@
 										</p>
 										<button
 											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => loadSpectrumData(record.router, record.file_path, false)}
+											onclick={() => reloadSpectrum(record.router, false)}
 										>
 											Retry Destination
 										</button>
@@ -525,7 +598,7 @@
 										</p>
 										<button
 											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => loadSingularitiesData(record.router, record.file_path, true)}
+											onclick={() => reloadSingularities(record.router, true)}
 										>
 											Retry Source
 										</button>
@@ -550,7 +623,7 @@
 										</p>
 										<button
 											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => loadSingularitiesData(record.router, record.file_path, false)}
+											onclick={() => reloadSingularities(record.router, false)}
 										>
 											Retry Destination
 										</button>
