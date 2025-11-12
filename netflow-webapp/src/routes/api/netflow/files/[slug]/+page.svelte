@@ -28,8 +28,6 @@ type IPCounts = {
 	ipv4Count: number | null;
 	ipv6Count: number | null;
 };
-	let loadingIPCountsSource = $state(new Map<string, boolean>());
-let loadingIPCountsDestination = $state(new Map<string, boolean>());
 let IPCountsSource = $state(new Map<string, IPCounts>());
 let IPCountsDestination = $state(new Map<string, IPCounts>());
 	const formatCount = (value: number | null | undefined) => {
