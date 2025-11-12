@@ -51,7 +51,8 @@ DATABASE_PATH = get_required_env('DATABASE_PATH')
 FIRST_RUN = os.environ.get('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
 MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
 BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '50'))
-
+DATA_START_DATE = datetime(2024, 3, 1)
+DATA_START_DATE = datetime(2024, 3, 1)
 
 def init_database():
 
@@ -134,7 +135,7 @@ class Result:
         cursor.execute("""
             INSERT OR IGNORE INTO ip_stats (router, granularity, bucket_start, bucket_end, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.router, self.granularity, bucket_start.timestamp(), bucket_end.timestamp(), len(self.sa_v4_res), len(self.da_v4_res), len(self.sa_v6_res), len(self.da_v6_res)))
+        """, (self.router, self.granularity, int(bucket_start.timestamp()), int(bucket_end.timestamp()), len(self.sa_v4_res), len(self.da_v4_res), len(self.sa_v6_res), len(self.da_v6_res)))
         self.sa_v4_res = set()
         self.da_v4_res = set()
         self.sa_v6_res = set()
@@ -144,7 +145,8 @@ class Result:
 
 
 
-def process_day(start_day):
+def process_day(task):
+    start_day, day_end = task
     buckets = {
         "5m": 0,
         "30m": 1,
@@ -154,17 +156,19 @@ def process_day(start_day):
     conn = sqlite3.connect(DATABASE_PATH)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA busy_timeout=60000;")
-    print(f"Processing {start_day}")
+    print(f"Processing window {start_day} -> {day_end}")
     for router in AVAILABLE_ROUTERS:
         current_time = start_day
         results = [Result(router, "5m"), Result(router, "30m"), Result(router, "1h"), Result(router, "1d")]
         mins = 0
 
-        end_time = start_day + timedelta(days=1)
+        end_time = day_end
         while current_time < end_time:
             timestamp_str = current_time.strftime('%Y%m%d%H%M')
             file_path = f"{NETFLOW_DATA_PATH}/{router}/{timestamp_str[:4]}/{timestamp_str[4:6]}/{timestamp_str[6:8]}/nfcapd.{timestamp_str}"
             bucket_end = current_time + timedelta(minutes=5)
+            if bucket_end > end_time:
+                bucket_end = end_time
 
             if os.path.exists(file_path):
                 sa_v4_res, da_v4_res, sa_v6_res, da_v6_res = process_file(file_path) 
@@ -185,25 +189,59 @@ def process_day(start_day):
             if mins % 60 == 0:
                 results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
 
-        results[buckets["1d"]].write_result(current_time - timedelta(days=1), current_time, conn)
+        if end_time - start_day >= timedelta(days=1):
+            results[buckets["1d"]].write_result(end_time - timedelta(days=1), end_time, conn)
        
     return 0
+
+
+def determine_start_day():
+    if FIRST_RUN:
+        return DATA_START_DATE
+
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT MAX(bucket_end) FROM ip_stats WHERE granularity = '5m'"
+    ).fetchone()
+    conn.close()
+
+    if row and row[0]:
+        last_bucket_end = datetime.fromtimestamp(row[0])
+        # Reprocess the day containing the next bucket to keep aggregates consistent
+        return datetime(last_bucket_end.year, last_bucket_end.month, last_bucket_end.day)
+
+    return DATA_START_DATE
+
+
+def determine_end_day():
+    # Only process fully completed days to keep 1d aggregates accurate
+    return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
 def main():
 
     init_database()
 
-    start_time = datetime(2025, 2, 11)
-
     timer = datetime.now()
-    current_time = start_time
+    start_day = determine_start_day()
+    end_day = determine_end_day()
+
+    if start_day >= end_day:
+        print("No completed days to process.")
+        return
+
     delta = timedelta(days=1)
     tasks = []
-    end = datetime(2025, 3, 1)
-    while current_time < end:
-        tasks.append(current_time)
-        current_time += delta
-    print(f"Found {len(tasks)} tasks")
+    current_day = start_day
+    while current_day + delta <= end_day:
+        tasks.append((current_day, current_day + delta))
+        current_day += delta
+
+    if not tasks:
+        print("No completed days to process.")
+        return
+
+    print(f"Found {len(tasks)} day-long tasks to process")
     with Pool(processes=MAX_WORKERS) as pool:
         pool.map(process_day, tasks)
 
