@@ -208,16 +208,16 @@ function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
 	}
 
 	if (groupBy === 'date') {
-		const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
-		const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
-		emitDrilldown(nextGroupBy, startOfMonth, endOfMonth);
+		const rangeStart = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+		const rangeEnd = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
+		emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
 	} else if (groupBy === 'hour') {
-		const startOfWeek = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
-		const endOfWeek = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
-		emitDrilldown(nextGroupBy, startOfWeek, endOfWeek);
+		const rangeStart = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+		const rangeEnd = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+		emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
 	} else if (groupBy === '30min') {
-		const endDate = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
-		emitDrilldown(nextGroupBy, clickedDate, endDate);
+		const rangeEnd = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
+		emitDrilldown(nextGroupBy, clickedDate, rangeEnd);
 	}
 }
 
