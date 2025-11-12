@@ -24,14 +24,17 @@
 	let errorsSpectrumDestination = $state(new Map());
 	let errorsSingularitiesSource = $state(new Map());
 	let errorsSingularitiesDestination = $state(new Map());
-	type IPCounts = {
-		uniqueIPCount: number;
-		totalIPCount: number;
-	};
+type IPCounts = {
+	ipv4Count: number | null;
+	ipv6Count: number | null;
+};
 	let loadingIPCountsSource = $state(new Map<string, boolean>());
-	let loadingIPCountsDestination = $state(new Map<string, boolean>());
-	let IPCountsSource = $state(new Map<string, IPCounts>());
-	let IPCountsDestination = $state(new Map<string, IPCounts>());
+let loadingIPCountsDestination = $state(new Map<string, boolean>());
+let IPCountsSource = $state(new Map<string, IPCounts>());
+let IPCountsDestination = $state(new Map<string, IPCounts>());
+	const formatCount = (value: number | null | undefined) => {
+		return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : 'N/A';
+	};
 
 	function getNextSlug(slug: string) {
 		if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
@@ -68,7 +71,18 @@
 		await Promise.all(tasks);
 	});
 
+	function setIpCountLoading(router: string, source: boolean, value: boolean) {
+		if (source) {
+			loadingIPCountsSource.set(router, value);
+			loadingIPCountsSource = new Map(loadingIPCountsSource);
+		} else {
+			loadingIPCountsDestination.set(router, value);
+			loadingIPCountsDestination = new Map(loadingIPCountsDestination);
+		}
+	}
+
 	async function loadIPCounts(router: string, source: boolean) {
+		setIpCountLoading(router, source, true);
 		try {
 			const response = await fetch(
 				`/api/netflow/files/${data.slug}/ip-counts?router=${encodeURIComponent(router)}&source=${source}`
@@ -91,13 +105,7 @@
 				e
 			);
 		} finally {
-			if (source) {
-				loadingIPCountsSource.set(router, false);
-				loadingIPCountsSource = new Map(loadingIPCountsSource);
-			} else {
-				loadingIPCountsDestination.set(router, false);
-				loadingIPCountsDestination = new Map(loadingIPCountsDestination);
-			}
+			setIpCountLoading(router, source, false);
 		}
 	}
 
@@ -324,38 +332,32 @@
 						Absolute Path: <br />
 						{record.file_path}
 					</h3>
-					<h3 class="text-md mb-2 font-semibold">
-						Unique/Total IP Count (Source):
-						{#if IPCountsSource.get(record.router)}
-							{@const ipCountsSource = IPCountsSource.get(record.router)}
-							{ipCountsSource?.uniqueIPCount ?? 'N/A'}/{ipCountsSource?.totalIPCount ?? 'N/A'}
-							or {(ipCountsSource?.totalIPCount ?? 0) > 0
-								? Math.round(
-										((ipCountsSource?.uniqueIPCount ?? 0) / (ipCountsSource?.totalIPCount ?? 1)) *
-											100
-									)
-								: 0}%
-						{:else}
-							Loading...
-						{/if}
-					</h3>
-					<h3 class="text-md mb-2 font-semibold">
-						Unique/Total IP Count (Destination):
-						{#if IPCountsDestination.get(record.router)}
-							{@const ipCountsDestination = IPCountsDestination.get(record.router)}
-							{ipCountsDestination?.uniqueIPCount ?? 'N/A'}/{ipCountsDestination?.totalIPCount ??
-								'N/A'}
-							or {(ipCountsDestination?.totalIPCount ?? 0) > 0
-								? Math.round(
-										((ipCountsDestination?.uniqueIPCount ?? 0) /
-											(ipCountsDestination?.totalIPCount ?? 1)) *
-											100
-									)
-								: 0}%
-						{:else}
-							Loading...
-						{/if}
-					</h3>
+					<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+						<div>
+							<h3 class="text-md font-semibold">Unique IP Count (Source)</h3>
+							{#if loadingIPCountsSource.get(record.router)}
+								<div class="text-gray-600">Loading...</div>
+							{:else if IPCountsSource.get(record.router)}
+								{@const ipCountsSource = IPCountsSource.get(record.router)}
+								<div>IPv4: {formatCount(ipCountsSource?.ipv4Count)}</div>
+								<div>IPv6: {formatCount(ipCountsSource?.ipv6Count)}</div>
+							{:else}
+								<div class="text-gray-500">No IP stats available.</div>
+							{/if}
+						</div>
+						<div>
+							<h3 class="text-md font-semibold">Unique IP Count (Destination)</h3>
+							{#if loadingIPCountsDestination.get(record.router)}
+								<div class="text-gray-600">Loading...</div>
+							{:else if IPCountsDestination.get(record.router)}
+								{@const ipCountsDestination = IPCountsDestination.get(record.router)}
+								<div>IPv4: {formatCount(ipCountsDestination?.ipv4Count)}</div>
+								<div>IPv6: {formatCount(ipCountsDestination?.ipv6Count)}</div>
+							{:else}
+								<div class="text-gray-500">No IP stats available.</div>
+							{/if}
+						</div>
+					</div>
 					<div class="grid grid-cols-4 gap-4 text-sm">
 						<div>
 							<h4 class="font-medium">Flows</h4>
