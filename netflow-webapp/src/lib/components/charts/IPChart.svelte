@@ -187,6 +187,10 @@ function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
 	}
 
 	const clickedDate = parseClickedLabel(label, groupBy);
+	if (!(clickedDate instanceof Date) || Number.isNaN(clickedDate.getTime())) {
+		console.warn('Unable to parse clicked label for drilldown', { label, groupBy });
+		return;
+	}
 	const activeLabel = fallbackIndex !== null ? getLabelFromIndex(fallbackIndex) : null;
 
 	if (groupBy === '5min') {
