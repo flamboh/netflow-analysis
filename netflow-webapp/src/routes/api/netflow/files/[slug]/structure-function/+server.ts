@@ -19,9 +19,9 @@ async function runStructureFunctionAnalysis(
 	timeoutMs: number = 60000
 ): Promise<StructureFunctionPoint[]> {
 	try {
-		// Use nfdump to extract IPv4 addresses (source or destination) and pipe directly to MAAD StructureFunction
-		const maadPath = path.join(process.cwd(), '..', 'maad');
-		const structureFunctionPath = path.join(maadPath, 'StructureFunction');
+		// Use nfdump to extract IPv4 addresses (source or destination) and pipe directly to burstify StructureFunction
+		const burstifyPath = path.join(process.cwd(), '..', 'burstify');
+		const structureFunctionPath = path.join(burstifyPath, 'zig-out', 'bin', 'StructureFunction');
 
 		// Use %sa for source addresses, %da for destination addresses
 		const addressFormat = isSource ? '%sa' : '%da';
@@ -34,7 +34,7 @@ async function runStructureFunctionAnalysis(
 		const { stdout } = await execAsync(command, {
 			timeout: timeoutMs,
 			maxBuffer: 10 * 1024 * 1024, // 10MB buffer should be sufficient for structure function output
-			cwd: maadPath
+			cwd: burstifyPath
 		});
 
 		// Parse CSV output from StructureFunction
@@ -105,7 +105,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 		console.log(`Found NetFlow file: ${filePath}`);
 
-		// Run structure function analysis directly with nfdump piped to MAAD
+		// Run structure function analysis directly with nfdump piped to burstify
 		const data = await runStructureFunctionAnalysis(filePath, isSource);
 
 		if (data.length === 0) {
@@ -157,7 +157,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 				return json({ error: 'Failed to process NetFlow file with nfdump' }, { status: 422 });
 			}
 			if (error.message.includes('StructureFunction')) {
-				return json({ error: 'MAAD structure function analysis failed' }, { status: 500 });
+				return json({ error: 'Structure function analysis failed' }, { status: 500 });
 			}
 		}
 
