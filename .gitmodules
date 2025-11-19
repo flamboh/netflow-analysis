@@ -1,3 +1,6 @@
 [submodule "maad"]
 	path = maad
 	url = git@github.com:chris-misa/maad.git
+[submodule "burstify"]
+	path = burstify
+	url = git@github.com:chris-misa/burstify.git
