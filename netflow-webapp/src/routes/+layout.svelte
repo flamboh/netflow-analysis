@@ -66,19 +66,19 @@
 			<div class="flex items-center gap-4">
 				<a href="/" class="text-gray-500 hover:text-gray-900">Home</a>
 				<a href="/api/netflow/files" class="text-gray-500 hover:text-gray-900">Files</a>
-				<button
+				<!-- <button
 					onclick={updateDatabase}
 					disabled={isUpdating}
 					class="rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
 				>
 					{isUpdating ? 'Updating...' : 'Update DB'}
-				</button>
+				</button> -->
 			</div>
 		</div>
 	</div>
 </header>
 
-{#if showMessage}
+<!-- {#if showMessage}
 	<div
 		class="fixed left-1/2 top-4 z-50 w-full max-w-md -translate-x-1/2 transform px-4"
 		transition:fade={{ duration: 300 }}
@@ -92,7 +92,7 @@
 			{updateMessage}
 		</div>
 	</div>
-{/if}
+{/if} -->
 
 <div class="font-body">
 	{@render children()}
