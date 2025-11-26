@@ -6,13 +6,14 @@
 	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import { IP_METRIC_OPTIONS, type IpGranularity, type IpMetricKey } from '$lib/types/types';
+	import { watch } from 'runed';
+	import { useSearchParams } from 'runed/kit';
+	import { dateRangeSearchSchema } from '$lib/schemas';
 
-	const DEFAULT_START_DATE = '2025-02-11';
-	const today = new Date().toJSON().slice(0, 10);
-
-	let startDate = $state(DEFAULT_START_DATE);
-	let endDate = $state(today);
-	let selectedGroupBy = $state<GroupByOption>('date');
+	const params = useSearchParams(dateRangeSearchSchema, { noScroll: true });
+	let startDate = $state(params.startDate);
+	let endDate = $state(params.endDate);
+	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);
 	let selectedRouters = $state<RouterConfig>({});
 	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
 	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
@@ -25,54 +26,35 @@
 		'5min': '5m'
 	};
 
-	type AppState = {
-		startDate: string;
-		endDate: string;
-		groupBy: GroupByOption;
-		routers: RouterConfig;
-		dataOptions: DataOption[];
-		ipMetrics: IpMetricKey[];
-	};
-
-	let isRestoringState = $state(false);
-
 	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
 
-	function cloneRouters(config: RouterConfig): RouterConfig {
-		const next: RouterConfig = {};
-		Object.entries(config).forEach(([router, enabled]) => {
-			next[router] = enabled;
-		});
-		return next;
-	}
-
-	function cloneDataOptions(options: DataOption[]): DataOption[] {
-		return options.map((option) => ({ ...option }));
-	}
-
-	function getCurrentState(): AppState {
-		return {
-			startDate,
-			endDate,
-			groupBy: selectedGroupBy,
-			routers: cloneRouters(selectedRouters),
-			dataOptions: cloneDataOptions(dataOptions),
-			ipMetrics: [...ipMetrics]
-		};
-	}
-
-	function pushHistoryEntry() {
-		if (typeof window === 'undefined') {
-			return;
+	watch(
+		() => params.startDate,
+		(next) => {
+			if (next !== startDate) {
+				startDate = next;
+			}
 		}
-		const snapshot = getCurrentState();
-		const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-		window.history.pushState(snapshot, '', url);
-	}
+	);
 
-	function handleDrilldownStart() {
-		pushHistoryEntry();
-	}
+	watch(
+		() => params.endDate,
+		(next) => {
+			if (next !== endDate) {
+				endDate = next;
+			}
+		}
+	);
+
+	watch(
+		() => params.groupBy,
+		(next) => {
+			const value = next as GroupByOption;
+			if (value !== selectedGroupBy) {
+				selectedGroupBy = value;
+			}
+		}
+	);
 
 	onMount(async () => {
 		try {
@@ -96,59 +78,28 @@
 		}
 	});
 
-	onMount(() => {
-		if (typeof window === 'undefined') {
-			return;
-		}
-
-		const handlePopState = (event: PopStateEvent) => {
-			const state = event.state as AppState | null;
-			if (!state) {
-				return;
-			}
-			isRestoringState = true;
-			startDate = state.startDate;
-			endDate = state.endDate;
-			selectedGroupBy = state.groupBy;
-			selectedRouters = cloneRouters(state.routers);
-			dataOptions = cloneDataOptions(state.dataOptions);
-			ipMetrics = [...state.ipMetrics];
-			isRestoringState = false;
-		};
-
-		const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-		window.history.replaceState(getCurrentState(), '', url);
-		window.addEventListener('popstate', handlePopState);
-
-		return () => {
-			window.removeEventListener('popstate', handlePopState);
-		};
-	});
-
-	$effect(() => {
-		if (typeof window === 'undefined' || isRestoringState) {
-			return;
-		}
-		const snapshot = getCurrentState();
-		const url = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-		window.history.replaceState(snapshot, '', url);
-	});
-
 	function handleStartDateChange(event: CustomEvent<{ startDate: string }>) {
 		startDate = event.detail.startDate;
+		params.startDate = startDate;
 	}
 
 	function handleEndDateChange(event: CustomEvent<{ endDate: string }>) {
 		endDate = event.detail.endDate;
+		params.endDate = endDate;
 	}
 
 	function handleDateChange(event: CustomEvent<{ startDate: string; endDate: string }>) {
 		startDate = event.detail.startDate;
 		endDate = event.detail.endDate;
+		params.update({ startDate, endDate });
 	}
 
 	function handleGroupByChange(event: CustomEvent<{ groupBy: GroupByOption }>) {
+		if (event.detail.groupBy === params.groupBy) {
+			return;
+		}
 		selectedGroupBy = event.detail.groupBy;
+		params.groupBy = selectedGroupBy;
 	}
 
 	function handleRoutersChange(event: CustomEvent<{ routers: RouterConfig }>) {
@@ -186,26 +137,24 @@
 			on:ipMetricsChange={handleIpMetricsChange}
 		/>
 
-	<NetflowDashboard
-		{startDate}
-		{endDate}
-		groupBy={selectedGroupBy}
-		routers={selectedRouters}
-		{dataOptions}
-		onDrilldownStart={handleDrilldownStart}
-		on:dateChange={handleDateChange}
-		on:groupByChange={handleGroupByChange}
-	/>
-
-	<IPChart
+		<NetflowDashboard
 			{startDate}
 			{endDate}
-		granularity={ipGranularity}
-		routers={selectedRouters}
-		activeMetrics={ipMetrics}
-		onDrilldownStart={handleDrilldownStart}
-		on:dateChange={handleDateChange}
-		on:groupByChange={handleGroupByChange}
-	/>
+			groupBy={selectedGroupBy}
+			routers={selectedRouters}
+			{dataOptions}
+			on:dateChange={handleDateChange}
+			on:groupByChange={handleGroupByChange}
+		/>
+
+		<IPChart
+			{startDate}
+			{endDate}
+			granularity={ipGranularity}
+			routers={selectedRouters}
+			activeMetrics={ipMetrics}
+			on:dateChange={handleDateChange}
+			on:groupByChange={handleGroupByChange}
+		/>
 	</main>
 </div>

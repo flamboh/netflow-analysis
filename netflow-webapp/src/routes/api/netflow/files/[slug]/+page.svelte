@@ -393,13 +393,29 @@
 					<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
 						<div>
 							<h3 class="text-md font-semibold">Unique IP Count (Source)</h3>
-							<div>IPv4: {formatCount(IPCountsSource.get(record.router)?.ipv4Count)}</div>
-							<div>IPv6: {formatCount(IPCountsSource.get(record.router)?.ipv6Count)}</div>
+							<div>
+								IPv4: {IPCountsSource.get(record.router)?.ipv4Count == null
+									? '...'
+									: formatCount(IPCountsSource.get(record.router)?.ipv4Count)}
+							</div>
+							<div>
+								IPv6: {IPCountsSource.get(record.router)?.ipv6Count == null
+									? '...'
+									: formatCount(IPCountsSource.get(record.router)?.ipv6Count)}
+							</div>
 						</div>
 						<div>
 							<h3 class="text-md font-semibold">Unique IP Count (Destination)</h3>
-							<div>IPv4: {formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}</div>
-							<div>IPv6: {formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}</div>
+							<div>
+								IPv4: {IPCountsDestination.get(record.router)?.ipv4Count == null
+									? '...'
+									: formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}
+							</div>
+							<div>
+								IPv6: {IPCountsDestination.get(record.router)?.ipv6Count == null
+									? '...'
+									: formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}
+							</div>
 						</div>
 					</div>
 					<div class="grid grid-cols-4 gap-4 text-sm">

@@ -17,7 +17,6 @@ const props = $props<{
 	groupBy: GroupByOption;
 	routers: RouterConfig;
 	dataOptions: DataOption[];
-	onDrilldownStart?: () => void;
 }>();
 
 	const dispatch = createEventDispatcher<{
@@ -92,7 +91,6 @@ const props = $props<{
 	}
 
 function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
-	props.onDrilldownStart?.();
 	dispatch('groupByChange', { groupBy: newGroupBy });
 	dispatch('dateChange', { startDate: newStartDate, endDate: newEndDate });
 }

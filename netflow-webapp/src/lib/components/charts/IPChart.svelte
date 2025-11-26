@@ -40,7 +40,6 @@ const props = $props<{
 	granularity?: IpGranularity;
 	routers?: RouterConfig;
 	activeMetrics?: IpMetricKey[];
-	onDrilldownStart?: () => void;
 }>();
 	const today = new Date();
 	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
@@ -207,8 +206,6 @@ function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
 	if (!nextGroupBy) {
 		return;
 	}
-
-	props.onDrilldownStart?.();
 
 	if (groupBy === 'date') {
 		const rangeStart = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
