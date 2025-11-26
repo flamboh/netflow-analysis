@@ -11,20 +11,20 @@
 		RouterConfig
 	} from './types.ts';
 
-const props = $props<{
-	startDate: string;
-	endDate: string;
-	groupBy: GroupByOption;
-	routers: RouterConfig;
-	dataOptions: DataOption[];
-}>();
+	const props = $props<{
+		startDate: string;
+		endDate: string;
+		groupBy: GroupByOption;
+		routers: RouterConfig;
+		dataOptions: DataOption[];
+	}>();
 
 	const dispatch = createEventDispatcher<{
 		dateChange: { startDate: string; endDate: string };
 		groupByChange: { groupBy: GroupByOption };
 	}>();
 
-	const DEFAULT_START_DATE = '2025-01-01';
+	const DEFAULT_START_DATE = '2025-02-11';
 	const today = new Date().toJSON().slice(0, 10);
 
 	let chartType = $state<ChartTypeOption>('stacked');
@@ -90,10 +90,10 @@ const props = $props<{
 		}
 	}
 
-function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
-	dispatch('groupByChange', { groupBy: newGroupBy });
-	dispatch('dateChange', { startDate: newStartDate, endDate: newEndDate });
-}
+	function handleDrillDown(newGroupBy: GroupByOption, newStartDate: string, newEndDate: string) {
+		dispatch('groupByChange', { groupBy: newGroupBy });
+		dispatch('dateChange', { startDate: newStartDate, endDate: newEndDate });
+	}
 
 	function handleNavigateToFile(slug: string) {
 		goto(`/api/netflow/files/${slug}`);
