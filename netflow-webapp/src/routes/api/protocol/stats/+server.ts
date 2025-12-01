@@ -2,7 +2,12 @@ import { json } from '@sveltejs/kit';
 import Database from 'better-sqlite3';
 import { DATABASE_PATH } from '$env/static/private';
 import type { RequestHandler } from './$types';
-import { IP_GRANULARITIES, type IpGranularity, type ProtocolStatsBucket, type ProtocolStatsResponse } from '$lib/types/types';
+import {
+	IP_GRANULARITIES,
+	type IpGranularity,
+	type ProtocolStatsBucket,
+	type ProtocolStatsResponse
+} from '$lib/types/types';
 
 const VALID_GRANULARITIES = new Set<string>(IP_GRANULARITIES);
 

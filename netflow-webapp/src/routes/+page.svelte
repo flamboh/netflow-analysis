@@ -6,7 +6,12 @@
 	import ProtocolChart from '$lib/components/charts/ProtocolChart.svelte';
 	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
-	import { IP_METRIC_OPTIONS, type IpGranularity, type IpMetricKey, type ProtocolMetricKey } from '$lib/types/types';
+	import {
+		IP_METRIC_OPTIONS,
+		type IpGranularity,
+		type IpMetricKey,
+		type ProtocolMetricKey
+	} from '$lib/types/types';
 	import { watch } from 'runed';
 	import { useSearchParams } from 'runed/kit';
 	import { dateRangeSearchSchema } from '$lib/schemas';
@@ -131,12 +136,16 @@
 			routers={selectedRouters}
 			{dataOptions}
 			{ipMetrics}
+			{protocolMetrics}
 			on:startDateChange={handleStartDateChange}
 			on:endDateChange={handleEndDateChange}
 			on:groupByChange={handleGroupByChange}
 			on:routersChange={handleRoutersChange}
 			on:dataOptionsChange={handleDataOptionsChange}
 			on:ipMetricsChange={handleIpMetricsChange}
+			on:protocolMetricsChange={(event) => {
+				protocolMetrics = event.detail.metrics;
+			}}
 		/>
 
 		<NetflowDashboard

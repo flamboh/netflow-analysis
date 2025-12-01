@@ -4,7 +4,7 @@
 	import RouterFilter from '$lib/components/filters/RouterFilter.svelte';
 	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
-	import { IP_METRIC_OPTIONS, type IpMetricKey } from '$lib/types/types';
+	import { IP_METRIC_OPTIONS, type IpMetricKey, type ProtocolMetricKey } from '$lib/types/types';
 
 	interface GroupBySelectOption {
 		value: GroupByOption;
@@ -25,6 +25,7 @@
 		routers: RouterConfig;
 		dataOptions: DataOption[];
 		ipMetrics: IpMetricKey[];
+		protocolMetrics: ProtocolMetricKey[];
 		groupByOptions?: GroupBySelectOption[];
 	}>();
 
@@ -35,6 +36,7 @@
 		routersChange: { routers: RouterConfig };
 		dataOptionsChange: { options: DataOption[] };
 		ipMetricsChange: { metrics: IpMetricKey[] };
+		protocolMetricsChange: { metrics: ProtocolMetricKey[] };
 	}>();
 
 	function handleStartDateChange(date: string) {
@@ -69,6 +71,15 @@
 			? current.filter((item: IpMetricKey) => item !== metric)
 			: [...current, metric];
 		dispatch('ipMetricsChange', { metrics });
+	}
+
+	function handleProtocolMetricToggle(metric: ProtocolMetricKey) {
+		const current = props.protocolMetrics;
+		const isActive = current.includes(metric);
+		const metrics = isActive
+			? current.filter((item: ProtocolMetricKey) => item !== metric)
+			: [...current, metric];
+		dispatch('protocolMetricsChange', { metrics });
 	}
 </script>
 
@@ -116,6 +127,25 @@
 						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
 					<span class="text-sm text-gray-700">{option.label}</span>
+				</label>
+			{/each}
+		</div>
+	</div>
+
+	<div class="space-y-2">
+		<h3 class="text-base font-semibold text-gray-900">Protocol Metrics</h3>
+		<div class="flex flex-wrap items-center gap-4">
+			{#each ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as key (key)}
+				<label class="flex cursor-pointer items-center gap-2">
+					<input
+						type="checkbox"
+						checked={props.protocolMetrics.includes(key)}
+						onchange={() => handleProtocolMetricToggle(key)}
+						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span class="text-sm text-gray-700">
+						{key === 'uniqueProtocolsIpv4' ? 'Unique Protocols IPv4' : 'Unique Protocols IPv6'}
+					</span>
 				</label>
 			{/each}
 		</div>

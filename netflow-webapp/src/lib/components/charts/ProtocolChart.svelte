@@ -5,7 +5,12 @@
 	import { getRelativePosition } from 'chart.js/helpers';
 	import type { ActiveElement, ChartEvent } from 'chart.js';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
-	import { IP_GRANULARITIES, type IpGranularity, type ProtocolMetricKey, type ProtocolStatsBucket, type ProtocolStatsResponse } from '$lib/types/types';
+	import {
+		type IpGranularity,
+		type ProtocolMetricKey,
+		type ProtocolStatsBucket,
+		type ProtocolStatsResponse
+	} from '$lib/types/types';
 	import { parseClickedLabel, generateSlugFromLabel } from './chart-utils';
 
 	type SeriesKey = 'uniqueProtocolsIpv4' | 'uniqueProtocolsIpv6';
@@ -90,7 +95,9 @@
 		const day = `${start.getDate()}`.padStart(2, '0');
 		const hours = `${start.getHours()}`.padStart(2, '0');
 		const minutes = `${start.getMinutes()}`.padStart(2, '0');
-		return granularity === '1d' ? `${year}-${month}-${day}` : `${year}-${month}-${day} ${hours}:${minutes}`;
+		return granularity === '1d'
+			? `${year}-${month}-${day}`
+			: `${year}-${month}-${day} ${hours}:${minutes}`;
 	}
 
 	const HUE_STEP = 110;
@@ -198,9 +205,9 @@
 		const canvas = chartCanvas;
 		if (!canvas) return;
 
-		const bucketStarts = Array.from(new Set(selectedBuckets.map((bucket) => bucket.bucketStart))).sort(
-			(a, b) => a - b
-		);
+		const bucketStarts = Array.from(
+			new Set(selectedBuckets.map((bucket) => bucket.bucketStart))
+		).sort((a, b) => a - b);
 		const routers = Array.from(new Set(selectedBuckets.map((bucket) => bucket.router))).sort();
 
 		const labelSamples = new Map<number, ProtocolStatsBucket>();
@@ -273,7 +280,10 @@
 			chart.data.labels = labels;
 			chart.data.datasets = datasets as never[];
 			chart.options.scales = {
-				x: { ...chart.options.scales?.x, title: { display: true, text: `Time (${currentGranularity})` } },
+				x: {
+					...chart.options.scales?.x,
+					title: { display: true, text: `Time (${currentGranularity})` }
+				},
 				y: { ...chart.options.scales?.y, title: { display: true, text: 'Unique Protocols' } }
 			};
 			chart.options.onClick = handleChartClick;

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-import { Chart } from 'chart.js/auto';
-import { getRelativePosition } from 'chart.js/helpers';
-import type { ActiveElement, ChartEvent } from 'chart.js';
+	import { Chart } from 'chart.js/auto';
+	import { getRelativePosition } from 'chart.js/helpers';
+	import type { ActiveElement, ChartEvent } from 'chart.js';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
 		IP_METRIC_OPTIONS,
@@ -15,32 +15,32 @@ import type { ActiveElement, ChartEvent } from 'chart.js';
 	} from '$lib/types/types';
 	import { generateSlugFromLabel, parseClickedLabel } from './chart-utils';
 
-const DEFAULT_METRICS: IpMetricKey[] = ['saIpv4Count', 'daIpv4Count'];
-const IP_TO_GROUP_BY: Record<IpGranularity, GroupByOption> = {
-	'1d': 'date',
-	'1h': 'hour',
-	'30m': '30min',
-	'5m': '5min'
-};
-const GROUP_BY_TRANSITIONS: Record<GroupByOption, GroupByOption | null> = {
-	date: 'hour',
-	hour: '30min',
-	'30min': '5min',
-	'5min': null
-};
+	const DEFAULT_METRICS: IpMetricKey[] = ['saIpv4Count', 'daIpv4Count'];
+	const IP_TO_GROUP_BY: Record<IpGranularity, GroupByOption> = {
+		'1d': 'date',
+		'1h': 'hour',
+		'30m': '30min',
+		'5m': '5min'
+	};
+	const GROUP_BY_TRANSITIONS: Record<GroupByOption, GroupByOption | null> = {
+		date: 'hour',
+		hour: '30min',
+		'30min': '5min',
+		'5min': null
+	};
 
-const dispatch = createEventDispatcher<{
-	dateChange: { startDate: string; endDate: string };
-	groupByChange: { groupBy: GroupByOption };
-}>();
+	const dispatch = createEventDispatcher<{
+		dateChange: { startDate: string; endDate: string };
+		groupByChange: { groupBy: GroupByOption };
+	}>();
 
-const props = $props<{
-	startDate?: string;
-	endDate?: string;
-	granularity?: IpGranularity;
-	routers?: RouterConfig;
-	activeMetrics?: IpMetricKey[];
-}>();
+	const props = $props<{
+		startDate?: string;
+		endDate?: string;
+		granularity?: IpGranularity;
+		routers?: RouterConfig;
+		activeMetrics?: IpMetricKey[];
+	}>();
 	const today = new Date();
 	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
 	const getStartDate = () => props.startDate ?? '2025-01-01';
@@ -122,117 +122,117 @@ const props = $props<{
 		return { stroke, fill };
 	}
 
-function destroyChart() {
-	if (chart) {
-		chart.destroy();
-		chart = null;
-	}
-}
-
-function emitDrilldown(nextGroupBy: GroupByOption, start: Date, end: Date) {
-	dispatch('groupByChange', { groupBy: nextGroupBy });
-	dispatch('dateChange', {
-		startDate: formatDate(start),
-		endDate: formatDate(end)
-	});
-}
-
-function getLabelFromIndex(index: number): string | null {
-	if (!chart || !chart.data.labels) {
-		return null;
-	}
-	const labels = chart.data.labels as string[];
-	if (index < 0 || index >= labels.length) {
-		return null;
-	}
-	return labels[index] ?? null;
-}
-
-function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
-	if (!chart || !chart.data.labels) {
-		return;
-	}
-
-	const groupBy = IP_TO_GROUP_BY[currentGranularity];
-	if (!groupBy) {
-		return;
-	}
-
-	const labels = chart.data.labels as string[];
-	if (labels.length === 0) {
-		return;
-	}
-
-	const canvasPosition = getRelativePosition(event, chart);
-	const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-
-	let labelIndex: number | null = null;
-	if (typeof dataX === 'number' && Number.isFinite(dataX)) {
-		const roundedIndex = Math.round(dataX);
-		if (roundedIndex >= 0 && roundedIndex < labels.length) {
-			labelIndex = roundedIndex;
-		} else if (roundedIndex < 0) {
-			labelIndex = 0;
-		} else {
-			labelIndex = labels.length - 1;
+	function destroyChart() {
+		if (chart) {
+			chart.destroy();
+			chart = null;
 		}
 	}
 
-	const fallbackIndex = activeElements.length > 0 ? activeElements[0].index : null;
-	const targetIndex = labelIndex ?? fallbackIndex;
-	const label = targetIndex !== null ? getLabelFromIndex(targetIndex) : labels[0];
-
-	if (!label) {
-		return;
+	function emitDrilldown(nextGroupBy: GroupByOption, start: Date, end: Date) {
+		dispatch('groupByChange', { groupBy: nextGroupBy });
+		dispatch('dateChange', {
+			startDate: formatDate(start),
+			endDate: formatDate(end)
+		});
 	}
 
-	const clickedDate = parseClickedLabel(label, groupBy);
-	if (!(clickedDate instanceof Date) || Number.isNaN(clickedDate.getTime())) {
-		console.warn('Unable to parse clicked label for drilldown', { label, groupBy });
-		return;
-	}
-	const activeLabel = fallbackIndex !== null ? getLabelFromIndex(fallbackIndex) : null;
-
-	if (groupBy === '5min') {
-		const labelForSlug = activeLabel ?? label;
-		const slug = generateSlugFromLabel(labelForSlug, '5min');
-		if (slug) {
-			goto(`/api/netflow/files/${slug}`);
+	function getLabelFromIndex(index: number): string | null {
+		if (!chart || !chart.data.labels) {
+			return null;
 		}
-		return;
+		const labels = chart.data.labels as string[];
+		if (index < 0 || index >= labels.length) {
+			return null;
+		}
+		return labels[index] ?? null;
 	}
 
-	const nextGroupBy = GROUP_BY_TRANSITIONS[groupBy];
-	if (!nextGroupBy) {
-		return;
+	function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
+		if (!chart || !chart.data.labels) {
+			return;
+		}
+
+		const groupBy = IP_TO_GROUP_BY[currentGranularity];
+		if (!groupBy) {
+			return;
+		}
+
+		const labels = chart.data.labels as string[];
+		if (labels.length === 0) {
+			return;
+		}
+
+		const canvasPosition = getRelativePosition(event, chart);
+		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+
+		let labelIndex: number | null = null;
+		if (typeof dataX === 'number' && Number.isFinite(dataX)) {
+			const roundedIndex = Math.round(dataX);
+			if (roundedIndex >= 0 && roundedIndex < labels.length) {
+				labelIndex = roundedIndex;
+			} else if (roundedIndex < 0) {
+				labelIndex = 0;
+			} else {
+				labelIndex = labels.length - 1;
+			}
+		}
+
+		const fallbackIndex = activeElements.length > 0 ? activeElements[0].index : null;
+		const targetIndex = labelIndex ?? fallbackIndex;
+		const label = targetIndex !== null ? getLabelFromIndex(targetIndex) : labels[0];
+
+		if (!label) {
+			return;
+		}
+
+		const clickedDate = parseClickedLabel(label, groupBy);
+		if (!(clickedDate instanceof Date) || Number.isNaN(clickedDate.getTime())) {
+			console.warn('Unable to parse clicked label for drilldown', { label, groupBy });
+			return;
+		}
+		const activeLabel = fallbackIndex !== null ? getLabelFromIndex(fallbackIndex) : null;
+
+		if (groupBy === '5min') {
+			const labelForSlug = activeLabel ?? label;
+			const slug = generateSlugFromLabel(labelForSlug, '5min');
+			if (slug) {
+				goto(`/api/netflow/files/${slug}`);
+			}
+			return;
+		}
+
+		const nextGroupBy = GROUP_BY_TRANSITIONS[groupBy];
+		if (!nextGroupBy) {
+			return;
+		}
+
+		if (groupBy === 'date') {
+			const rangeStart = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+			const rangeEnd = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
+			emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
+		} else if (groupBy === 'hour') {
+			const rangeStart = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+			const rangeEnd = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+			emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
+		} else if (groupBy === '30min') {
+			const rangeEnd = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
+			emitDrilldown(nextGroupBy, clickedDate, rangeEnd);
+		}
 	}
 
-	if (groupBy === 'date') {
-		const rangeStart = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
-		const rangeEnd = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
-		emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
-	} else if (groupBy === 'hour') {
-		const rangeStart = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
-		const rangeEnd = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
-		emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
-	} else if (groupBy === '30min') {
-		const rangeEnd = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
-		emitDrilldown(nextGroupBy, clickedDate, rangeEnd);
-	}
-}
+	function renderChart() {
+		const selectedBuckets = buckets;
 
-function renderChart() {
-	const selectedBuckets = buckets;
+		if (activeMetrics.length === 0 || selectedBuckets.length === 0) {
+			destroyChart();
+			return;
+		}
 
-	if (activeMetrics.length === 0 || selectedBuckets.length === 0) {
-		destroyChart();
-		return;
-	}
-
-	const canvas = chartCanvas;
-	if (!canvas) {
-		return;
-	}
+		const canvas = chartCanvas;
+		if (!canvas) {
+			return;
+		}
 
 		const bucketStarts = Array.from(
 			new Set(selectedBuckets.map((bucket) => bucket.bucketStart))
