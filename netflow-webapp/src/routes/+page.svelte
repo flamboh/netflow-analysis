@@ -3,9 +3,10 @@
 	import PrimaryFilters from '$lib/components/filters/PrimaryFilters.svelte';
 	import NetflowDashboard from '$lib/components/netflow/NetflowDashboard.svelte';
 	import IPChart from '$lib/components/charts/IPChart.svelte';
+	import ProtocolChart from '$lib/components/charts/ProtocolChart.svelte';
 	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
-	import { IP_METRIC_OPTIONS, type IpGranularity, type IpMetricKey } from '$lib/types/types';
+	import { IP_METRIC_OPTIONS, type IpGranularity, type IpMetricKey, type ProtocolMetricKey } from '$lib/types/types';
 	import { watch } from 'runed';
 	import { useSearchParams } from 'runed/kit';
 	import { dateRangeSearchSchema } from '$lib/schemas';
@@ -18,6 +19,7 @@
 	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
 	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
 	let ipMetrics = $state<IpMetricKey[]>([...defaultIpMetrics]);
+	let protocolMetrics = $state<ProtocolMetricKey[]>(['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6']);
 
 	const GROUP_BY_TO_IP: Record<GroupByOption, IpGranularity> = {
 		date: '1d',
@@ -153,6 +155,16 @@
 			granularity={ipGranularity}
 			routers={selectedRouters}
 			activeMetrics={ipMetrics}
+			on:dateChange={handleDateChange}
+			on:groupByChange={handleGroupByChange}
+		/>
+
+		<ProtocolChart
+			{startDate}
+			{endDate}
+			granularity={ipGranularity}
+			routers={selectedRouters}
+			activeMetrics={protocolMetrics}
 			on:dateChange={handleDateChange}
 			on:groupByChange={handleGroupByChange}
 		/>

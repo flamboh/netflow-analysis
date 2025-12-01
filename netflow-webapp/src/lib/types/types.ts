@@ -45,6 +45,24 @@ export const IP_METRIC_OPTIONS: IpMetricOption[] = [
 	{ key: 'daIpv6Count', label: 'Destination IPv6', family: 'ipv6', variant: 'destination' }
 ];
 
+export type ProtocolMetricKey = 'uniqueProtocolsIpv4' | 'uniqueProtocolsIpv6';
+
+export interface ProtocolStatsBucket {
+	router: string;
+	granularity: IpGranularity;
+	bucketStart: number;
+	bucketEnd: number;
+	uniqueProtocolsIpv4: number;
+	uniqueProtocolsIpv6: number;
+	processedAt?: string;
+}
+
+export interface ProtocolStatsResponse {
+	buckets: ProtocolStatsBucket[];
+	availableGranularities: IpGranularity[];
+	requestedRouters: string[];
+}
+
 export interface IpStatsCounts {
 	saIpv4Count: number;
 	daIpv4Count: number;
