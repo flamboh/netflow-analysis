@@ -99,6 +99,70 @@
 		return `${year}-${month}-${day} ${hours}:${minutes}`;
 	}
 
+	function formatTickLabel(bucketStart: number, granularity: IpGranularity, index: number): string {
+		const date = new Date(bucketStart * 1000);
+		const day = date.getDate().toString().padStart(2, '0');
+		const month = (date.getMonth() + 1).toString().padStart(2, '0');
+		const hours = date.getHours();
+		const minutes = date.getMinutes();
+
+		if (granularity === '1d') {
+			return date.getDay() === 1 ? `Mon ${month}/${day}` : '';
+		}
+
+		if (granularity === '1h') {
+			if (hours === 0) {
+				const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+				const m = date.getMonth() + 1;
+				const d = date.getDate();
+				return `${weekday} ${m}/${d}`;
+			}
+			return '';
+		}
+
+		if (granularity === '30m') {
+			if (minutes === 0 && (hours === 0 || hours === 12)) {
+				const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+				const m = date.getMonth() + 1;
+				const d = date.getDate();
+				return `${weekday} ${m}/${d} ${hours.toString().padStart(2, '0')}:00`;
+			}
+			return '';
+		}
+
+		if (granularity === '5m') {
+			if (minutes === 0) {
+				const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+				const m = date.getMonth() + 1;
+				const d = date.getDate();
+				return `${weekday} ${m}/${d} ${hours.toString().padStart(2, '0')}:00`;
+			}
+			return '';
+		}
+
+		return '';
+	}
+
+	function shouldHighlightTick(bucketStart: number, granularity: IpGranularity, index: number): boolean {
+		const date = new Date(bucketStart * 1000);
+		const hours = date.getHours();
+		const minutes = date.getMinutes();
+
+		if (granularity === '1d') {
+			return date.getDay() === 1;
+		}
+		if (granularity === '1h') {
+			return hours === 0;
+		}
+		if (granularity === '30m') {
+			return minutes === 0 && (hours === 0 || hours === 12);
+		}
+		if (granularity === '5m') {
+			return minutes === 0;
+		}
+		return index === 0;
+	}
+
 	const HUE_STEP = 70;
 	const FAMILY_STYLES: Record<
 		IpMetricOption['family'],
@@ -304,6 +368,23 @@
 							title: {
 								display: true,
 								text: `Time (${currentGranularity})`
+							},
+							ticks: {
+								autoSkip: false,
+								maxRotation: 45,
+								minRotation: 45,
+								callback: (_value, idx) =>
+									formatTickLabel(bucketStarts[idx as number] ?? 0, currentGranularity, idx as number)
+							},
+							grid: {
+								color: (ctx) =>
+									shouldHighlightTick(
+										bucketStarts[ctx.index] ?? 0,
+										currentGranularity,
+										ctx.index
+									)
+										? 'rgba(0,0,0,0.08)'
+										: 'rgba(0,0,0,0.02)'
 							}
 						},
 						y: {
@@ -322,7 +403,20 @@
 			chart.options.scales = {
 				x: {
 					...chart.options.scales?.x,
-					title: { display: true, text: `Time (${currentGranularity})` }
+					title: { display: true, text: `Time (${currentGranularity})` },
+					ticks: {
+						autoSkip: false,
+						maxRotation: 45,
+						minRotation: 45,
+						callback: (_value, idx) =>
+							formatTickLabel(bucketStarts[idx as number] ?? 0, currentGranularity, idx as number)
+					},
+					grid: {
+						color: (ctx) =>
+							shouldHighlightTick(bucketStarts[ctx.index] ?? 0, currentGranularity, ctx.index)
+								? 'rgba(0,0,0,0.08)'
+								: 'rgba(0,0,0,0.02)'
+					}
 				},
 				y: {
 					...chart.options.scales?.y,
