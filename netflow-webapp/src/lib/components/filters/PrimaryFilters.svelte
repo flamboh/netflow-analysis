@@ -135,7 +135,7 @@
 	<div class="space-y-2">
 		<h3 class="text-base font-semibold text-gray-900">Protocol Metrics</h3>
 		<div class="flex flex-wrap items-center gap-4">
-			{#each ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as key (key)}
+			{#each (['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as const) as key}
 				<label class="flex cursor-pointer items-center gap-2">
 					<input
 						type="checkbox"

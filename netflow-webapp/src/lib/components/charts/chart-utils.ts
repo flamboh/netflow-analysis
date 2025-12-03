@@ -113,3 +113,74 @@ export function generateSlugFromLabel(label: string, groupBy: GroupByOption): st
 	}
 	return '';
 }
+
+function safeDate(label: string): Date | null {
+	const d = new Date(label);
+	return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function formatNetflowTick(
+	groupBy: GroupByOption,
+	label: string | undefined,
+	index: number
+): string {
+	if (!label) return '';
+	const date = safeDate(label);
+	if (!date) return '';
+	const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+	const month = date.getMonth() + 1;
+	const day = date.getDate();
+	const hours = date.getHours();
+	const minutes = date.getMinutes();
+
+	if (groupBy === 'date') {
+		return date.getDay() === 1 ? `${weekday} ${month}/${day}` : '';
+	}
+
+	if (groupBy === 'hour') {
+		return hours === 0 ? `${weekday} ${month}/${day}` : '';
+	}
+
+	if (groupBy === '30min') {
+		if (minutes === 0 && (hours === 0 || hours === 12)) {
+			return `${weekday} ${month}/${day} ${hours.toString().padStart(2, '0')}:00`;
+		}
+		return '';
+	}
+
+	if (groupBy === '5min') {
+		if (minutes === 0) {
+			return `${weekday} ${month}/${day} ${hours.toString().padStart(2, '0')}:00`;
+		}
+		return '';
+	}
+
+	return index === 0 ? `${weekday} ${month}/${day}` : '';
+}
+
+export function shouldHighlightNetflowGrid(
+	groupBy: GroupByOption,
+	label: string | undefined,
+	index: number
+): boolean {
+	if (!label) return index === 0;
+	const date = safeDate(label);
+	if (!date) return index === 0;
+
+	const hours = date.getHours();
+	const minutes = date.getMinutes();
+
+	if (groupBy === 'date') {
+		return date.getDay() === 1;
+	}
+	if (groupBy === 'hour') {
+		return hours === 0;
+	}
+	if (groupBy === '30min') {
+		return minutes === 0 && (hours === 0 || hours === 12);
+	}
+	if (groupBy === '5min') {
+		return minutes === 0;
+	}
+	return index === 0;
+}

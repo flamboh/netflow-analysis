@@ -99,7 +99,7 @@
 		return `${year}-${month}-${day} ${hours}:${minutes}`;
 	}
 
-	function formatTickLabel(bucketStart: number, granularity: IpGranularity, index: number): string {
+	function formatTickLabel(bucketStart: number, granularity: IpGranularity, _index: number): string {
 		const date = new Date(bucketStart * 1000);
 		const day = date.getDate().toString().padStart(2, '0');
 		const month = (date.getMonth() + 1).toString().padStart(2, '0');

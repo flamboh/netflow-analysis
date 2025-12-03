@@ -35,6 +35,63 @@
 	let chart: Chart | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
+	function formatTickLabel(date: Date | null, currentGroupBy: GroupByOption, index: number): string {
+		if (!date || Number.isNaN(date.getTime())) {
+			return '';
+		}
+		const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+		const month = date.getMonth() + 1;
+		const day = date.getDate();
+		const hours = date.getHours();
+		const minutes = date.getMinutes();
+
+		if (currentGroupBy === 'date') {
+			return date.getDay() === 1 ? `${weekday} ${month}/${day}` : '';
+		}
+
+		if (currentGroupBy === 'hour') {
+			return hours === 0 ? `${weekday} ${month}/${day}` : '';
+		}
+
+		if (currentGroupBy === '30min') {
+			if (minutes === 0 && (hours === 0 || hours === 12)) {
+				return `${weekday} ${month}/${day} ${hours.toString().padStart(2, '0')}:00`;
+			}
+			return '';
+		}
+
+		if (currentGroupBy === '5min') {
+			if (minutes === 0) {
+				return `${weekday} ${month}/${day} ${hours.toString().padStart(2, '0')}:00`;
+			}
+			return '';
+		}
+
+		return index === 0 ? `${weekday} ${month}/${day}` : '';
+	}
+
+	function shouldHighlightTick(date: Date | null, currentGroupBy: GroupByOption, index: number): boolean {
+		if (!date || Number.isNaN(date.getTime())) {
+			return index === 0;
+		}
+		const hours = date.getHours();
+		const minutes = date.getMinutes();
+
+		if (currentGroupBy === 'date') {
+			return date.getDay() === 1;
+		}
+		if (currentGroupBy === 'hour') {
+			return hours === 0;
+		}
+		if (currentGroupBy === '30min') {
+			return minutes === 0 && (hours === 0 || hours === 12);
+		}
+		if (currentGroupBy === '5min') {
+			return minutes === 0;
+		}
+		return index === 0;
+	}
+
 	function getClickedElement(
 		activeElements: { datasetIndex: number; index: number }[]
 	): ClickedElement | null {
@@ -202,8 +259,35 @@
 		console.log('=== END CHART CLICK DEBUG ===');
 	}
 
+	function parseLabelToDate(label: string | undefined): Date | null {
+		if (!label) return null;
+		const [datePart, timePart] = label.split(' ');
+		const [yearStr, monthStr, dayStr] = datePart.split('-');
+		const year = Number(yearStr);
+		const month = Number(monthStr);
+		const day = Number(dayStr);
+		if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+		const [hourStr, minuteStr] = timePart?.split(':') ?? [];
+		const hour = Number(hourStr);
+		const minute = Number(minuteStr);
+		const date = new Date(
+			year,
+			month - 1,
+			day,
+			Number.isFinite(hour) ? hour : 0,
+			Number.isFinite(minute) ? minute : 0
+		);
+		return Number.isNaN(date.getTime()) ? null : date;
+	}
+
+	function getLabelDateFromLabels(labels: (string | number | null | undefined)[], idx: number): Date | null {
+		const label = labels[idx];
+		return typeof label === 'string' ? parseLabelToDate(label) : null;
+	}
+
 	function createChartConfig(): ChartConfig {
 		const labels = formatLabels(results, groupBy);
+		const getLabelDate = (idx: number): Date | null => getLabelDateFromLabels(labels, idx);
 		const xAxisTitle = getXAxisTitle(groupBy);
 
 		// Use manual chart type selection - matches original logic
@@ -272,6 +356,22 @@
 				title: {
 					display: true,
 					text: xAxisTitle
+				},
+				ticks: {
+					autoSkip: false,
+					maxRotation: 45,
+					minRotation: 45,
+					callback: (_val: string | number, idx: number) =>
+						formatTickLabel(getLabelDate(Number(idx)), groupBy, Number(idx))
+				},
+				grid: {
+					color: (ctx: { index?: number; tick?: { index?: number } }) => {
+						const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
+						const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
+						return shouldHighlightTick(getLabelDate(safeIndex), groupBy, safeIndex)
+							? 'rgba(0,0,0,0.08)'
+							: 'rgba(0,0,0,0.02)';
+					}
 				}
 			},
 			y: isStackedChart
@@ -391,6 +491,34 @@
 						title: {
 							display: true,
 							text: 'Date'
+						},
+						ticks: {
+							autoSkip: false,
+							maxRotation: 45,
+							minRotation: 45,
+							callback: (_val: string | number, idx: number) =>
+								formatTickLabel(
+									getLabelDateFromLabels((chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
+									Number(idx)),
+									groupBy,
+									Number(idx)
+								)
+						},
+						grid: {
+							color: (ctx: { index?: number; tick?: { index?: number } }) => {
+								const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
+								const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
+								return shouldHighlightTick(
+									getLabelDateFromLabels(
+										(chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
+										safeIndex
+									),
+									groupBy,
+									safeIndex
+								)
+									? 'rgba(0,0,0,0.08)'
+									: 'rgba(0,0,0,0.02)';
+							}
 						}
 					}
 				},
