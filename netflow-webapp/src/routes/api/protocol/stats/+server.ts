@@ -66,7 +66,7 @@ export const GET: RequestHandler = async ({ url }) => {
 				SUM(unique_protocols_count_ipv4) AS uniqueProtocolsIpv4,
 				SUM(unique_protocols_count_ipv6) AS uniqueProtocolsIpv6,
 				MAX(processed_at) AS processedAt
-			FROM old_protocol_stats
+			FROM protocol_stats
 			WHERE granularity = ?
 				AND router IN (${placeholders})
 				AND bucket_start >= ?

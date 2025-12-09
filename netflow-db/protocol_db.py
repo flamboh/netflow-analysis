@@ -80,8 +80,8 @@ def process_file(file_path):
     protocols_ipv4 = set()
     protocols_ipv6 = set()
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%pr", "-A", "proto"]
-    ipv4_result = subprocess.run(command + ["ipv4"], capture_output=True, text=True, timeout=300)
-    ipv6_result = subprocess.run(command + ["ipv6"], capture_output=True, text=True, timeout=300)
+    ipv4_result = subprocess.run(command + ["ipv4", "-N"], capture_output=True, text=True, timeout=300)
+    ipv6_result = subprocess.run(command + ["ipv6", "-N"], capture_output=True, text=True, timeout=300)
 
     if ipv4_result.returncode == 0:
         out = ipv4_result.stdout.strip().split("\n")
