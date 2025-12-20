@@ -132,3 +132,21 @@ export interface SingularitiesData {
 		addressType: string;
 	};
 }
+
+export interface StructureFunctionPoint {
+	q: number;
+	tau: number;
+	sd: number;
+}
+
+export interface StructureStatsBucket {
+	bucketStart: number;
+	router: string;
+	structureSa: StructureFunctionPoint[];
+	structureDa: StructureFunctionPoint[];
+}
+
+export interface StructureStatsResponse {
+	buckets: StructureStatsBucket[];
+	requestedRouters: string[];
+}
