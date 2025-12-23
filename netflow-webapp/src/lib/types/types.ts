@@ -150,3 +150,15 @@ export interface StructureStatsResponse {
 	buckets: StructureStatsBucket[];
 	requestedRouters: string[];
 }
+
+export interface SpectrumStatsBucket {
+	bucketStart: number;
+	router: string;
+	spectrumSa: SpectrumPoint[];
+	spectrumDa: SpectrumPoint[];
+}
+
+export interface SpectrumStatsResponse {
+	buckets: SpectrumStatsBucket[];
+	requestedRouters: string[];
+}

@@ -4,7 +4,7 @@
 	import NetflowDashboard from '$lib/components/netflow/NetflowDashboard.svelte';
 	import IPChart from '$lib/components/charts/IPChart.svelte';
 	import ProtocolChart from '$lib/components/charts/ProtocolChart.svelte';
-	import StructureStatsChart from '$lib/components/charts/StructureStatsChart.svelte';
+	import SpectrumStatsChart from '$lib/components/charts/SpectrumStatsChart.svelte';
 	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
@@ -179,7 +179,7 @@
 			on:groupByChange={handleGroupByChange}
 		/>
 
-		<StructureStatsChart
+		<SpectrumStatsChart
 			{startDate}
 			{endDate}
 			granularity={ipGranularity}
