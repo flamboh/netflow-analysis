@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { Chart, registerables } from 'chart.js/auto';
+	import { getRelativePosition } from 'chart.js/helpers';
+	import type { ActiveElement, ChartEvent } from 'chart.js';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import type {
 		IpGranularity,
@@ -8,8 +11,23 @@
 		SpectrumStatsBucket,
 		SpectrumStatsResponse
 	} from '$lib/types/types';
+	import { generateSlugFromLabel, parseClickedLabel } from './chart-utils';
 
 	Chart.register(...registerables);
+
+	const IP_TO_GROUP_BY: Record<IpGranularity, GroupByOption> = {
+		'1d': 'date',
+		'1h': 'hour',
+		'30m': '30min',
+		'5m': '5min'
+	};
+
+	const GROUP_BY_TRANSITIONS: Record<GroupByOption, GroupByOption | null> = {
+		date: 'hour',
+		hour: '30min',
+		'30min': '5min',
+		'5min': null
+	};
 
 	const props = $props<{
 		startDate?: string;
@@ -41,6 +59,7 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let addressType = $state<'sa' | 'da'>('sa');
+	let bucketStarts: number[] = [];
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,6 +178,98 @@
 		}
 	}
 
+	function emitDrilldown(nextGroupBy: GroupByOption, start: Date, end: Date) {
+		dispatch('groupByChange', { groupBy: nextGroupBy });
+		dispatch('dateChange', {
+			startDate: formatDate(start),
+			endDate: formatDate(end)
+		});
+	}
+
+	function getLabelFromIndex(index: number): string | null {
+		if (!chart || !chart.data.labels) {
+			return null;
+		}
+		const labels = chart.data.labels as string[];
+		if (index < 0 || index >= labels.length) {
+			return null;
+		}
+		return labels[index] ?? null;
+	}
+
+	function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
+		if (!chart || !chart.data.labels) {
+			return;
+		}
+
+		const groupBy = IP_TO_GROUP_BY[currentGranularity];
+		if (!groupBy) {
+			return;
+		}
+
+		const labels = chart.data.labels as string[];
+		if (labels.length === 0 || bucketStarts.length === 0) {
+			return;
+		}
+
+		const canvasPosition = getRelativePosition(event, chart);
+		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
+
+		let labelIndex: number | null = null;
+		if (typeof dataX === 'number' && Number.isFinite(dataX)) {
+			const roundedIndex = Math.round(dataX);
+			if (roundedIndex >= 0 && roundedIndex < labels.length) {
+				labelIndex = roundedIndex;
+			} else if (roundedIndex < 0) {
+				labelIndex = 0;
+			} else {
+				labelIndex = labels.length - 1;
+			}
+		}
+
+		const fallbackIndex = activeElements.length > 0 ? activeElements[0].index : null;
+		const targetIndex = labelIndex ?? fallbackIndex;
+		const label = targetIndex !== null ? getLabelFromIndex(targetIndex) : labels[0];
+
+		if (!label) {
+			return;
+		}
+
+		const clickedDate = parseClickedLabel(label, groupBy);
+		if (!(clickedDate instanceof Date) || Number.isNaN(clickedDate.getTime())) {
+			console.warn('Unable to parse clicked label for drilldown', { label, groupBy });
+			return;
+		}
+		const activeLabel = fallbackIndex !== null ? getLabelFromIndex(fallbackIndex) : null;
+
+		if (groupBy === '5min') {
+			const labelForSlug = activeLabel ?? label;
+			const slug = generateSlugFromLabel(labelForSlug, '5min');
+			if (slug) {
+				goto(`/api/netflow/files/${slug}`);
+			}
+			return;
+		}
+
+		const nextGroupBy = GROUP_BY_TRANSITIONS[groupBy];
+		if (!nextGroupBy) {
+			return;
+		}
+
+		if (groupBy === 'date') {
+			const rangeStart = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
+			const rangeEnd = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
+			emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
+		} else if (groupBy === 'hour') {
+			const rangeStart = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+			const rangeEnd = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+			emitDrilldown(nextGroupBy, rangeStart, rangeEnd);
+		} else if (groupBy === '30min') {
+			const rangeEnd = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
+			emitDrilldown(nextGroupBy, clickedDate, rangeEnd);
+		}
+	}
+
 	interface DataPoint {
 		x: number;
 		y: number;
@@ -210,11 +321,7 @@
 			const points = bucketMap.get(bucketStart);
 			if (!points || points.length === 0) return;
 
-			const date = new Date(bucketStart * 1000);
-			const timeLabel = `${date.getMonth() + 1}/${date.getDate()} ${date
-				.getHours()
-				.toString()
-				.padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+			const timeLabel = formatBucketLabel(bucketStart, currentGranularity);
 
 			points.forEach((point) => {
 				data.push({
@@ -236,9 +343,7 @@
 		}
 
 		// Get unique time buckets, sorted
-		const bucketStarts = Array.from(new Set(buckets.map((b) => b.bucketStart))).sort(
-			(a, b) => a - b
-		);
+		bucketStarts = Array.from(new Set(buckets.map((b) => b.bucketStart))).sort((a, b) => a - b);
 
 		if (bucketStarts.length === 0) {
 			if (chart) {
@@ -284,6 +389,7 @@
 					]
 				},
 				options: {
+					onClick: handleChartClick,
 					animation: false,
 					responsive: true,
 					maintainAspectRatio: false,
@@ -383,6 +489,7 @@
 					title: { display: true, text: 'alpha' }
 				} as never
 			};
+			chart.options.onClick = handleChartClick;
 			chart.update('none');
 		}
 	}
@@ -494,13 +601,6 @@
 		const token = ++requestToken;
 		loadData(filters, token);
 	});
-
-	// Re-render when addressType changes
-	$effect(() => {
-		if (buckets.length > 0 && chartCanvas) {
-			renderChart();
-		}
-	});
 </script>
 
 <div class="rounded-lg border bg-white shadow-sm">
@@ -514,7 +614,10 @@
 						? 'bg-blue-600 text-white'
 						: 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
 					onclick={() => {
-						addressType = 'sa';
+						if (addressType !== 'sa') {
+							addressType = 'sa';
+							if (chart) renderChart();
+						}
 					}}
 				>
 					Source Addresses
@@ -525,7 +628,10 @@
 						? 'bg-blue-600 text-white'
 						: 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
 					onclick={() => {
-						addressType = 'da';
+						if (addressType !== 'da') {
+							addressType = 'da';
+							if (chart) renderChart();
+						}
 					}}
 				>
 					Destination Addresses
