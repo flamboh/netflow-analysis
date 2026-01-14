@@ -53,6 +53,9 @@ def scan_filesystem() -> Iterator[tuple[str, str, datetime]]:
                     for file_path in sorted(day_dir.glob('nfcapd.*')):
                         try:
                             router_parsed, timestamp = parse_file_path(str(file_path))
+                            # Skip files before DATA_START_DATE
+                            if timestamp < DATA_START_DATE:
+                                continue
                             yield str(file_path), router_parsed, timestamp
                         except ValueError as e:
                             print(f"Warning: Could not parse file {file_path}: {e}")

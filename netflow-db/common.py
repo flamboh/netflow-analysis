@@ -63,8 +63,8 @@ DATABASE_PATH = get_required_env('DATABASE_PATH')
 MAX_WORKERS = int(get_optional_env('MAX_WORKERS', '8'))
 BATCH_SIZE = int(get_optional_env('BATCH_SIZE', '50'))
 
-# Data collection started on 2024-03-01
-DATA_START_DATE = datetime(2024, 3, 1)
+# Data before Feb 2025 is corrupt/unusable - only process from this date forward
+DATA_START_DATE = datetime(2025, 2, 1)
 
 
 @contextmanager
