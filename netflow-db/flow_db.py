@@ -1,72 +1,34 @@
+"""
+NetFlow basic statistics processor.
+
+Processes nfcapd files to extract flow, packet, and byte statistics.
+"""
+
 import sqlite3
 import subprocess
-from datetime import datetime, timedelta
-import os
-import sys
-from pathlib import Path
+from datetime import datetime
 
-# Load environment variables from .env file
-def load_env_file(env_path='../.env'):
-    """
-    Load environment variables from a dotenv-style file into os.environ.
-    
-    Reads the file at env_path (default '../.env'), ignoring empty lines and lines
-    starting with '#'. Each non-comment line containing '=' is split on the first
-    '=' and the left/right parts are stripped and set as KEY=VALUE in os.environ.
-    
-    If the file does not exist, prints an error message and exits the process with
-    status code 1.
-    """
-    env_file = Path(env_path)
-    if env_file.exists():
-        with open(env_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
-    else:
-        print(f"ERROR: Environment file '{env_path}' not found!")
-        print("Please copy .env.example to .env and configure your settings.")
-        sys.exit(1)
+from common import (
+    NETFLOW_DATA_PATH,
+    AVAILABLE_ROUTERS,
+    DATABASE_PATH,
+    get_db_connection,
+    get_optional_env,
+    timestamp_to_unix,
+)
+from discovery import (
+    sync_processed_files_table,
+    get_files_needing_processing,
+    mark_file_processed,
+)
 
-# Load environment variables
-load_env_file()
+FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
 
-# Get required environment variables with error handling
-def get_required_env(key):
-    """Get required environment variable or exit with error"""
-    value = os.environ.get(key)
-    if not value:
-        print(f"ERROR: Required environment variable '{key}' is not set!")
-        print("Please check your .env file configuration.")
-        sys.exit(1)
-    return value
 
-# Configuration from environment variables
-NETFLOW_DATA_PATH = get_required_env('NETFLOW_DATA_PATH')
-AVAILABLE_ROUTERS = get_required_env('AVAILABLE_ROUTERS').split(',')
-DATABASE_PATH = get_required_env('DATABASE_PATH')
-FIRST_RUN = os.environ.get('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
-
-# Validate paths exist
-if not os.path.exists(NETFLOW_DATA_PATH):
-    print(f"ERROR: NETFLOW_DATA_PATH '{NETFLOW_DATA_PATH}' does not exist!")
-    sys.exit(1)
-
-def main():
-    conn = sqlite3.connect(DATABASE_PATH)
+def init_netflow_stats_table(conn: sqlite3.Connection) -> None:
+    """Create the netflow_stats table if it doesn't exist."""
     cursor = conn.cursor()
-
-    if FIRST_RUN:
-        cursor.execute("""
-        DROP TABLE IF EXISTS netflow_stats
-        """)
-    else:
-        print("--------------------------------")
-        print(f"Maintaining database at {datetime.now()}")
-        print("--------------------------------")
-
+    
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS netflow_stats (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,78 +72,12 @@ def main():
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_file_path ON netflow_stats (file_path)
     """)
-    if FIRST_RUN:
-        # nfcapd starts at 2024-03-01 00:00:00
-        start_time = datetime(2024, 3, 1)
-    else:
-        # Get the last processed file from the database
-        last_file = cursor.execute("""
-        SELECT file_path FROM netflow_stats ORDER BY timestamp DESC LIMIT 1
-        """).fetchone()
-        if last_file:
-            last_file_path = last_file[0]
-            timestamp_str = last_file_path.split('/')[-1].split('.')[1]
-            year = timestamp_str[:4]
-            month = timestamp_str[4:6]
-            day = timestamp_str[6:8]
-            hour = timestamp_str[8:10]
-            minute = timestamp_str[10:12]
-            last_file_time = datetime(int(year), int(month), int(day), int(hour), int(minute))
-            start_time = last_file_time + timedelta(minutes=5)
-            print(f"Start found at {start_time}")
-        else:
-            raise Exception("Failure to find last processed file")
-
-    current_time = start_time
-
-    # Process files in 5-minute intervals
-    routers = AVAILABLE_ROUTERS    
-    base_path = NETFLOW_DATA_PATH
-
-    processed_count = 0
-    error_count = 0
-
-    print(f"Starting processing from {start_time}")
-
-    while current_time < datetime.now():
-        timestamp_str = current_time.strftime('%Y%m%d%H%M')
-        timestamp_unix = int(current_time.timestamp())
-        
-        for router in routers:
-            # Construct file path
-            year = current_time.strftime('%Y')
-            month = current_time.strftime('%m')
-            day = current_time.strftime('%d')
-            
-            file_path = f"{base_path}/{router}/{year}/{month}/{day}/nfcapd.{timestamp_str}"
-            
-            # Check if file exists before processing
-            if os.path.exists(file_path):
-                if process_netflow_file(conn, file_path, router, timestamp_unix):
-                    processed_count += 1
-                else:
-                    error_count += 1
-            else:
-                print(f"File not found: {file_path}")
-        
-        # Move to next 5-minute interval
-        current_time += timedelta(minutes=5)
-        
-        # Commit every 100 files to avoid losing data
-        if processed_count % 100 == 0:
-            conn.commit()
-            print(f"Progress: {processed_count} files processed, {error_count} errors")
-
-    # Final commit
+    
     conn.commit()
-    print(f"Processing complete: {processed_count} files processed, {error_count} errors")
-
-    conn.close()
 
 
-
-def parse_nfdump_output(output):
-    """Parse nfdump output and return a dictionary of values"""
+def parse_nfdump_output(output: str) -> dict:
+    """Parse nfdump -I output and return a dictionary of values."""
     data = {}
     for line in output.split('\n'):
         if ':' in line:
@@ -193,18 +89,52 @@ def parse_nfdump_output(output):
                 data[key] = value.strip()
     return data
 
-def process_netflow_file(conn, file_path, router, timestamp_unix):
-    """Process a single netflow file and insert data into database"""
+
+def process_file(
+    conn: sqlite3.Connection, 
+    file_path: str, 
+    router: str, 
+    timestamp_unix: int,
+    file_exists: bool = True
+) -> bool:
+    """
+    Process a single NetFlow file and insert data into the netflow_stats table.
+    
+    Args:
+        conn: Database connection
+        file_path: Path to the nfcapd file
+        router: Router name
+        timestamp_unix: Unix timestamp for this file
+        file_exists: If False, insert zero-valued row (gap placeholder)
+        
+    Returns:
+        True if processing succeeded, False otherwise
+    """
+    if not file_exists:
+        # Insert zero-valued row for gap
+        try:
+            conn.execute("""
+                INSERT OR REPLACE INTO netflow_stats (
+                    file_path, router, timestamp,
+                    flows, flows_tcp, flows_udp, flows_icmp, flows_other,
+                    packets, packets_tcp, packets_udp, packets_icmp, packets_other,
+                    bytes, bytes_tcp, bytes_udp, bytes_icmp, bytes_other,
+                    first_timestamp, last_timestamp, msec_first, msec_last, sequence_failures
+                ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            """, (file_path, router, timestamp_unix))
+            return True
+        except Exception as e:
+            print(f"Error inserting zero row for {file_path}: {e}")
+            return False
+    
     command = ["nfdump", "-I", "-r", file_path]
     
     try:
-        result = subprocess.run(command, capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
         
         if result.returncode == 0:
             data = parse_nfdump_output(result.stdout)
             
-            
-            # Insert data into database
             conn.execute("""
                 INSERT OR REPLACE INTO netflow_stats (
                     file_path, router, timestamp,
@@ -243,9 +173,64 @@ def process_netflow_file(conn, file_path, router, timestamp_unix):
             print(f"Error processing {file_path}: {result.stderr}")
             return False
             
+    except subprocess.TimeoutExpired:
+        print(f"Timeout processing {file_path}")
+        return False
     except Exception as e:
         print(f"Exception processing {file_path}: {e}")
         return False
+
+
+def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
+    """
+    Process all pending files for the netflow_stats table.
+    
+    Args:
+        conn: Database connection
+        limit: Optional limit on number of files to process
+        
+    Returns:
+        Dictionary with counts: {'processed': N, 'errors': N}
+    """
+    init_netflow_stats_table(conn)
+    
+    pending = get_files_needing_processing(conn, 'flow_stats', limit)
+    stats = {'processed': 0, 'errors': 0}
+    
+    print(f"Processing {len(pending)} pending files for flow_stats...")
+    
+    for file_path, router, timestamp, file_exists in pending:
+        success = process_file(conn, file_path, router, timestamp, file_exists)
+        mark_file_processed(conn, file_path, 'flow_stats', success)
+        
+        if success:
+            stats['processed'] += 1
+        else:
+            stats['errors'] += 1
+        
+        # Commit periodically
+        if (stats['processed'] + stats['errors']) % 100 == 0:
+            conn.commit()
+            print(f"Progress: {stats['processed']} processed, {stats['errors']} errors")
+    
+    conn.commit()
+    return stats
+
+
+def main():
+    """Main entry point for standalone execution."""
+    print("--------------------------------")
+    print(f"Flow DB processing at {datetime.now()}")
+    print("--------------------------------")
+    
+    with get_db_connection() as conn:
+        # First sync the processed_files table
+        sync_processed_files_table(conn)
+        
+        # Then process pending files
+        stats = process_pending_files(conn)
+        
+        print(f"Processing complete: {stats}")
 
 
 if __name__ == "__main__":
