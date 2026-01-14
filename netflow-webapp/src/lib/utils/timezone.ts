@@ -95,12 +95,8 @@ export function createDateFromPSTComponents(
 	minutes: number = 0,
 	seconds: number = 0
 ): Date {
-	// ISO format the date with a placeholder timezone, then use the timezone-aware
-	// parsing to get the correct UTC timestamp
-	const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-	
 	// We need to find the UTC timestamp that corresponds to this PST time
-	// Use a binary search approach or the timezone offset
+	// Use an iterative approach to account for DST transitions
 	const formatter = new Intl.DateTimeFormat('en-US', {
 		timeZone: PST_TIMEZONE,
 		year: 'numeric',
