@@ -132,7 +132,6 @@ export function createDateFromPSTComponents(
 		
 		// Adjust by the difference
 		guess = new Date(guess.getTime() + 
-			monthDiff * 30 * 24 * 60 * 60 * 1000 +
 			dayDiff * 24 * 60 * 60 * 1000 + 
 			hourDiff * 60 * 60 * 1000 + 
 			minuteDiff * 60 * 1000
