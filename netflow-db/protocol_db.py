@@ -58,7 +58,7 @@ def process_file(file_path: str) -> tuple[set, set]:
     Returns:
         Tuple of (protocols_ipv4, protocols_ipv6) sets
     """
-    print(f"Processing {file_path}")
+    print(f"[protocol_stats] Processing {file_path}")
     protocols_ipv4 = set()
     protocols_ipv6 = set()
     
@@ -260,7 +260,7 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
         # Commit periodically
         if (stats['processed'] + stats['errors']) % 100 == 0:
             conn.commit()
-            print(f"Progress: {stats['processed']} processed, {stats['errors']} errors")
+            print(f"[protocol_stats] Progress: {stats['processed']} processed, {stats['errors']} errors")
     
     conn.commit()
     return stats
