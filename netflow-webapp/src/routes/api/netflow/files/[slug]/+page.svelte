@@ -5,6 +5,7 @@
 	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
+	import { createDateFromPSTComponents, epochToPSTComponents, formatTimestampAsPST } from '$lib/utils/timezone';
 
 	let { data }: PageProps = $props();
 	let structureFunctionDataSource = $state(new Map());
@@ -40,13 +41,19 @@
 			return slug;
 		}
 		const year = parseInt(slug.slice(0, 4), 10);
-		const month = parseInt(slug.slice(4, 6), 10) - 1;
+		const month = parseInt(slug.slice(4, 6), 10); // 1-12 for PST utilities
 		const day = parseInt(slug.slice(6, 8), 10);
 		const hour = parseInt(slug.slice(8, 10), 10);
 		const minute = parseInt(slug.slice(10, 12), 10);
-		const nextDate = new Date(year, month, day, hour, minute + 5);
+		
+		// Create a PST date and add 5 minutes
+		const currentDate = createDateFromPSTComponents(year, month, day, hour, minute);
+		const nextDate = new Date(currentDate.getTime() + 5 * 60 * 1000);
+		
+		// Convert back to PST components
+		const nextPST = epochToPSTComponents(Math.floor(nextDate.getTime() / 1000));
 
-		return `${nextDate.getFullYear()}${String(nextDate.getMonth() + 1).padStart(2, '0')}${String(nextDate.getDate()).padStart(2, '0')}${String(nextDate.getHours()).padStart(2, '0')}${String(nextDate.getMinutes()).padStart(2, '0')}`;
+		return `${nextPST.year}${String(nextPST.month).padStart(2, '0')}${String(nextPST.day).padStart(2, '0')}${String(nextPST.hours).padStart(2, '0')}${String(nextPST.minutes).padStart(2, '0')}`;
 	}
 
 	const nextSlug = $derived(getNextSlug(data.slug));
@@ -372,7 +379,7 @@
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
 			<div>
 				{#if data.summary?.length}
-					Processed in DB: {new Date(data.summary[0].processed_at).toLocaleString()}
+					Processed in DB: {formatTimestampAsPST(Date.parse(data.summary[0].processed_at))}
 				{:else}
 					Processed in DB: N/A
 				{/if}
@@ -445,8 +452,8 @@
 						</div>
 						<div>
 							<h4 class="font-medium">Timestamps & Metrics</h4>
-							<p>First: {new Date(record.first_timestamp * 1000).toLocaleString()}</p>
-							<p>Last: {new Date(record.last_timestamp * 1000).toLocaleString()}</p>
+							<p>First: {formatTimestampAsPST(record.first_timestamp * 1000)}</p>
+							<p>Last: {formatTimestampAsPST(record.last_timestamp * 1000)}</p>
 							<p>First ms: {record.msec_first}</p>
 							<p>Last ms: {record.msec_last}</p>
 							<p>Seq failures: {record.sequence_failures.toLocaleString()}</p>

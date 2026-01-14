@@ -10,6 +10,13 @@
 		parseClickedLabel,
 		generateSlugFromLabel
 	} from './chart-utils';
+	import {
+		parseLabelToPSTComponents,
+		formatDateAsPSTDateString,
+		epochToPSTComponents,
+		getWeekdayName,
+		type PSTDateComponents
+	} from '$lib/utils/timezone';
 	import type {
 		NetflowDataPoint,
 		GroupByOption,
@@ -35,18 +42,18 @@
 	let chart: Chart | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
-	function formatTickLabel(date: Date | null, currentGroupBy: GroupByOption, index: number): string {
-		if (!date || Number.isNaN(date.getTime())) {
+	function formatTickLabel(pst: PSTDateComponents | null, currentGroupBy: GroupByOption, index: number): string {
+		if (!pst) {
 			return '';
 		}
-		const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-		const month = date.getMonth() + 1;
-		const day = date.getDate();
-		const hours = date.getHours();
-		const minutes = date.getMinutes();
+		const weekday = getWeekdayName(pst.dayOfWeek);
+		const month = pst.month;
+		const day = pst.day;
+		const hours = pst.hours;
+		const minutes = pst.minutes;
 
 		if (currentGroupBy === 'date') {
-			return date.getDay() === 1 ? `${weekday} ${month}/${day}` : '';
+			return pst.dayOfWeek === 1 ? `${weekday} ${month}/${day}` : '';
 		}
 
 		if (currentGroupBy === 'hour') {
@@ -70,15 +77,15 @@
 		return index === 0 ? `${weekday} ${month}/${day}` : '';
 	}
 
-	function shouldHighlightTick(date: Date | null, currentGroupBy: GroupByOption, index: number): boolean {
-		if (!date || Number.isNaN(date.getTime())) {
+	function shouldHighlightTick(pst: PSTDateComponents | null, currentGroupBy: GroupByOption, index: number): boolean {
+		if (!pst) {
 			return index === 0;
 		}
-		const hours = date.getHours();
-		const minutes = date.getMinutes();
+		const hours = pst.hours;
+		const minutes = pst.minutes;
 
 		if (currentGroupBy === 'date') {
-			return date.getDay() === 1;
+			return pst.dayOfWeek === 1;
 		}
 		if (currentGroupBy === 'hour') {
 			return hours === 0;
@@ -199,38 +206,32 @@
 		if (groupBy === 'date') {
 			const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
 			const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
+			const startDateStr = formatDateAsPSTDateString(startOfMonth);
+			const endDateStr = formatDateAsPSTDateString(endOfMonth);
 			console.log('Drilling down to hour view with date range:', {
-				start: startOfMonth.toISOString().slice(0, 10),
-				end: endOfMonth.toISOString().slice(0, 10)
+				start: startDateStr,
+				end: endDateStr
 			});
-			onDrillDown?.(
-				'hour',
-				startOfMonth.toISOString().slice(0, 10),
-				endOfMonth.toISOString().slice(0, 10)
-			);
+			onDrillDown?.('hour', startDateStr, endDateStr);
 		} else if (groupBy === 'hour') {
 			const startOfWeek = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
 			const endOfWeek = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+			const startDateStr = formatDateAsPSTDateString(startOfWeek);
+			const endDateStr = formatDateAsPSTDateString(endOfWeek);
 			console.log('Drilling down to 30min view with date range:', {
-				start: startOfWeek.toISOString().slice(0, 10),
-				end: endOfWeek.toISOString().slice(0, 10)
+				start: startDateStr,
+				end: endDateStr
 			});
-			onDrillDown?.(
-				'30min',
-				startOfWeek.toISOString().slice(0, 10),
-				endOfWeek.toISOString().slice(0, 10)
-			);
+			onDrillDown?.('30min', startDateStr, endDateStr);
 		} else if (groupBy === '30min') {
 			const endDate = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
+			const startDateStr = formatDateAsPSTDateString(clickedDate);
+			const endDateStr = formatDateAsPSTDateString(endDate);
 			console.log('Drilling down to 5min view with date range:', {
-				start: clickedDate.toISOString().slice(0, 10),
-				end: endDate.toISOString().slice(0, 10)
+				start: startDateStr,
+				end: endDateStr
 			});
-			onDrillDown?.(
-				'5min',
-				clickedDate.toISOString().slice(0, 10),
-				endDate.toISOString().slice(0, 10)
-			);
+			onDrillDown?.('5min', startDateStr, endDateStr);
 		} else if (groupBy === '5min') {
 			// For 5min level, we need to create a slug from the clicked date
 			// Convert the date back to a label format that generateSlugFromLabel expects
@@ -238,12 +239,13 @@
 			if (clickedElement) {
 				labelForSlug = clickedElement.label;
 			} else {
-				// Format the date to match the label format for 5min grouping
-				const year = clickedDate.getFullYear();
-				const month = String(clickedDate.getMonth() + 1).padStart(2, '0');
-				const day = String(clickedDate.getDate()).padStart(2, '0');
-				const hour = String(clickedDate.getHours()).padStart(2, '0');
-				const minute = String(clickedDate.getMinutes()).padStart(2, '0');
+				// Format the date to match the label format for 5min grouping using PST
+				const pst = epochToPSTComponents(Math.floor(clickedDate.getTime() / 1000));
+				const year = pst.year;
+				const month = String(pst.month).padStart(2, '0');
+				const day = String(pst.day).padStart(2, '0');
+				const hour = String(pst.hours).padStart(2, '0');
+				const minute = String(pst.minutes).padStart(2, '0');
 				labelForSlug = `${year}-${month}-${day} ${hour}:${minute}`;
 			}
 
@@ -259,35 +261,19 @@
 		console.log('=== END CHART CLICK DEBUG ===');
 	}
 
-	function parseLabelToDate(label: string | undefined): Date | null {
+	function parseLabelToPST(label: string | undefined): PSTDateComponents | null {
 		if (!label) return null;
-		const [datePart, timePart] = label.split(' ');
-		const [yearStr, monthStr, dayStr] = datePart.split('-');
-		const year = Number(yearStr);
-		const month = Number(monthStr);
-		const day = Number(dayStr);
-		if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-		const [hourStr, minuteStr] = timePart?.split(':') ?? [];
-		const hour = Number(hourStr);
-		const minute = Number(minuteStr);
-		const date = new Date(
-			year,
-			month - 1,
-			day,
-			Number.isFinite(hour) ? hour : 0,
-			Number.isFinite(minute) ? minute : 0
-		);
-		return Number.isNaN(date.getTime()) ? null : date;
+		return parseLabelToPSTComponents(label);
 	}
 
-	function getLabelDateFromLabels(labels: (string | number | null | undefined)[], idx: number): Date | null {
+	function getLabelPSTFromLabels(labels: (string | number | null | undefined)[], idx: number): PSTDateComponents | null {
 		const label = labels[idx];
-		return typeof label === 'string' ? parseLabelToDate(label) : null;
+		return typeof label === 'string' ? parseLabelToPST(label) : null;
 	}
 
 	function createChartConfig(): ChartConfig {
 		const labels = formatLabels(results, groupBy);
-		const getLabelDate = (idx: number): Date | null => getLabelDateFromLabels(labels, idx);
+		const getLabelPST = (idx: number): PSTDateComponents | null => getLabelPSTFromLabels(labels, idx);
 		const xAxisTitle = getXAxisTitle(groupBy);
 
 		// Use manual chart type selection - matches original logic
@@ -362,13 +348,13 @@
 					maxRotation: 45,
 					minRotation: 45,
 					callback: (_val: string | number, idx: number) =>
-						formatTickLabel(getLabelDate(Number(idx)), groupBy, Number(idx))
+						formatTickLabel(getLabelPST(Number(idx)), groupBy, Number(idx))
 				},
 				grid: {
 					color: (ctx: { index?: number; tick?: { index?: number } }) => {
 						const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
 						const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
-						return shouldHighlightTick(getLabelDate(safeIndex), groupBy, safeIndex)
+						return shouldHighlightTick(getLabelPST(safeIndex), groupBy, safeIndex)
 							? 'rgba(0,0,0,0.08)'
 							: 'rgba(0,0,0,0.02)';
 					}
@@ -492,34 +478,34 @@
 							display: true,
 							text: 'Date'
 						},
-						ticks: {
-							autoSkip: false,
-							maxRotation: 45,
-							minRotation: 45,
-							callback: (_val: string | number, idx: number) =>
-								formatTickLabel(
-									getLabelDateFromLabels((chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
-									Number(idx)),
-									groupBy,
-									Number(idx)
-								)
-						},
-						grid: {
-							color: (ctx: { index?: number; tick?: { index?: number } }) => {
-								const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
-								const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
-								return shouldHighlightTick(
-									getLabelDateFromLabels(
-										(chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
-										safeIndex
-									),
-									groupBy,
+					ticks: {
+						autoSkip: false,
+						maxRotation: 45,
+						minRotation: 45,
+						callback: (_val: string | number, idx: number) =>
+							formatTickLabel(
+								getLabelPSTFromLabels((chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
+								Number(idx)),
+								groupBy,
+								Number(idx)
+							)
+					},
+					grid: {
+						color: (ctx: { index?: number; tick?: { index?: number } }) => {
+							const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
+							const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
+							return shouldHighlightTick(
+								getLabelPSTFromLabels(
+									(chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
 									safeIndex
-								)
-									? 'rgba(0,0,0,0.08)'
-									: 'rgba(0,0,0,0.02)';
-							}
+								),
+								groupBy,
+								safeIndex
+							)
+								? 'rgba(0,0,0,0.08)'
+								: 'rgba(0,0,0,0.02)';
 						}
+					}
 					}
 				},
 				plugins: {
