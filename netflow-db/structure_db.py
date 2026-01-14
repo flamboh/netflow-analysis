@@ -1,39 +1,39 @@
 """
 Structure function statistics processor.
 
-Processes nfcapd files to compute structure function for IP addresses.
+Computes IP structure function from unique source IPs at various granularities.
 """
 
 import sqlite3
 import subprocess
-import json
 from datetime import datetime, timedelta
-from pathlib import Path
+from multiprocessing import Pool
 from typing import Optional
+from collections import defaultdict
+import os
+import json
+import tempfile
 
 from common import (
     NETFLOW_DATA_PATH,
     AVAILABLE_ROUTERS,
     DATABASE_PATH,
     MAX_WORKERS,
+    BATCH_SIZE,
     get_db_connection,
     get_optional_env,
     construct_file_path,
     timestamp_to_unix,
+    unix_to_timestamp,
 )
 from discovery import (
     sync_processed_files_table,
     get_files_needing_processing,
-    mark_file_processed,
+    group_files_by_day,
+    batch_mark_processed,
 )
 
-FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
-
-# Structure function binary path
-STRUCTURE_FUNCTION_BIN = get_optional_env(
-    'STRUCTURE_FUNCTION_BIN',
-    str(Path(__file__).parent.parent / 'burstify' / 'zig-out' / 'bin' / 'StructureFunction')
-)
+MAAD_PATH = get_optional_env('MAAD_PATH', '/home/obo/oliver/netflow-analysis/maad')
 
 
 def init_structure_stats_table(conn: sqlite3.Connection) -> None:
@@ -42,307 +42,240 @@ def init_structure_stats_table(conn: sqlite3.Connection) -> None:
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS structure_stats (
             router TEXT NOT NULL,
-            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m','30m','1h','1d')),
             bucket_start INTEGER NOT NULL,
-            bucket_end INTEGER NOT NULL,
-            ip_version INTEGER NOT NULL CHECK (ip_version IN (4, 6)),
-            structure_json_sa TEXT NOT NULL,
-            structure_json_da TEXT NOT NULL,
+            bucket_end   INTEGER NOT NULL,
+            structure_data TEXT NOT NULL DEFAULT '{}',
+            ip_count INTEGER NOT NULL DEFAULT 0,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (router, granularity, bucket_start, ip_version)
+            PRIMARY KEY (router, granularity, bucket_start)
         ) WITHOUT ROWID;
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_structure_granularity_time 
-        ON structure_stats(granularity, bucket_start);
     """)
     conn.commit()
 
 
-def extract_ips(file_path: str) -> tuple[set, set]:
-    """
-    Extract unique IPv4 source and destination addresses from a NetFlow file.
-    
-    Args:
-        file_path: Path to the nfcapd file
-        
-    Returns:
-        Tuple of (source_ips, dest_ips) sets
-    """
-    print(f"[structure_stats] Processing {file_path}")
-    sa_ips = set()
-    da_ips = set()
+def extract_ips(file_path: str) -> list[str]:
+    """Extract unique source IPv4 addresses from a netflow file."""
+    command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa", "-n", "0", "ipv4"]
     
     try:
-        # Extract source addresses
-        sa_result = subprocess.run(
-            ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa", "ipv4"],
-            capture_output=True, text=True, timeout=300
-        )
-        
-        # Extract destination addresses
-        da_result = subprocess.run(
-            ["nfdump", "-r", file_path, "-q", "-o", "fmt:%da", "ipv4"],
-            capture_output=True, text=True, timeout=300
-        )
-        
-        if sa_result.returncode == 0:
-            for line in sa_result.stdout.strip().split("\n"):
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        if result.returncode == 0:
+            ips = set()
+            for line in result.stdout.strip().split("\n"):
                 if line.strip():
-                    sa_ips.add(line.strip())
-        
-        if da_result.returncode == 0:
-            for line in da_result.stdout.strip().split("\n"):
-                if line.strip():
-                    da_ips.add(line.strip())
-    except subprocess.TimeoutExpired:
-        print(f"Timeout extracting IPs from {file_path}")
-    except Exception as e:
-        print(f"Error extracting IPs from {file_path}: {e}")
+                    ips.add(line.strip())
+            return list(ips)
+    except Exception:
+        pass
     
-    return sa_ips, da_ips
+    return []
 
 
-def compute_structure_function(ips: set) -> list[dict]:
-    """
-    Compute structure function for a set of IP addresses.
+def compute_structure_function(ips: list[str]) -> dict:
+    """Compute structure function using MAAD StructureFunction binary."""
+    if not ips or len(ips) < 10:
+        return {}
     
-    Calls the Zig StructureFunction binary via stdin and parses the CSV output.
+    structure_path = os.path.join(MAAD_PATH, "StructureFunction")
+    if not os.path.exists(structure_path):
+        return {}
     
-    Args:
-        ips: Set of IP addresses (as strings)
-        
-    Returns:
-        List of dicts with keys: q, tau, sd
-    """
-    if len(ips) < 100:
-        # Not enough data for meaningful structure function
-        return []
-    
-    input_data = '\n'.join(ips)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        f.write("ip\n")
+        for ip in ips:
+            f.write(f"{ip}\n")
+        temp_path = f.name
     
     try:
         result = subprocess.run(
-            [STRUCTURE_FUNCTION_BIN],
-            input=input_data,
+            [structure_path, "10", temp_path],
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=300
         )
         
-        if result.returncode != 0:
-            print(f"StructureFunction error (returncode {result.returncode}): {result.stderr}")
-            return []
-        
-        # Parse CSV output: q,tauTilde,sd
-        points = []
-        lines = result.stdout.strip().split('\n')
-        if len(lines) < 2:
-            return []
-        
-        # Skip header line
-        for line in lines[1:]:
-            parts = line.split(',')
-            if len(parts) == 3:
-                try:
-                    points.append({
-                        "q": float(parts[0]),
-                        "tau": float(parts[1]),
-                        "sd": float(parts[2])
-                    })
-                except ValueError:
-                    continue
-        
-        return points
-    except subprocess.TimeoutExpired:
-        print(f"StructureFunction timed out for {len(ips)} IPs")
-        return []
-    except FileNotFoundError:
-        print(f"StructureFunction binary not found at {STRUCTURE_FUNCTION_BIN}")
-        return []
-    except Exception as e:
-        print(f"StructureFunction error: {e}")
-        return []
-
-
-def process_file_for_stats(
-    conn: sqlite3.Connection,
-    file_path: str,
-    router: str,
-    timestamp_unix: int,
-    file_exists: bool = True
-) -> bool:
-    """
-    Process a single file and insert 5-minute granularity structure stats.
+        if result.returncode == 0:
+            structure = {}
+            for line in result.stdout.strip().split("\n"):
+                if "," in line:
+                    try:
+                        scale, value = line.strip().split(",")
+                        structure[scale] = value
+                    except ValueError:
+                        continue
+            return structure
+    except Exception:
+        pass
+    finally:
+        os.unlink(temp_path)
     
-    Args:
-        conn: Database connection
-        file_path: Path to the nfcapd file
-        router: Router name
-        timestamp_unix: Unix timestamp for this file
-        file_exists: If False, insert empty structure (gap placeholder)
-        
-    Returns:
-        True if processing succeeded, False otherwise
-    """
-    bucket_start = timestamp_unix
-    bucket_end = timestamp_unix + 300  # 5 minutes
+    return {}
+
+
+def process_file_worker(task: tuple) -> dict:
+    """Worker function to process a single file (no DB access)."""
+    file_path, router, timestamp_unix, file_exists = task
+    
+    result = {
+        'file_path': file_path,
+        'router': router,
+        'timestamp': timestamp_unix,
+        'success': False,
+        'data': None,
+        'raw_ips': None,
+        'error': None
+    }
     
     if not file_exists:
-        # Insert empty structure for gap
-        try:
-            conn.execute("""
-                INSERT OR REPLACE INTO structure_stats 
-                (router, granularity, bucket_start, bucket_end, ip_version,
-                 structure_json_sa, structure_json_da)
-                VALUES (?, '5m', ?, ?, 4, '[]', '[]')
-            """, (router, bucket_start, bucket_end))
-            return True
-        except Exception as e:
-            print(f"Error inserting zero row for {file_path}: {e}")
-            return False
+        result['success'] = True
+        result['data'] = {'structure': {}, 'ip_count': 0}
+        result['raw_ips'] = []
+        return result
+    
+    print(f"[structure_stats] Processing {file_path}")
     
     try:
-        sa_ips, da_ips = extract_ips(file_path)
+        ips = extract_ips(file_path)
+        structure = compute_structure_function(ips)
         
-        # Compute structure function for source and destination IPs
-        structure_sa = compute_structure_function(sa_ips)
-        structure_da = compute_structure_function(da_ips)
+        result['success'] = True
+        result['data'] = {'structure': structure, 'ip_count': len(ips)}
+        result['raw_ips'] = ips
         
-        conn.execute("""
-            INSERT OR REPLACE INTO structure_stats 
-            (router, granularity, bucket_start, bucket_end, ip_version,
-             structure_json_sa, structure_json_da)
-            VALUES (?, '5m', ?, ?, 4, ?, ?)
-        """, (router, bucket_start, bucket_end, 
-              json.dumps(structure_sa), json.dumps(structure_da)))
-        
-        return True
     except Exception as e:
-        print(f"Error processing {file_path}: {e}")
-        return False
-
-
-class BucketAggregator:
-    """Aggregates IP sets across multiple files for larger time buckets."""
+        result['error'] = str(e)
+        print(f"[structure_stats] Error processing {file_path}: {e}")
     
-    def __init__(self, router: str, granularity: str):
-        self.router = router
-        self.granularity = granularity
-        self.ips_sa = set()
-        self.ips_da = set()
-
-    def update(self, ips_sa: set, ips_da: set):
-        """Add IPs to the aggregated sets."""
-        self.ips_sa.update(ips_sa)
-        self.ips_da.update(ips_da)
-
-    def write(self, bucket_start: int, bucket_end: int, conn: sqlite3.Connection):
-        """Compute structure function and write to database."""
-        structure_sa = compute_structure_function(self.ips_sa)
-        structure_da = compute_structure_function(self.ips_da)
-        
-        conn.execute("""
-            INSERT OR REPLACE INTO structure_stats 
-            (router, granularity, bucket_start, bucket_end, ip_version,
-             structure_json_sa, structure_json_da)
-            VALUES (?, ?, ?, ?, 4, ?, ?)
-        """, (self.router, self.granularity, bucket_start, bucket_end,
-              json.dumps(structure_sa), json.dumps(structure_da)))
-        
-        # Reset for next bucket
-        self.ips_sa = set()
-        self.ips_da = set()
+    return result
 
 
-def aggregate_buckets(conn: sqlite3.Connection, router: str, day_start: datetime) -> None:
+def compute_aggregates(results: list[dict], router: str, day_start: int) -> list[dict]:
     """
-    Compute 30m, 1h, and 1d structure function aggregates for a given day.
-    
-    Args:
-        conn: Database connection
-        router: Router name
-        day_start: Start of the day to aggregate
+    Compute 30m, 1h, and 1d aggregates from 5m results for a single day.
     """
-    day_end = day_start + timedelta(days=1)
+    aggregates = []
     
-    # Initialize aggregators
-    agg_30m = BucketAggregator(router, '30m')
-    agg_1h = BucketAggregator(router, '1h')
-    agg_1d = BucketAggregator(router, '1d')
+    buckets = {
+        '30m': defaultdict(set),
+        '1h': defaultdict(set),
+        '1d': defaultdict(set),
+    }
     
-    current = day_start
-    mins = 0
+    for result in results:
+        if not result['success'] or result['raw_ips'] is None:
+            continue
+        
+        timestamp = result['timestamp']
+        ips = set(result['raw_ips'])
+        
+        dt = unix_to_timestamp(timestamp)
+        
+        bucket_30m = dt.replace(minute=(dt.minute // 30) * 30, second=0, microsecond=0)
+        bucket_30m_ts = timestamp_to_unix(bucket_30m)
+        
+        bucket_1h = dt.replace(minute=0, second=0, microsecond=0)
+        bucket_1h_ts = timestamp_to_unix(bucket_1h)
+        
+        bucket_1d_ts = day_start
+        
+        for granularity, bucket_ts in [('30m', bucket_30m_ts), ('1h', bucket_1h_ts), ('1d', bucket_1d_ts)]:
+            buckets[granularity][bucket_ts].update(ips)
     
-    while current < day_end:
-        file_path = construct_file_path(router, current)
-        
-        # Check if file exists by querying processed_files
-        cursor = conn.cursor()
-        row = cursor.execute("""
-            SELECT file_exists FROM processed_files WHERE file_path = ?
-        """, (file_path,)).fetchone()
-        
-        if row and row[0]:
-            # File exists, extract IPs
-            sa_ips, da_ips = extract_ips(file_path)
-            agg_30m.update(sa_ips, da_ips)
-            agg_1h.update(sa_ips, da_ips)
-            agg_1d.update(sa_ips, da_ips)
-        
-        mins += 5
-        current += timedelta(minutes=5)
-        
-        # Write 30m bucket
-        if mins % 30 == 0:
-            bucket_start = timestamp_to_unix(current - timedelta(minutes=30))
-            bucket_end = timestamp_to_unix(current)
-            agg_30m.write(bucket_start, bucket_end, conn)
-        
-        # Write 1h bucket
-        if mins % 60 == 0:
-            bucket_start = timestamp_to_unix(current - timedelta(hours=1))
-            bucket_end = timestamp_to_unix(current)
-            agg_1h.write(bucket_start, bucket_end, conn)
+    durations = {'30m': 1800, '1h': 3600, '1d': 86400}
     
-    # Write 1d bucket
-    agg_1d.write(timestamp_to_unix(day_start), timestamp_to_unix(day_end), conn)
+    for granularity in ['30m', '1h', '1d']:
+        for bucket_start, ips in buckets[granularity].items():
+            structure = compute_structure_function(list(ips))
+            aggregates.append({
+                'router': router,
+                'granularity': granularity,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_start + durations[granularity],
+                'structure': structure,
+                'ip_count': len(ips),
+            })
+    
+    return aggregates
+
+
+def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: list[dict]) -> tuple[int, int]:
+    """Insert 5m results and aggregate results into the database."""
+    cursor = conn.cursor()
+    inserted_5m = 0
+    inserted_agg = 0
+    
+    for result in results:
+        if not result['success'] or result['data'] is None:
+            continue
+        
+        data = result['data']
+        bucket_start = result['timestamp']
+        bucket_end = bucket_start + 300
+        
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO structure_stats 
+                (router, granularity, bucket_start, bucket_end, structure_data, ip_count)
+                VALUES (?, '5m', ?, ?, ?, ?)
+            """, (result['router'], bucket_start, bucket_end,
+                  json.dumps(data['structure']), data['ip_count']))
+            inserted_5m += 1
+        except Exception as e:
+            print(f"[structure_stats] Error inserting {result['file_path']}: {e}")
+    
+    for agg in aggregates:
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO structure_stats 
+                (router, granularity, bucket_start, bucket_end, structure_data, ip_count)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (agg['router'], agg['granularity'], agg['bucket_start'], agg['bucket_end'],
+                  json.dumps(agg['structure']), agg['ip_count']))
+            inserted_agg += 1
+        except Exception as e:
+            print(f"[structure_stats] Error inserting aggregate: {e}")
+    
     conn.commit()
+    return inserted_5m, inserted_agg
 
 
 def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     """
-    Process all pending files for the structure_stats table.
-    
-    Args:
-        conn: Database connection
-        limit: Optional limit on number of files to process
-        
-    Returns:
-        Dictionary with counts: {'processed': N, 'errors': N}
+    Process all pending files for the structure_stats table using parallel processing.
+    Processes complete days only, computing aggregates after each day.
     """
     init_structure_stats_table(conn)
     
     pending = get_files_needing_processing(conn, 'structure_stats', limit)
-    stats = {'processed': 0, 'errors': 0}
+    stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}
     
-    print(f"Processing {len(pending)} pending files for structure_stats...")
+    if not pending:
+        print("[structure_stats] No pending files to process")
+        return stats
     
-    for file_path, router, timestamp, file_exists in pending:
-        success = process_file_for_stats(conn, file_path, router, timestamp, file_exists)
-        mark_file_processed(conn, file_path, 'structure_stats', success)
+    days = group_files_by_day(pending)
+    print(f"[structure_stats] Processing {len(pending)} files across {len(days)} complete days with {MAX_WORKERS} workers...")
+    
+    for (router, day_start), day_files in sorted(days.items()):
+        day_dt = unix_to_timestamp(day_start)
+        print(f"[structure_stats] Processing {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
         
-        if success:
-            stats['processed'] += 1
-        else:
-            stats['errors'] += 1
+        with Pool(processes=MAX_WORKERS) as pool:
+            results = pool.map(process_file_worker, day_files)
         
-        # Commit periodically
-        if (stats['processed'] + stats['errors']) % 100 == 0:
-            conn.commit()
-            print(f"[structure_stats] Progress: {stats['processed']} processed, {stats['errors']} errors")
+        aggregates = compute_aggregates(results, router, day_start)
+        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
+        batch_mark_processed(conn, 'structure_stats', results)
+        
+        errors = len([r for r in results if not r['success']])
+        stats['processed'] += inserted_5m
+        stats['aggregates'] += inserted_agg
+        stats['errors'] += errors
+        stats['days'] += 1
+        
+        print(f"[structure_stats] Day complete: {inserted_5m} 5m records, {inserted_agg} aggregates, {errors} errors")
     
-    conn.commit()
     return stats
 
 
@@ -353,12 +286,8 @@ def main():
     print("--------------------------------")
     
     with get_db_connection() as conn:
-        # First sync the processed_files table
         sync_processed_files_table(conn)
-        
-        # Then process pending files
         stats = process_pending_files(conn)
-        
         print(f"Processing complete: {stats}")
 
 

@@ -7,11 +7,14 @@ Processes nfcapd files to extract flow, packet, and byte statistics.
 import sqlite3
 import subprocess
 from datetime import datetime
+from multiprocessing import Pool
 
 from common import (
     NETFLOW_DATA_PATH,
     AVAILABLE_ROUTERS,
     DATABASE_PATH,
+    MAX_WORKERS,
+    BATCH_SIZE,
     get_db_connection,
     get_optional_env,
     timestamp_to_unix,
@@ -19,7 +22,7 @@ from common import (
 from discovery import (
     sync_processed_files_table,
     get_files_needing_processing,
-    mark_file_processed,
+    batch_mark_processed,
 )
 
 FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
@@ -90,52 +93,83 @@ def parse_nfdump_output(output: str) -> dict:
     return data
 
 
-def process_file(
-    conn: sqlite3.Connection, 
-    file_path: str, 
-    router: str, 
-    timestamp_unix: int,
-    file_exists: bool = True
-) -> bool:
+def process_file_worker(task: tuple) -> dict:
     """
-    Process a single NetFlow file and insert data into the netflow_stats table.
+    Worker function to process a single file (no DB access).
     
     Args:
-        conn: Database connection
-        file_path: Path to the nfcapd file
-        router: Router name
-        timestamp_unix: Unix timestamp for this file
-        file_exists: If False, insert zero-valued row (gap placeholder)
+        task: Tuple of (file_path, router, timestamp, file_exists)
         
     Returns:
-        True if processing succeeded, False otherwise
+        Dict with file_path, success, and data fields
     """
+    file_path, router, timestamp_unix, file_exists = task
+    
+    result = {
+        'file_path': file_path,
+        'router': router,
+        'timestamp': timestamp_unix,
+        'success': False,
+        'data': None,
+        'error': None
+    }
+    
     if not file_exists:
-        # Insert zero-valued row for gap
-        try:
-            conn.execute("""
-                INSERT OR REPLACE INTO netflow_stats (
-                    file_path, router, timestamp,
-                    flows, flows_tcp, flows_udp, flows_icmp, flows_other,
-                    packets, packets_tcp, packets_udp, packets_icmp, packets_other,
-                    bytes, bytes_tcp, bytes_udp, bytes_icmp, bytes_other,
-                    first_timestamp, last_timestamp, msec_first, msec_last, sequence_failures
-                ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-            """, (file_path, router, timestamp_unix))
-            return True
-        except Exception as e:
-            print(f"Error inserting zero row for {file_path}: {e}")
-            return False
+        # Gap placeholder - return zeros
+        result['success'] = True
+        result['data'] = {
+            'flows': 0, 'flows_tcp': 0, 'flows_udp': 0, 'flows_icmp': 0, 'flows_other': 0,
+            'packets': 0, 'packets_tcp': 0, 'packets_udp': 0, 'packets_icmp': 0, 'packets_other': 0,
+            'bytes': 0, 'bytes_tcp': 0, 'bytes_udp': 0, 'bytes_icmp': 0, 'bytes_other': 0,
+            'first': 0, 'last': 0, 'msec_first': 0, 'msec_last': 0, 'sequence_failures': 0
+        }
+        return result
     
     command = ["nfdump", "-I", "-r", file_path]
     
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        proc_result = subprocess.run(command, capture_output=True, text=True, timeout=300)
         
-        if result.returncode == 0:
-            data = parse_nfdump_output(result.stdout)
+        if proc_result.returncode == 0:
+            data = parse_nfdump_output(proc_result.stdout)
+            result['success'] = True
+            result['data'] = data
+            print(f"[flow_stats] Processed {file_path}: {data.get('flows', 0)} flows")
+        else:
+            result['error'] = proc_result.stderr
+            print(f"[flow_stats] Error processing {file_path}: {proc_result.stderr}")
             
-            conn.execute("""
+    except subprocess.TimeoutExpired:
+        result['error'] = "Timeout"
+        print(f"[flow_stats] Timeout processing {file_path}")
+    except Exception as e:
+        result['error'] = str(e)
+        print(f"[flow_stats] Exception processing {file_path}: {e}")
+    
+    return result
+
+
+def batch_insert_results(conn: sqlite3.Connection, results: list[dict]) -> int:
+    """
+    Batch insert processing results into the database.
+    
+    Args:
+        conn: Database connection
+        results: List of result dicts from process_file_worker
+        
+    Returns:
+        Number of successfully inserted rows
+    """
+    cursor = conn.cursor()
+    inserted = 0
+    
+    for result in results:
+        if not result['success'] or result['data'] is None:
+            continue
+        
+        data = result['data']
+        try:
+            cursor.execute("""
                 INSERT OR REPLACE INTO netflow_stats (
                     file_path, router, timestamp,
                     flows, flows_tcp, flows_udp, flows_icmp, flows_other,
@@ -144,7 +178,7 @@ def process_file(
                     first_timestamp, last_timestamp, msec_first, msec_last, sequence_failures
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                file_path, router, timestamp_unix,
+                result['file_path'], result['router'], result['timestamp'],
                 data.get('flows', 0),
                 data.get('flows_tcp', 0),
                 data.get('flows_udp', 0),
@@ -166,24 +200,17 @@ def process_file(
                 data.get('msec_last', 0),
                 data.get('sequence_failures', 0)
             ))
-            
-            print(f"[flow_stats] Processed {file_path}: {data.get('flows', 0)} flows")
-            return True
-        else:
-            print(f"Error processing {file_path}: {result.stderr}")
-            return False
-            
-    except subprocess.TimeoutExpired:
-        print(f"Timeout processing {file_path}")
-        return False
-    except Exception as e:
-        print(f"Exception processing {file_path}: {e}")
-        return False
+            inserted += 1
+        except Exception as e:
+            print(f"[flow_stats] Error inserting {result['file_path']}: {e}")
+    
+    conn.commit()
+    return inserted
 
 
 def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     """
-    Process all pending files for the netflow_stats table.
+    Process all pending files for the netflow_stats table using parallel processing.
     
     Args:
         conn: Database connection
@@ -197,23 +224,37 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     pending = get_files_needing_processing(conn, 'flow_stats', limit)
     stats = {'processed': 0, 'errors': 0}
     
-    print(f"Processing {len(pending)} pending files for flow_stats...")
+    if not pending:
+        print("[flow_stats] No pending files to process")
+        return stats
     
-    for file_path, router, timestamp, file_exists in pending:
-        success = process_file(conn, file_path, router, timestamp, file_exists)
-        mark_file_processed(conn, file_path, 'flow_stats', success)
-        
-        if success:
-            stats['processed'] += 1
-        else:
-            stats['errors'] += 1
-        
-        # Commit periodically
-        if (stats['processed'] + stats['errors']) % 100 == 0:
-            conn.commit()
-            print(f"[flow_stats] Progress: {stats['processed']} processed, {stats['errors']} errors")
+    print(f"[flow_stats] Processing {len(pending)} pending files with {MAX_WORKERS} workers...")
     
-    conn.commit()
+    # Process in batches
+    for i in range(0, len(pending), BATCH_SIZE):
+        batch = pending[i:i + BATCH_SIZE]
+        batch_num = i // BATCH_SIZE + 1
+        total_batches = (len(pending) + BATCH_SIZE - 1) // BATCH_SIZE
+        
+        print(f"[flow_stats] Processing batch {batch_num}/{total_batches} ({len(batch)} files)")
+        
+        # Process batch in parallel
+        with Pool(processes=MAX_WORKERS) as pool:
+            results = pool.map(process_file_worker, batch)
+        
+        # Batch insert results
+        inserted = batch_insert_results(conn, results)
+        
+        # Batch update processed_files status
+        batch_mark_processed(conn, 'flow_stats', results)
+        
+        # Update stats
+        batch_errors = len([r for r in results if not r['success']])
+        stats['processed'] += inserted
+        stats['errors'] += batch_errors
+        
+        print(f"[flow_stats] Batch complete: {inserted} inserted, {batch_errors} errors")
+    
     return stats
 
 
