@@ -1,61 +1,36 @@
-import subprocess
-import os
-import sys
+"""
+IP statistics processor.
+
+Processes nfcapd files to extract unique IP address counts at various granularities.
+"""
+
 import sqlite3
-from pathlib import Path
+import subprocess
 from datetime import datetime, timedelta
 from multiprocessing import Pool
+from typing import Optional
 
-# Load environment variables from .env file
-def load_env_file(env_path='../.env'):
-    """
-    Load environment variables from a dotenv-style file into os.environ.
-    
-    Reads the file at env_path (default '../.env'), ignoring empty lines and lines
-    starting with '#'. Each non-comment line containing '=' is split on the first
-    '=' and the left/right parts are stripped and set as KEY=VALUE in os.environ.
-    
-    If the file does not exist, prints an error message and exits the process with
-    status code 1.
-    """
-    env_file = Path(env_path)
-    if env_file.exists():
-        with open(env_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
-    else:
-        print(f"ERROR: Environment file '{env_path}' not found!")
-        print("Please copy .env.example to .env and configure your settings.")
-        sys.exit(1)
+from common import (
+    NETFLOW_DATA_PATH,
+    AVAILABLE_ROUTERS,
+    DATABASE_PATH,
+    MAX_WORKERS,
+    get_db_connection,
+    get_optional_env,
+    construct_file_path,
+    timestamp_to_unix,
+)
+from discovery import (
+    sync_processed_files_table,
+    get_files_needing_processing,
+    mark_file_processed,
+)
 
-# Load environment variables
-load_env_file()
+FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
 
-# Get required environment variables with error handling
-def get_required_env(key):
-    """Get required environment variable or exit with error"""
-    value = os.environ.get(key)
-    if not value:
-        print(f"ERROR: Required environment variable '{key}' is not set!")
-        print("Please check your .env file configuration.")
-        sys.exit(1)
-    return value
 
-# Configuration from environment variables
-NETFLOW_DATA_PATH = get_required_env('NETFLOW_DATA_PATH')
-AVAILABLE_ROUTERS = get_required_env('AVAILABLE_ROUTERS').split(',')
-DATABASE_PATH = get_required_env('DATABASE_PATH')
-FIRST_RUN = os.environ.get('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
-MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
-BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '50'))
-DATA_START_DATE = datetime(2024, 3, 1)
-
-def init_database():
-
-    conn = sqlite3.connect(DATABASE_PATH)
+def init_ip_stats_table(conn: sqlite3.Connection) -> None:
+    """Create the ip_stats table if it doesn't exist."""
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS ip_stats (
@@ -72,9 +47,18 @@ def init_database():
         ) WITHOUT ROWID;
     """)
     conn.commit()
-    conn.close()
 
-def process_file(file_path):
+
+def process_file(file_path: str) -> tuple[set, set, set, set]:
+    """
+    Extract unique IP addresses from a NetFlow file.
+    
+    Args:
+        file_path: Path to the nfcapd file
+        
+    Returns:
+        Tuple of (sa_v4, da_v4, sa_v6, da_v6) sets of IP addresses
+    """
     print(f"Processing {file_path}")
     sa_v4_res = set()
     da_v4_res = set()
@@ -83,167 +67,239 @@ def process_file(file_path):
     
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv4"]
     ipv6_command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv6", "-6"]
-    ipv4_result = subprocess.run(command, capture_output=True, text=True, timeout=300)
-    ipv6_result = subprocess.run(ipv6_command, capture_output=True, text=True, timeout=300)
+    
+    try:
+        ipv4_result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        ipv6_result = subprocess.run(ipv6_command, capture_output=True, text=True, timeout=300)
 
-    if ipv4_result.returncode == 0:
-        ipv4_out = ipv4_result.stdout.strip().split("\n")
-        for line in ipv4_out:
-            if line.strip() and ',' in line:
-                try:
-                    source_ip, destination_ip = line.strip().split(",")
-                    sa_v4_res.add(source_ip)
-                    da_v4_res.add(destination_ip)
-                except ValueError:
-                    continue
-    if ipv6_result.returncode == 0:
-        ipv6_out = ipv6_result.stdout.strip().split("\n")
-        for line in ipv6_out:
-            if line.strip() and ',' in line:
-                try:
-                    source_ip, destination_ip = line.strip().split(",")
-                    sa_v6_res.add(source_ip)
-                    da_v6_res.add(destination_ip)
-                except ValueError:
-                    continue
+        if ipv4_result.returncode == 0:
+            ipv4_out = ipv4_result.stdout.strip().split("\n")
+            for line in ipv4_out:
+                if line.strip() and ',' in line:
+                    try:
+                        source_ip, destination_ip = line.strip().split(",")
+                        sa_v4_res.add(source_ip)
+                        da_v4_res.add(destination_ip)
+                    except ValueError:
+                        continue
+                        
+        if ipv6_result.returncode == 0:
+            ipv6_out = ipv6_result.stdout.strip().split("\n")
+            for line in ipv6_out:
+                if line.strip() and ',' in line:
+                    try:
+                        source_ip, destination_ip = line.strip().split(",")
+                        sa_v6_res.add(source_ip)
+                        da_v6_res.add(destination_ip)
+                    except ValueError:
+                        continue
+    except subprocess.TimeoutExpired:
+        print(f"Timeout processing {file_path}")
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
 
     return sa_v4_res, da_v4_res, sa_v6_res, da_v6_res
 
 
-class Result:
-    def __init__(self, router, granularity):
+def process_file_for_stats(
+    conn: sqlite3.Connection,
+    file_path: str,
+    router: str,
+    timestamp_unix: int,
+    file_exists: bool = True
+) -> bool:
+    """
+    Process a single file and insert 5-minute granularity stats.
+    
+    Args:
+        conn: Database connection
+        file_path: Path to the nfcapd file
+        router: Router name
+        timestamp_unix: Unix timestamp for this file
+        file_exists: If False, insert zero-valued row (gap placeholder)
+        
+    Returns:
+        True if processing succeeded, False otherwise
+    """
+    bucket_start = timestamp_unix
+    bucket_end = timestamp_unix + 300  # 5 minutes
+    
+    if not file_exists:
+        # Insert zero-valued row for gap
+        try:
+            conn.execute("""
+                INSERT OR REPLACE INTO ip_stats 
+                (router, granularity, bucket_start, bucket_end, 
+                 sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
+                VALUES (?, '5m', ?, ?, 0, 0, 0, 0)
+            """, (router, bucket_start, bucket_end))
+            return True
+        except Exception as e:
+            print(f"Error inserting zero row for {file_path}: {e}")
+            return False
+    
+    try:
+        sa_v4, da_v4, sa_v6, da_v6 = process_file(file_path)
+        
+        conn.execute("""
+            INSERT OR REPLACE INTO ip_stats 
+            (router, granularity, bucket_start, bucket_end, 
+             sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
+            VALUES (?, '5m', ?, ?, ?, ?, ?, ?)
+        """, (router, bucket_start, bucket_end, 
+              len(sa_v4), len(da_v4), len(sa_v6), len(da_v6)))
+        
+        return True
+    except Exception as e:
+        print(f"Error processing {file_path}: {e}")
+        return False
+
+
+class BucketAggregator:
+    """Aggregates IP sets across multiple files for larger time buckets."""
+    
+    def __init__(self, router: str, granularity: str):
         self.router = router
         self.granularity = granularity
-        self.sa_v4_res = set()
-        self.da_v4_res = set()
-        self.sa_v6_res = set()
-        self.da_v6_res = set()
+        self.sa_v4 = set()
+        self.da_v4 = set()
+        self.sa_v6 = set()
+        self.da_v6 = set()
 
+    def update(self, sa_v4: set, da_v4: set, sa_v6: set, da_v6: set):
+        """Add IP addresses to the aggregated sets."""
+        self.sa_v4.update(sa_v4)
+        self.da_v4.update(da_v4)
+        self.sa_v6.update(sa_v6)
+        self.da_v6.update(da_v6)
 
-    def update_result(self, sa_v4_res, da_v4_res, sa_v6_res, da_v6_res):
-        print(f"Updating result for {self.router} {self.granularity}")
-        self.sa_v4_res.update(sa_v4_res)
-        self.da_v4_res.update(da_v4_res)
-        self.sa_v6_res.update(sa_v6_res)
-        self.da_v6_res.update(da_v6_res)
-
-
-    def write_result(self, bucket_start, bucket_end, conn):
-        print(f"Writing result for {self.router} {self.granularity}")
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR IGNORE INTO ip_stats (router, granularity, bucket_start, bucket_end, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
+    def write(self, bucket_start: int, bucket_end: int, conn: sqlite3.Connection):
+        """Write the aggregated stats to the database."""
+        conn.execute("""
+            INSERT OR REPLACE INTO ip_stats 
+            (router, granularity, bucket_start, bucket_end, 
+             sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.router, self.granularity, int(bucket_start.timestamp()), int(bucket_end.timestamp()), len(self.sa_v4_res), len(self.da_v4_res), len(self.sa_v6_res), len(self.da_v6_res)))
-        self.sa_v4_res = set()
-        self.da_v4_res = set()
-        self.sa_v6_res = set()
-        self.da_v6_res = set()
-        conn.commit()
-
-
-
-
-def process_day(task):
-    start_day, day_end = task
-    buckets = {
-        "5m": 0,
-        "30m": 1,
-        "1h": 2,
-        "1d": 3
-    }
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA busy_timeout=60000;")
-        print(f"Processing window {start_day} -> {day_end}")
-        for router in AVAILABLE_ROUTERS:
-            current_time = start_day
-            results = [Result(router, "5m"), Result(router, "30m"), Result(router, "1h"), Result(router, "1d")]
-            mins = 0
-
-            end_time = day_end
-            while current_time < end_time:
-                timestamp_str = current_time.strftime('%Y%m%d%H%M')
-                file_path = f"{NETFLOW_DATA_PATH}/{router}/{timestamp_str[:4]}/{timestamp_str[4:6]}/{timestamp_str[6:8]}/nfcapd.{timestamp_str}"
-                bucket_end = current_time + timedelta(minutes=5)
-                if bucket_end > end_time:
-                    bucket_end = end_time
-
-                if os.path.exists(file_path):
-                    sa_v4_res, da_v4_res, sa_v6_res, da_v6_res = process_file(file_path) 
-
-                    results[buckets["5m"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-                    results[buckets["30m"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-                    results[buckets["1h"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-                    results[buckets["1d"]].update_result(sa_v4_res, da_v4_res, sa_v6_res, da_v6_res)
-
-
-                    results[buckets["5m"]].write_result(current_time, bucket_end, conn)
-
-                mins += 5
-                current_time = bucket_end
-
-                if mins % 30 == 0:
-                    results[buckets["30m"]].write_result(current_time - timedelta(minutes=30), current_time, conn)
-                if mins % 60 == 0:
-                    results[buckets["1h"]].write_result(current_time - timedelta(hours=1), current_time, conn)
-
-            if end_time - start_day >= timedelta(days=1):
-                results[buckets["1d"]].write_result(end_time - timedelta(days=1), end_time, conn)
+        """, (self.router, self.granularity, bucket_start, bucket_end,
+              len(self.sa_v4), len(self.da_v4), len(self.sa_v6), len(self.da_v6)))
         
-        return 0
+        # Reset for next bucket
+        self.sa_v4 = set()
+        self.da_v4 = set()
+        self.sa_v6 = set()
+        self.da_v6 = set()
 
 
-def determine_start_day():
-    if FIRST_RUN:
-        return DATA_START_DATE
+def aggregate_buckets(conn: sqlite3.Connection, router: str, day_start: datetime) -> None:
+    """
+    Compute 30m, 1h, and 1d aggregates for a given day.
+    
+    This function reads the raw IP data from files and aggregates
+    into larger time buckets. Should be called after all 5m data
+    for a day has been processed.
+    
+    Args:
+        conn: Database connection
+        router: Router name
+        day_start: Start of the day to aggregate
+    """
+    day_end = day_start + timedelta(days=1)
+    
+    # Initialize aggregators
+    agg_30m = BucketAggregator(router, '30m')
+    agg_1h = BucketAggregator(router, '1h')
+    agg_1d = BucketAggregator(router, '1d')
+    
+    current = day_start
+    mins = 0
+    
+    while current < day_end:
+        file_path = construct_file_path(router, current)
+        
+        # Check if file exists by querying processed_files
+        cursor = conn.cursor()
+        row = cursor.execute("""
+            SELECT file_exists FROM processed_files WHERE file_path = ?
+        """, (file_path,)).fetchone()
+        
+        if row and row[0]:
+            # File exists, process it
+            sa_v4, da_v4, sa_v6, da_v6 = process_file(file_path)
+            agg_30m.update(sa_v4, da_v4, sa_v6, da_v6)
+            agg_1h.update(sa_v4, da_v4, sa_v6, da_v6)
+            agg_1d.update(sa_v4, da_v4, sa_v6, da_v6)
+        
+        mins += 5
+        current += timedelta(minutes=5)
+        
+        # Write 30m bucket
+        if mins % 30 == 0:
+            bucket_start = timestamp_to_unix(current - timedelta(minutes=30))
+            bucket_end = timestamp_to_unix(current)
+            agg_30m.write(bucket_start, bucket_end, conn)
+        
+        # Write 1h bucket
+        if mins % 60 == 0:
+            bucket_start = timestamp_to_unix(current - timedelta(hours=1))
+            bucket_end = timestamp_to_unix(current)
+            agg_1h.write(bucket_start, bucket_end, conn)
+    
+    # Write 1d bucket
+    agg_1d.write(timestamp_to_unix(day_start), timestamp_to_unix(day_end), conn)
+    conn.commit()
 
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    row = cursor.execute(
-        "SELECT MAX(bucket_end) FROM ip_stats WHERE granularity = '5m'"
-    ).fetchone()
-    conn.close()
 
-    if row and row[0]:
-        last_bucket_end = datetime.fromtimestamp(row[0])
-        # Reprocess the day containing the next bucket to keep aggregates consistent
-        return datetime(last_bucket_end.year, last_bucket_end.month, last_bucket_end.day)
+def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
+    """
+    Process all pending files for the ip_stats table.
+    
+    Args:
+        conn: Database connection
+        limit: Optional limit on number of files to process
+        
+    Returns:
+        Dictionary with counts: {'processed': N, 'errors': N}
+    """
+    init_ip_stats_table(conn)
+    
+    pending = get_files_needing_processing(conn, 'ip_stats', limit)
+    stats = {'processed': 0, 'errors': 0}
+    
+    print(f"Processing {len(pending)} pending files for ip_stats...")
+    
+    for file_path, router, timestamp, file_exists in pending:
+        success = process_file_for_stats(conn, file_path, router, timestamp, file_exists)
+        mark_file_processed(conn, file_path, 'ip_stats', success)
+        
+        if success:
+            stats['processed'] += 1
+        else:
+            stats['errors'] += 1
+        
+        # Commit periodically
+        if (stats['processed'] + stats['errors']) % 100 == 0:
+            conn.commit()
+            print(f"Progress: {stats['processed']} processed, {stats['errors']} errors")
+    
+    conn.commit()
+    return stats
 
-    return DATA_START_DATE
-
-
-def determine_end_day():
-    # Only process fully completed days to keep 1d aggregates accurate
-    return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
 def main():
+    """Main entry point for standalone execution."""
+    print("--------------------------------")
+    print(f"IP DB processing at {datetime.now()}")
+    print("--------------------------------")
+    
+    with get_db_connection() as conn:
+        # First sync the processed_files table
+        sync_processed_files_table(conn)
+        
+        # Then process pending files
+        stats = process_pending_files(conn)
+        
+        print(f"Processing complete: {stats}")
 
-    init_database()
 
-    timer = datetime.now()
-    start_day = determine_start_day()
-    end_day = determine_end_day()
-
-    if start_day >= end_day:
-        print("No completed days to process.")
-        return
-
-    delta = timedelta(days=1)
-    tasks = []
-    current_day = start_day
-    while current_day + delta <= end_day:
-        tasks.append((current_day, current_day + delta))
-        current_day += delta
-
-    if not tasks:
-        print("No completed days to process.")
-        return
-
-    print(f"Found {len(tasks)} day-long tasks to process")
-    with Pool(processes=MAX_WORKERS) as pool:
-        pool.map(process_day, tasks)
-
-    print(f"Time taken: {datetime.now() - timer}")
 if __name__ == "__main__":
     main()

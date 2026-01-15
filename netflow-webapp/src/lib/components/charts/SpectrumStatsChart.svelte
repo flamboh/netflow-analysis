@@ -12,6 +12,12 @@
 		SpectrumStatsResponse
 	} from '$lib/types/types';
 	import { generateSlugFromLabel, parseClickedLabel } from './chart-utils';
+	import {
+		dateStringToEpochPST,
+		epochToPSTComponents,
+		formatDateAsPSTDateString,
+		getWeekdayName
+	} from '$lib/utils/timezone';
 
 	Chart.register(...registerables);
 
@@ -42,7 +48,7 @@
 	}>();
 
 	const today = new Date();
-	const formatDate = (date: Date): string => new Date(date).toISOString().slice(0, 10);
+	const formatDate = (date: Date): string => formatDateAsPSTDateString(date);
 
 	function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
 		if (!config) {
@@ -66,21 +72,16 @@
 	let chart: Chart<'scatter', any[], any> | null = null;
 
 	function toEpochSeconds(dateString: string, isEnd = false): number {
-		const base = new Date(dateString);
-		if (Number.isNaN(base.getTime())) {
-			return 0;
-		}
-		const offset = isEnd ? 24 * 60 * 60 * 1000 : 0;
-		return Math.floor((base.getTime() + offset) / 1000);
+		return dateStringToEpochPST(dateString, isEnd);
 	}
 
 	function formatBucketLabel(bucketStart: number, granularity: IpGranularity): string {
-		const start = new Date(bucketStart * 1000);
-		const year = start.getFullYear();
-		const month = `${start.getMonth() + 1}`.padStart(2, '0');
-		const day = `${start.getDate()}`.padStart(2, '0');
-		const hours = `${start.getHours()}`.padStart(2, '0');
-		const minutes = `${start.getMinutes()}`.padStart(2, '0');
+		const pst = epochToPSTComponents(bucketStart);
+		const year = pst.year;
+		const month = `${pst.month}`.padStart(2, '0');
+		const day = `${pst.day}`.padStart(2, '0');
+		const hours = `${pst.hours}`.padStart(2, '0');
+		const minutes = `${pst.minutes}`.padStart(2, '0');
 
 		if (granularity === '1d') {
 			return `${year}-${month}-${day}`;
@@ -94,42 +95,34 @@
 		granularity: IpGranularity,
 		_index: number
 	): string {
-		const date = new Date(bucketStart * 1000);
-		const day = date.getDate().toString().padStart(2, '0');
-		const month = (date.getMonth() + 1).toString().padStart(2, '0');
-		const hours = date.getHours();
-		const minutes = date.getMinutes();
+		const pst = epochToPSTComponents(bucketStart);
+		const day = pst.day.toString().padStart(2, '0');
+		const month = pst.month.toString().padStart(2, '0');
+		const hours = pst.hours;
+		const minutes = pst.minutes;
+		const weekday = getWeekdayName(pst.dayOfWeek);
 
 		if (granularity === '1d') {
-			return date.getDay() === 1 ? `Mon ${month}/${day}` : '';
+			return pst.dayOfWeek === 1 ? `Mon ${month}/${day}` : '';
 		}
 
 		if (granularity === '1h') {
 			if (hours === 0) {
-				const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-				const m = date.getMonth() + 1;
-				const d = date.getDate();
-				return `${weekday} ${m}/${d}`;
+				return `${weekday} ${pst.month}/${pst.day}`;
 			}
 			return '';
 		}
 
 		if (granularity === '30m') {
 			if (minutes === 0 && (hours === 0 || hours === 12)) {
-				const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-				const m = date.getMonth() + 1;
-				const d = date.getDate();
-				return `${weekday} ${m}/${d} ${hours.toString().padStart(2, '0')}:00`;
+				return `${weekday} ${pst.month}/${pst.day} ${hours.toString().padStart(2, '0')}:00`;
 			}
 			return '';
 		}
 
 		if (granularity === '5m') {
 			if (minutes === 0) {
-				const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-				const m = date.getMonth() + 1;
-				const d = date.getDate();
-				return `${weekday} ${m}/${d} ${hours.toString().padStart(2, '0')}:00`;
+				return `${weekday} ${pst.month}/${pst.day} ${hours.toString().padStart(2, '0')}:00`;
 			}
 			return '';
 		}
@@ -142,12 +135,12 @@
 		granularity: IpGranularity,
 		index: number
 	): boolean {
-		const date = new Date(bucketStart * 1000);
-		const hours = date.getHours();
-		const minutes = date.getMinutes();
+		const pst = epochToPSTComponents(bucketStart);
+		const hours = pst.hours;
+		const minutes = pst.minutes;
 
 		if (granularity === '1d') {
-			return date.getDay() === 1;
+			return pst.dayOfWeek === 1;
 		}
 		if (granularity === '1h') {
 			return hours === 0;

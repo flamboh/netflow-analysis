@@ -1,4 +1,10 @@
 import type { GroupByOption, NetflowDataPoint } from '$lib/components/netflow/types.ts';
+import {
+	parseLabelToPSTComponents,
+	parseLabelToDateForDrilldown,
+	getWeekdayName,
+	type PSTDateComponents
+} from '$lib/utils/timezone';
 
 export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption): string[] {
 	switch (groupBy) {
@@ -11,7 +17,6 @@ export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption
 			});
 		case 'hour':
 			return results.map((item) => {
-				console.log('item.time', item.time);
 				const year = item.time.slice(0, 4);
 				const month = item.time.slice(4, 6);
 				const day = item.time.slice(6, 8);
@@ -91,17 +96,13 @@ export function generateColors(count: number): string[] {
 	return colors.slice(0, count);
 }
 
-export function parseClickedLabel(label: string, groupBy: GroupByOption): Date {
-	switch (groupBy) {
-		case 'date':
-			return new Date(label);
-		case 'hour':
-		case '30min':
-		case '5min':
-			return new Date(label);
-		default:
-			return new Date(label);
-	}
+/**
+ * Parse a clicked chart label into a Date for drill-down calculations.
+ * Returns a Date that represents the PST moment (for time arithmetic).
+ */
+export function parseClickedLabel(label: string, _groupBy: GroupByOption): Date {
+	const date = parseLabelToDateForDrilldown(label);
+	return date ?? new Date(NaN);
 }
 
 export function generateSlugFromLabel(label: string, groupBy: GroupByOption): string {
@@ -114,9 +115,12 @@ export function generateSlugFromLabel(label: string, groupBy: GroupByOption): st
 	return '';
 }
 
-function safeDate(label: string): Date | null {
-	const d = new Date(label);
-	return Number.isNaN(d.getTime()) ? null : d;
+/**
+ * Parse a label to PST components for tick formatting.
+ * Uses timezone-aware parsing to ensure consistent display regardless of viewer's timezone.
+ */
+function safePSTComponents(label: string): PSTDateComponents | null {
+	return parseLabelToPSTComponents(label);
 }
 
 export function formatNetflowTick(
@@ -125,16 +129,17 @@ export function formatNetflowTick(
 	index: number
 ): string {
 	if (!label) return '';
-	const date = safeDate(label);
-	if (!date) return '';
-	const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-	const month = date.getMonth() + 1;
-	const day = date.getDate();
-	const hours = date.getHours();
-	const minutes = date.getMinutes();
+	const pst = safePSTComponents(label);
+	if (!pst) return '';
+	
+	const weekday = getWeekdayName(pst.dayOfWeek);
+	const month = pst.month;
+	const day = pst.day;
+	const hours = pst.hours;
+	const minutes = pst.minutes;
 
 	if (groupBy === 'date') {
-		return date.getDay() === 1 ? `${weekday} ${month}/${day}` : '';
+		return pst.dayOfWeek === 1 ? `${weekday} ${month}/${day}` : '';
 	}
 
 	if (groupBy === 'hour') {
@@ -164,14 +169,14 @@ export function shouldHighlightNetflowGrid(
 	index: number
 ): boolean {
 	if (!label) return index === 0;
-	const date = safeDate(label);
-	if (!date) return index === 0;
+	const pst = safePSTComponents(label);
+	if (!pst) return index === 0;
 
-	const hours = date.getHours();
-	const minutes = date.getMinutes();
+	const hours = pst.hours;
+	const minutes = pst.minutes;
 
 	if (groupBy === 'date') {
-		return date.getDay() === 1;
+		return pst.dayOfWeek === 1;
 	}
 	if (groupBy === 'hour') {
 		return hours === 0;
