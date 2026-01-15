@@ -69,7 +69,7 @@ def extract_ips(file_path: str) -> tuple[set, set]:
     Returns:
         Tuple of (source_ips, dest_ips) sets
     """
-    print(f"Processing {file_path}")
+    print(f"[spectrum_stats] Processing {file_path}")
     sa_ips = set()
     da_ips = set()
     
@@ -339,7 +339,7 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
         # Commit periodically
         if (stats['processed'] + stats['errors']) % 100 == 0:
             conn.commit()
-            print(f"Progress: {stats['processed']} processed, {stats['errors']} errors")
+            print(f"[spectrum_stats] Progress: {stats['processed']} processed, {stats['errors']} errors")
     
     conn.commit()
     return stats

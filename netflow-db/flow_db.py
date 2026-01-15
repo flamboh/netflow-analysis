@@ -167,7 +167,7 @@ def process_file(
                 data.get('sequence_failures', 0)
             ))
             
-            print(f"Processed {file_path}: {data.get('flows', 0)} flows")
+            print(f"[flow_stats] Processed {file_path}: {data.get('flows', 0)} flows")
             return True
         else:
             print(f"Error processing {file_path}: {result.stderr}")
@@ -211,7 +211,7 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
         # Commit periodically
         if (stats['processed'] + stats['errors']) % 100 == 0:
             conn.commit()
-            print(f"Progress: {stats['processed']} processed, {stats['errors']} errors")
+            print(f"[flow_stats] Progress: {stats['processed']} processed, {stats['errors']} errors")
     
     conn.commit()
     return stats
