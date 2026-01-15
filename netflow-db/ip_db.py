@@ -2,10 +2,12 @@
 IP statistics processor.
 
 Processes nfcapd files to extract unique IP address counts at various granularities.
+Uses day-parallel processing with WAL-enabled direct DB writes.
 """
 
 import sqlite3
 import subprocess
+import ipaddress
 from datetime import datetime, timedelta
 from multiprocessing import Pool
 from typing import Optional
@@ -53,17 +55,17 @@ def init_ip_stats_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def process_file_worker(task: tuple) -> dict:
+def process_file(file_info: tuple) -> dict:
     """
-    Worker function to process a single file (no DB access).
+    Process a single file and return results with IP address objects.
     
     Args:
-        task: Tuple of (file_path, router, timestamp, file_exists)
+        file_info: Tuple of (file_path, router, timestamp, file_exists)
         
     Returns:
-        Dict with file_path, success, and data fields (including raw IP sets)
+        Dict with file_path, success, data, and raw_ips (as ipaddress objects)
     """
-    file_path, router, timestamp_unix, file_exists = task
+    file_path, router, timestamp_unix, file_exists = file_info
     
     result = {
         'file_path': file_path,
@@ -86,10 +88,10 @@ def process_file_worker(task: tuple) -> dict:
     
     print(f"[ip_stats] Processing {file_path}")
     
-    sa_v4_res = set()
-    da_v4_res = set()
-    sa_v6_res = set()
-    da_v6_res = set()
+    sa_v4: set[ipaddress.IPv4Address] = set()
+    da_v4: set[ipaddress.IPv4Address] = set()
+    sa_v6: set[ipaddress.IPv6Address] = set()
+    da_v6: set[ipaddress.IPv6Address] = set()
     
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv4"]
     ipv6_command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv6", "-6"]
@@ -102,34 +104,35 @@ def process_file_worker(task: tuple) -> dict:
             for line in ipv4_result.stdout.strip().split("\n"):
                 if line.strip() and ',' in line:
                     try:
-                        source_ip, destination_ip = line.strip().split(",")
-                        sa_v4_res.add(source_ip)
-                        da_v4_res.add(destination_ip)
-                    except ValueError:
+                        source_ip, dest_ip = line.strip().split(",")
+                        sa_v4.add(ipaddress.IPv4Address(source_ip))
+                        da_v4.add(ipaddress.IPv4Address(dest_ip))
+                    except (ValueError, ipaddress.AddressValueError):
                         continue
                         
         if ipv6_result.returncode == 0:
             for line in ipv6_result.stdout.strip().split("\n"):
                 if line.strip() and ',' in line:
                     try:
-                        source_ip, destination_ip = line.strip().split(",")
-                        sa_v6_res.add(source_ip)
-                        da_v6_res.add(destination_ip)
-                    except ValueError:
+                        source_ip, dest_ip = line.strip().split(",")
+                        sa_v6.add(ipaddress.IPv6Address(source_ip))
+                        da_v6.add(ipaddress.IPv6Address(dest_ip))
+                    except (ValueError, ipaddress.AddressValueError):
                         continue
         
         result['success'] = True
         result['data'] = {
-            'sa_ipv4_count': len(sa_v4_res),
-            'da_ipv4_count': len(da_v4_res),
-            'sa_ipv6_count': len(sa_v6_res),
-            'da_ipv6_count': len(da_v6_res)
+            'sa_ipv4_count': len(sa_v4),
+            'da_ipv4_count': len(da_v4),
+            'sa_ipv6_count': len(sa_v6),
+            'da_ipv6_count': len(da_v6)
         }
+        # Store as lists of ipaddress objects (picklable)
         result['raw_ips'] = {
-            'sa_v4': list(sa_v4_res),
-            'da_v4': list(da_v4_res),
-            'sa_v6': list(sa_v6_res),
-            'da_v6': list(da_v6_res)
+            'sa_v4': list(sa_v4),
+            'da_v4': list(da_v4),
+            'sa_v6': list(sa_v6),
+            'da_v6': list(da_v6)
         }
         
     except subprocess.TimeoutExpired:
@@ -145,18 +148,9 @@ def process_file_worker(task: tuple) -> dict:
 def compute_aggregates(results: list[dict], router: str, day_start: int) -> list[dict]:
     """
     Compute 30m, 1h, and 1d aggregates from 5m results for a single day.
-    
-    Args:
-        results: List of processed file results with raw_ips
-        router: Router name
-        day_start: Unix timestamp of day start (midnight)
-        
-    Returns:
-        List of aggregate records to insert
     """
     aggregates = []
     
-    # Group results by bucket
     buckets = {
         '30m': defaultdict(lambda: {'sa_v4': set(), 'da_v4': set(), 'sa_v6': set(), 'da_v6': set()}),
         '1h': defaultdict(lambda: {'sa_v4': set(), 'da_v4': set(), 'sa_v6': set(), 'da_v6': set()}),
@@ -172,15 +166,12 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
         
         dt = unix_to_timestamp(timestamp)
         
-        # 30m bucket
         bucket_30m = dt.replace(minute=(dt.minute // 30) * 30, second=0, microsecond=0)
         bucket_30m_ts = timestamp_to_unix(bucket_30m)
         
-        # 1h bucket
         bucket_1h = dt.replace(minute=0, second=0, microsecond=0)
         bucket_1h_ts = timestamp_to_unix(bucket_1h)
         
-        # 1d bucket (always day_start)
         bucket_1d_ts = day_start
         
         for granularity, bucket_ts in [('30m', bucket_30m_ts), ('1h', bucket_1h_ts), ('1d', bucket_1d_ts)]:
@@ -190,7 +181,6 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
             bucket['sa_v6'].update(raw['sa_v6'])
             bucket['da_v6'].update(raw['da_v6'])
     
-    # Convert buckets to aggregate records
     durations = {'30m': 1800, '1h': 3600, '1d': 86400}
     
     for granularity in ['30m', '1h', '1d']:
@@ -210,17 +200,11 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
 
 
 def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: list[dict]) -> tuple[int, int]:
-    """
-    Insert 5m results and aggregate results into the database.
-    
-    Returns:
-        Tuple of (5m_inserted, aggregates_inserted)
-    """
+    """Insert 5m results and aggregate results into the database."""
     cursor = conn.cursor()
     inserted_5m = 0
     inserted_agg = 0
     
-    # Insert 5m results
     for result in results:
         if not result['success'] or result['data'] is None:
             continue
@@ -242,7 +226,6 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
         except Exception as e:
             print(f"[ip_stats] Error inserting {result['file_path']}: {e}")
     
-    # Insert aggregates
     for agg in aggregates:
         try:
             cursor.execute("""
@@ -261,10 +244,55 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
     return inserted_5m, inserted_agg
 
 
+def process_day_worker(day_info: tuple) -> dict:
+    """
+    Process a complete day - runs in separate process with own DB connection.
+    
+    Args:
+        day_info: Tuple of (router, day_start, day_files)
+        
+    Returns:
+        Dict with processing statistics
+    """
+    router, day_start, day_files = day_info
+    day_dt = unix_to_timestamp(day_start)
+    
+    print(f"[ip_stats] Worker starting {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
+    
+    # Process all files for this day sequentially within the worker
+    results = [process_file(f) for f in day_files]
+    
+    # Compute aggregates from accumulated data
+    aggregates = compute_aggregates(results, router, day_start)
+    
+    # Each worker opens its own connection (WAL allows concurrent writes)
+    with get_db_connection() as conn:
+        init_ip_stats_table(conn)
+        
+        # Write directly to DB
+        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
+        
+        # Mark files as processed
+        batch_mark_processed(conn, 'ip_stats', results)
+    
+    errors = len([r for r in results if not r['success']])
+    
+    print(f"[ip_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
+          f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
+    
+    return {
+        'router': router,
+        'day': day_start,
+        'processed': inserted_5m,
+        'aggregates': inserted_agg,
+        'errors': errors
+    }
+
+
 def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     """
-    Process all pending files for the ip_stats table using parallel processing.
-    Processes complete days only, computing aggregates after each day.
+    Process all pending files for the ip_stats table.
+    Uses day-parallel processing where each worker handles a complete day.
     """
     init_ip_stats_table(conn)
     
@@ -277,34 +305,22 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     
     # Group by day
     days = group_files_by_day(pending)
-    print(f"[ip_stats] Processing {len(pending)} files across {len(days)} complete days with {MAX_WORKERS} workers...")
+    print(f"[ip_stats] Processing {len(pending)} files across {len(days)} complete days...")
     
-    # Process each day
-    for (router, day_start), day_files in sorted(days.items()):
-        day_dt = unix_to_timestamp(day_start)
-        print(f"[ip_stats] Processing {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
-        
-        # Process all files for this day in parallel
-        with Pool(processes=MAX_WORKERS) as pool:
-            results = pool.map(process_file_worker, day_files)
-        
-        # Compute aggregates for this day
-        aggregates = compute_aggregates(results, router, day_start)
-        
-        # Insert 5m and aggregate results
-        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
-        
-        # Mark files as processed
-        batch_mark_processed(conn, 'ip_stats', results)
-        
-        # Update stats
-        errors = len([r for r in results if not r['success']])
-        stats['processed'] += inserted_5m
-        stats['aggregates'] += inserted_agg
-        stats['errors'] += errors
+    # Prepare day tasks: (router, day_start, files_list)
+    day_tasks = [(router, day_start, files) 
+                 for (router, day_start), files in sorted(days.items())]
+    
+    # Process days in parallel - each worker writes via own connection
+    with Pool(processes=MAX_WORKERS) as pool:
+        results = pool.map(process_day_worker, day_tasks)
+    
+    # Aggregate stats from all workers
+    for result in results:
+        stats['processed'] += result['processed']
+        stats['aggregates'] += result['aggregates']
+        stats['errors'] += result['errors']
         stats['days'] += 1
-        
-        print(f"[ip_stats] Day complete: {inserted_5m} 5m records, {inserted_agg} aggregates, {errors} errors")
     
     return stats
 

@@ -2,10 +2,12 @@
 Spectrum statistics processor.
 
 Computes IP singularity spectrum from unique source IPs at various granularities.
+Uses day-parallel processing with WAL-enabled direct DB writes.
 """
 
 import sqlite3
 import subprocess
+import ipaddress
 from datetime import datetime, timedelta
 from multiprocessing import Pool
 from typing import Optional
@@ -54,25 +56,28 @@ def init_spectrum_stats_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def extract_ips(file_path: str) -> list[str]:
+def extract_ips(file_path: str) -> set[ipaddress.IPv4Address]:
     """Extract unique source IPv4 addresses from a netflow file."""
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa", "-n", "0", "ipv4"]
+    
+    ips: set[ipaddress.IPv4Address] = set()
     
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=300)
         if result.returncode == 0:
-            ips = set()
             for line in result.stdout.strip().split("\n"):
                 if line.strip():
-                    ips.add(line.strip())
-            return list(ips)
+                    try:
+                        ips.add(ipaddress.IPv4Address(line.strip()))
+                    except ipaddress.AddressValueError:
+                        continue
     except Exception:
         pass
     
-    return []
+    return ips
 
 
-def compute_spectrum(ips: list[str]) -> dict:
+def compute_spectrum(ips: set[ipaddress.IPv4Address]) -> dict:
     """Compute spectrum using MAAD Singularities binary."""
     if not ips or len(ips) < 10:
         return {}
@@ -113,9 +118,17 @@ def compute_spectrum(ips: list[str]) -> dict:
     return {}
 
 
-def process_file_worker(task: tuple) -> dict:
-    """Worker function to process a single file (no DB access)."""
-    file_path, router, timestamp_unix, file_exists = task
+def process_file(file_info: tuple) -> dict:
+    """
+    Process a single file and return results.
+    
+    Args:
+        file_info: Tuple of (file_path, router, timestamp, file_exists)
+        
+    Returns:
+        Dict with file_path, success, data, and raw_ips (as ipaddress objects)
+    """
+    file_path, router, timestamp_unix, file_exists = file_info
     
     result = {
         'file_path': file_path,
@@ -130,7 +143,7 @@ def process_file_worker(task: tuple) -> dict:
     if not file_exists:
         result['success'] = True
         result['data'] = {'spectrum': {}, 'ip_count': 0}
-        result['raw_ips'] = []
+        result['raw_ips'] = set()
         return result
     
     print(f"[spectrum_stats] Processing {file_path}")
@@ -156,7 +169,7 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
     """
     aggregates = []
     
-    buckets = {
+    buckets: dict[str, dict[int, set[ipaddress.IPv4Address]]] = {
         '30m': defaultdict(set),
         '1h': defaultdict(set),
         '1d': defaultdict(set),
@@ -167,7 +180,7 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
             continue
         
         timestamp = result['timestamp']
-        ips = set(result['raw_ips'])
+        ips = result['raw_ips']
         
         dt = unix_to_timestamp(timestamp)
         
@@ -186,7 +199,7 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
     
     for granularity in ['30m', '1h', '1d']:
         for bucket_start, ips in buckets[granularity].items():
-            spectrum = compute_spectrum(list(ips))
+            spectrum = compute_spectrum(ips)
             aggregates.append({
                 'router': router,
                 'granularity': granularity,
@@ -240,10 +253,55 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
     return inserted_5m, inserted_agg
 
 
+def process_day_worker(day_info: tuple) -> dict:
+    """
+    Process a complete day - runs in separate process with own DB connection.
+    
+    Args:
+        day_info: Tuple of (router, day_start, day_files)
+        
+    Returns:
+        Dict with processing statistics
+    """
+    router, day_start, day_files = day_info
+    day_dt = unix_to_timestamp(day_start)
+    
+    print(f"[spectrum_stats] Worker starting {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
+    
+    # Process all files for this day sequentially within the worker
+    results = [process_file(f) for f in day_files]
+    
+    # Compute aggregates from accumulated data
+    aggregates = compute_aggregates(results, router, day_start)
+    
+    # Each worker opens its own connection (WAL allows concurrent writes)
+    with get_db_connection() as conn:
+        init_spectrum_stats_table(conn)
+        
+        # Write directly to DB
+        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
+        
+        # Mark files as processed
+        batch_mark_processed(conn, 'spectrum_stats', results)
+    
+    errors = len([r for r in results if not r['success']])
+    
+    print(f"[spectrum_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
+          f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
+    
+    return {
+        'router': router,
+        'day': day_start,
+        'processed': inserted_5m,
+        'aggregates': inserted_agg,
+        'errors': errors
+    }
+
+
 def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     """
-    Process all pending files for the spectrum_stats table using parallel processing.
-    Processes complete days only, computing aggregates after each day.
+    Process all pending files for the spectrum_stats table.
+    Uses day-parallel processing where each worker handles a complete day.
     """
     init_spectrum_stats_table(conn)
     
@@ -254,27 +312,24 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
         print("[spectrum_stats] No pending files to process")
         return stats
     
+    # Group by day
     days = group_files_by_day(pending)
-    print(f"[spectrum_stats] Processing {len(pending)} files across {len(days)} complete days with {MAX_WORKERS} workers...")
+    print(f"[spectrum_stats] Processing {len(pending)} files across {len(days)} complete days...")
     
-    for (router, day_start), day_files in sorted(days.items()):
-        day_dt = unix_to_timestamp(day_start)
-        print(f"[spectrum_stats] Processing {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
-        
-        with Pool(processes=MAX_WORKERS) as pool:
-            results = pool.map(process_file_worker, day_files)
-        
-        aggregates = compute_aggregates(results, router, day_start)
-        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
-        batch_mark_processed(conn, 'spectrum_stats', results)
-        
-        errors = len([r for r in results if not r['success']])
-        stats['processed'] += inserted_5m
-        stats['aggregates'] += inserted_agg
-        stats['errors'] += errors
+    # Prepare day tasks: (router, day_start, files_list)
+    day_tasks = [(router, day_start, files) 
+                 for (router, day_start), files in sorted(days.items())]
+    
+    # Process days in parallel - each worker writes via own connection
+    with Pool(processes=MAX_WORKERS) as pool:
+        results = pool.map(process_day_worker, day_tasks)
+    
+    # Aggregate stats from all workers
+    for result in results:
+        stats['processed'] += result['processed']
+        stats['aggregates'] += result['aggregates']
+        stats['errors'] += result['errors']
         stats['days'] += 1
-        
-        print(f"[spectrum_stats] Day complete: {inserted_5m} 5m records, {inserted_agg} aggregates, {errors} errors")
     
     return stats
 

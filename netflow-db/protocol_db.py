@@ -2,6 +2,7 @@
 Protocol statistics processor.
 
 Processes nfcapd files to extract unique protocol counts at various granularities.
+Uses day-parallel processing with WAL-enabled direct DB writes.
 """
 
 import sqlite3
@@ -53,11 +54,17 @@ def init_protocol_stats_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def process_file_worker(task: tuple) -> dict:
+def process_file(file_info: tuple) -> dict:
     """
-    Worker function to process a single file (no DB access).
+    Process a single file and return results.
+    
+    Args:
+        file_info: Tuple of (file_path, router, timestamp, file_exists)
+        
+    Returns:
+        Dict with file_path, success, data, and raw_protocols
     """
-    file_path, router, timestamp_unix, file_exists = task
+    file_path, router, timestamp_unix, file_exists = file_info
     
     result = {
         'file_path': file_path,
@@ -72,13 +79,13 @@ def process_file_worker(task: tuple) -> dict:
     if not file_exists:
         result['success'] = True
         result['data'] = {'protocols_ipv4': [], 'protocols_ipv6': []}
-        result['raw_protocols'] = {'ipv4': [], 'ipv6': []}
+        result['raw_protocols'] = {'ipv4': set(), 'ipv6': set()}
         return result
     
     print(f"[protocol_stats] Processing {file_path}")
     
-    protocols_ipv4 = set()
-    protocols_ipv6 = set()
+    protocols_ipv4: set[str] = set()
+    protocols_ipv6: set[str] = set()
     
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%pr", "-A", "proto"]
     
@@ -102,8 +109,8 @@ def process_file_worker(task: tuple) -> dict:
             'protocols_ipv6': list(protocols_ipv6)
         }
         result['raw_protocols'] = {
-            'ipv4': list(protocols_ipv4),
-            'ipv6': list(protocols_ipv6)
+            'ipv4': protocols_ipv4,
+            'ipv6': protocols_ipv6
         }
         
     except subprocess.TimeoutExpired:
@@ -215,10 +222,55 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
     return inserted_5m, inserted_agg
 
 
+def process_day_worker(day_info: tuple) -> dict:
+    """
+    Process a complete day - runs in separate process with own DB connection.
+    
+    Args:
+        day_info: Tuple of (router, day_start, day_files)
+        
+    Returns:
+        Dict with processing statistics
+    """
+    router, day_start, day_files = day_info
+    day_dt = unix_to_timestamp(day_start)
+    
+    print(f"[protocol_stats] Worker starting {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
+    
+    # Process all files for this day sequentially within the worker
+    results = [process_file(f) for f in day_files]
+    
+    # Compute aggregates from accumulated data
+    aggregates = compute_aggregates(results, router, day_start)
+    
+    # Each worker opens its own connection (WAL allows concurrent writes)
+    with get_db_connection() as conn:
+        init_protocol_stats_table(conn)
+        
+        # Write directly to DB
+        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
+        
+        # Mark files as processed
+        batch_mark_processed(conn, 'protocol_stats', results)
+    
+    errors = len([r for r in results if not r['success']])
+    
+    print(f"[protocol_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
+          f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
+    
+    return {
+        'router': router,
+        'day': day_start,
+        'processed': inserted_5m,
+        'aggregates': inserted_agg,
+        'errors': errors
+    }
+
+
 def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     """
-    Process all pending files for the protocol_stats table using parallel processing.
-    Processes complete days only, computing aggregates after each day.
+    Process all pending files for the protocol_stats table.
+    Uses day-parallel processing where each worker handles a complete day.
     """
     init_protocol_stats_table(conn)
     
@@ -229,27 +281,24 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
         print("[protocol_stats] No pending files to process")
         return stats
     
+    # Group by day
     days = group_files_by_day(pending)
-    print(f"[protocol_stats] Processing {len(pending)} files across {len(days)} complete days with {MAX_WORKERS} workers...")
+    print(f"[protocol_stats] Processing {len(pending)} files across {len(days)} complete days...")
     
-    for (router, day_start), day_files in sorted(days.items()):
-        day_dt = unix_to_timestamp(day_start)
-        print(f"[protocol_stats] Processing {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
-        
-        with Pool(processes=MAX_WORKERS) as pool:
-            results = pool.map(process_file_worker, day_files)
-        
-        aggregates = compute_aggregates(results, router, day_start)
-        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
-        batch_mark_processed(conn, 'protocol_stats', results)
-        
-        errors = len([r for r in results if not r['success']])
-        stats['processed'] += inserted_5m
-        stats['aggregates'] += inserted_agg
-        stats['errors'] += errors
+    # Prepare day tasks: (router, day_start, files_list)
+    day_tasks = [(router, day_start, files) 
+                 for (router, day_start), files in sorted(days.items())]
+    
+    # Process days in parallel - each worker writes via own connection
+    with Pool(processes=MAX_WORKERS) as pool:
+        results = pool.map(process_day_worker, day_tasks)
+    
+    # Aggregate stats from all workers
+    for result in results:
+        stats['processed'] += result['processed']
+        stats['aggregates'] += result['aggregates']
+        stats['errors'] += result['errors']
         stats['days'] += 1
-        
-        print(f"[protocol_stats] Day complete: {inserted_5m} 5m records, {inserted_agg} aggregates, {errors} errors")
     
     return stats
 
