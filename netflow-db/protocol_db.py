@@ -2,27 +2,33 @@
 Protocol statistics processor.
 
 Processes nfcapd files to extract unique protocol counts at various granularities.
+Uses day-parallel processing with WAL-enabled direct DB writes.
 """
 
 import sqlite3
 import subprocess
 from datetime import datetime, timedelta
+from multiprocessing import Pool
 from typing import Optional
+from collections import defaultdict
 
 from common import (
     NETFLOW_DATA_PATH,
     AVAILABLE_ROUTERS,
     DATABASE_PATH,
     MAX_WORKERS,
+    BATCH_SIZE,
     get_db_connection,
     get_optional_env,
     construct_file_path,
     timestamp_to_unix,
+    unix_to_timestamp,
 )
 from discovery import (
     sync_processed_files_table,
     get_files_needing_processing,
-    mark_file_processed,
+    group_files_by_day,
+    batch_mark_processed,
 )
 
 FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
@@ -48,19 +54,38 @@ def init_protocol_stats_table(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def process_file(file_path: str) -> tuple[set, set]:
+def process_file(file_info: tuple) -> dict:
     """
-    Extract unique protocols from a NetFlow file.
+    Process a single file and return results.
     
     Args:
-        file_path: Path to the nfcapd file
+        file_info: Tuple of (file_path, router, timestamp, file_exists)
         
     Returns:
-        Tuple of (protocols_ipv4, protocols_ipv6) sets
+        Dict with file_path, success, data, and raw_protocols
     """
+    file_path, router, timestamp_unix, file_exists = file_info
+    
+    result = {
+        'file_path': file_path,
+        'router': router,
+        'timestamp': timestamp_unix,
+        'success': False,
+        'data': None,
+        'raw_protocols': None,
+        'error': None
+    }
+    
+    if not file_exists:
+        result['success'] = True
+        result['data'] = {'protocols_ipv4': [], 'protocols_ipv6': []}
+        result['raw_protocols'] = {'ipv4': set(), 'ipv6': set()}
+        return result
+    
     print(f"[protocol_stats] Processing {file_path}")
-    protocols_ipv4 = set()
-    protocols_ipv6 = set()
+    
+    protocols_ipv4: set[str] = set()
+    protocols_ipv6: set[str] = set()
     
     command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%pr", "-A", "proto"]
     
@@ -69,200 +94,212 @@ def process_file(file_path: str) -> tuple[set, set]:
         ipv6_result = subprocess.run(command + ["ipv6", "-N"], capture_output=True, text=True, timeout=300)
 
         if ipv4_result.returncode == 0:
-            out = ipv4_result.stdout.strip().split("\n")
-            for line in out:
+            for line in ipv4_result.stdout.strip().split("\n"):
                 if line.strip():
                     protocols_ipv4.add(line.strip())
                     
         if ipv6_result.returncode == 0:
-            out = ipv6_result.stdout.strip().split("\n")
-            for line in out:
+            for line in ipv6_result.stdout.strip().split("\n"):
                 if line.strip():
                     protocols_ipv6.add(line.strip())
-    except subprocess.TimeoutExpired:
-        print(f"Timeout processing {file_path}")
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
-    
-    return protocols_ipv4, protocols_ipv6
-
-
-def process_file_for_stats(
-    conn: sqlite3.Connection,
-    file_path: str,
-    router: str,
-    timestamp_unix: int,
-    file_exists: bool = True
-) -> bool:
-    """
-    Process a single file and insert 5-minute granularity stats.
-    
-    Args:
-        conn: Database connection
-        file_path: Path to the nfcapd file
-        router: Router name
-        timestamp_unix: Unix timestamp for this file
-        file_exists: If False, insert zero-valued row (gap placeholder)
         
-    Returns:
-        True if processing succeeded, False otherwise
-    """
-    bucket_start = timestamp_unix
-    bucket_end = timestamp_unix + 300  # 5 minutes
+        result['success'] = True
+        result['data'] = {
+            'protocols_ipv4': list(protocols_ipv4),
+            'protocols_ipv6': list(protocols_ipv6)
+        }
+        result['raw_protocols'] = {
+            'ipv4': protocols_ipv4,
+            'ipv6': protocols_ipv6
+        }
+        
+    except subprocess.TimeoutExpired:
+        result['error'] = "Timeout"
+        print(f"[protocol_stats] Timeout processing {file_path}")
+    except Exception as e:
+        result['error'] = str(e)
+        print(f"[protocol_stats] Error processing {file_path}: {e}")
     
-    if not file_exists:
-        # Insert zero-valued row for gap
+    return result
+
+
+def compute_aggregates(results: list[dict], router: str, day_start: int) -> list[dict]:
+    """
+    Compute 30m, 1h, and 1d aggregates from 5m results for a single day.
+    """
+    aggregates = []
+    
+    buckets = {
+        '30m': defaultdict(lambda: {'ipv4': set(), 'ipv6': set()}),
+        '1h': defaultdict(lambda: {'ipv4': set(), 'ipv6': set()}),
+        '1d': defaultdict(lambda: {'ipv4': set(), 'ipv6': set()}),
+    }
+    
+    for result in results:
+        if not result['success'] or result['raw_protocols'] is None:
+            continue
+        
+        timestamp = result['timestamp']
+        raw = result['raw_protocols']
+        
+        dt = unix_to_timestamp(timestamp)
+        
+        bucket_30m = dt.replace(minute=(dt.minute // 30) * 30, second=0, microsecond=0)
+        bucket_30m_ts = timestamp_to_unix(bucket_30m)
+        
+        bucket_1h = dt.replace(minute=0, second=0, microsecond=0)
+        bucket_1h_ts = timestamp_to_unix(bucket_1h)
+        
+        bucket_1d_ts = day_start
+        
+        for granularity, bucket_ts in [('30m', bucket_30m_ts), ('1h', bucket_1h_ts), ('1d', bucket_1d_ts)]:
+            bucket = buckets[granularity][bucket_ts]
+            bucket['ipv4'].update(raw['ipv4'])
+            bucket['ipv6'].update(raw['ipv6'])
+    
+    durations = {'30m': 1800, '1h': 3600, '1d': 86400}
+    
+    for granularity in ['30m', '1h', '1d']:
+        for bucket_start, data in buckets[granularity].items():
+            aggregates.append({
+                'router': router,
+                'granularity': granularity,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_start + durations[granularity],
+                'protocols_ipv4': data['ipv4'],
+                'protocols_ipv6': data['ipv6'],
+            })
+    
+    return aggregates
+
+
+def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: list[dict]) -> tuple[int, int]:
+    """Insert 5m results and aggregate results into the database."""
+    cursor = conn.cursor()
+    inserted_5m = 0
+    inserted_agg = 0
+    
+    for result in results:
+        if not result['success'] or result['data'] is None:
+            continue
+        
+        data = result['data']
+        bucket_start = result['timestamp']
+        bucket_end = bucket_start + 300
+        
         try:
-            conn.execute("""
+            cursor.execute("""
                 INSERT OR REPLACE INTO protocol_stats 
                 (router, granularity, bucket_start, bucket_end, 
                  unique_protocols_count_ipv4, unique_protocols_count_ipv6,
                  protocols_list_ipv4, protocols_list_ipv6)
-                VALUES (?, '5m', ?, ?, 0, 0, '', '')
-            """, (router, bucket_start, bucket_end))
-            return True
+                VALUES (?, '5m', ?, ?, ?, ?, ?, ?)
+            """, (result['router'], bucket_start, bucket_end,
+                  len(data['protocols_ipv4']), len(data['protocols_ipv6']),
+                  ",".join(sorted(data['protocols_ipv4'])),
+                  ",".join(sorted(data['protocols_ipv6']))))
+            inserted_5m += 1
         except Exception as e:
-            print(f"Error inserting zero row for {file_path}: {e}")
-            return False
+            print(f"[protocol_stats] Error inserting {result['file_path']}: {e}")
     
-    try:
-        protocols_ipv4, protocols_ipv6 = process_file(file_path)
-        
-        conn.execute("""
-            INSERT OR REPLACE INTO protocol_stats 
-            (router, granularity, bucket_start, bucket_end, 
-             unique_protocols_count_ipv4, unique_protocols_count_ipv6,
-             protocols_list_ipv4, protocols_list_ipv6)
-            VALUES (?, '5m', ?, ?, ?, ?, ?, ?)
-        """, (router, bucket_start, bucket_end, 
-              len(protocols_ipv4), len(protocols_ipv6),
-              ",".join(sorted(protocols_ipv4)), ",".join(sorted(protocols_ipv6))))
-        
-        return True
-    except Exception as e:
-        print(f"Error processing {file_path}: {e}")
-        return False
-
-
-class BucketAggregator:
-    """Aggregates protocol sets across multiple files for larger time buckets."""
+    for agg in aggregates:
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO protocol_stats 
+                (router, granularity, bucket_start, bucket_end, 
+                 unique_protocols_count_ipv4, unique_protocols_count_ipv6,
+                 protocols_list_ipv4, protocols_list_ipv6)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (agg['router'], agg['granularity'], agg['bucket_start'], agg['bucket_end'],
+                  len(agg['protocols_ipv4']), len(agg['protocols_ipv6']),
+                  ",".join(sorted(agg['protocols_ipv4'])),
+                  ",".join(sorted(agg['protocols_ipv6']))))
+            inserted_agg += 1
+        except Exception as e:
+            print(f"[protocol_stats] Error inserting aggregate: {e}")
     
-    def __init__(self, router: str, granularity: str):
-        self.router = router
-        self.granularity = granularity
-        self.protocols_ipv4 = set()
-        self.protocols_ipv6 = set()
-
-    def update(self, protocols_ipv4: set, protocols_ipv6: set):
-        """Add protocols to the aggregated sets."""
-        self.protocols_ipv4.update(protocols_ipv4)
-        self.protocols_ipv6.update(protocols_ipv6)
-
-    def write(self, bucket_start: int, bucket_end: int, conn: sqlite3.Connection):
-        """Write the aggregated stats to the database."""
-        conn.execute("""
-            INSERT OR REPLACE INTO protocol_stats 
-            (router, granularity, bucket_start, bucket_end, 
-             unique_protocols_count_ipv4, unique_protocols_count_ipv6,
-             protocols_list_ipv4, protocols_list_ipv6)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (self.router, self.granularity, bucket_start, bucket_end,
-              len(self.protocols_ipv4), len(self.protocols_ipv6),
-              ",".join(sorted(self.protocols_ipv4)), ",".join(sorted(self.protocols_ipv6))))
-        
-        # Reset for next bucket
-        self.protocols_ipv4 = set()
-        self.protocols_ipv6 = set()
+    conn.commit()
+    return inserted_5m, inserted_agg
 
 
-def aggregate_buckets(conn: sqlite3.Connection, router: str, day_start: datetime) -> None:
+def process_day_worker(day_info: tuple) -> dict:
     """
-    Compute 30m, 1h, and 1d aggregates for a given day.
+    Process a complete day - runs in separate process with own DB connection.
     
     Args:
-        conn: Database connection
-        router: Router name
-        day_start: Start of the day to aggregate
+        day_info: Tuple of (router, day_start, day_files)
+        
+    Returns:
+        Dict with processing statistics
     """
-    day_end = day_start + timedelta(days=1)
+    router, day_start, day_files = day_info
+    day_dt = unix_to_timestamp(day_start)
     
-    # Initialize aggregators
-    agg_30m = BucketAggregator(router, '30m')
-    agg_1h = BucketAggregator(router, '1h')
-    agg_1d = BucketAggregator(router, '1d')
+    print(f"[protocol_stats] Worker starting {router} {day_dt.strftime('%Y-%m-%d')} ({len(day_files)} files)")
     
-    current = day_start
-    mins = 0
+    # Process all files for this day sequentially within the worker
+    results = [process_file(f) for f in day_files]
     
-    while current < day_end:
-        file_path = construct_file_path(router, current)
-        
-        # Check if file exists by querying processed_files
-        cursor = conn.cursor()
-        row = cursor.execute("""
-            SELECT file_exists FROM processed_files WHERE file_path = ?
-        """, (file_path,)).fetchone()
-        
-        if row and row[0]:
-            # File exists, process it
-            protocols_ipv4, protocols_ipv6 = process_file(file_path)
-            agg_30m.update(protocols_ipv4, protocols_ipv6)
-            agg_1h.update(protocols_ipv4, protocols_ipv6)
-            agg_1d.update(protocols_ipv4, protocols_ipv6)
-        
-        mins += 5
-        current += timedelta(minutes=5)
-        
-        # Write 30m bucket
-        if mins % 30 == 0:
-            bucket_start = timestamp_to_unix(current - timedelta(minutes=30))
-            bucket_end = timestamp_to_unix(current)
-            agg_30m.write(bucket_start, bucket_end, conn)
-        
-        # Write 1h bucket
-        if mins % 60 == 0:
-            bucket_start = timestamp_to_unix(current - timedelta(hours=1))
-            bucket_end = timestamp_to_unix(current)
-            agg_1h.write(bucket_start, bucket_end, conn)
+    # Compute aggregates from accumulated data
+    aggregates = compute_aggregates(results, router, day_start)
     
-    # Write 1d bucket
-    agg_1d.write(timestamp_to_unix(day_start), timestamp_to_unix(day_end), conn)
-    conn.commit()
+    # Each worker opens its own connection (WAL allows concurrent writes)
+    with get_db_connection() as conn:
+        init_protocol_stats_table(conn)
+        
+        # Write directly to DB
+        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
+        
+        # Mark files as processed
+        batch_mark_processed(conn, 'protocol_stats', results)
+    
+    errors = len([r for r in results if not r['success']])
+    
+    print(f"[protocol_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
+          f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
+    
+    return {
+        'router': router,
+        'day': day_start,
+        'processed': inserted_5m,
+        'aggregates': inserted_agg,
+        'errors': errors
+    }
 
 
 def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     """
     Process all pending files for the protocol_stats table.
-    
-    Args:
-        conn: Database connection
-        limit: Optional limit on number of files to process
-        
-    Returns:
-        Dictionary with counts: {'processed': N, 'errors': N}
+    Uses day-parallel processing where each worker handles a complete day.
     """
     init_protocol_stats_table(conn)
     
     pending = get_files_needing_processing(conn, 'protocol_stats', limit)
-    stats = {'processed': 0, 'errors': 0}
+    stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}
     
-    print(f"Processing {len(pending)} pending files for protocol_stats...")
+    if not pending:
+        print("[protocol_stats] No pending files to process")
+        return stats
     
-    for file_path, router, timestamp, file_exists in pending:
-        success = process_file_for_stats(conn, file_path, router, timestamp, file_exists)
-        mark_file_processed(conn, file_path, 'protocol_stats', success)
-        
-        if success:
-            stats['processed'] += 1
-        else:
-            stats['errors'] += 1
-        
-        # Commit periodically
-        if (stats['processed'] + stats['errors']) % 100 == 0:
-            conn.commit()
-            print(f"[protocol_stats] Progress: {stats['processed']} processed, {stats['errors']} errors")
+    # Group by day
+    days = group_files_by_day(pending)
+    print(f"[protocol_stats] Processing {len(pending)} files across {len(days)} complete days...")
     
-    conn.commit()
+    # Prepare day tasks: (router, day_start, files_list)
+    day_tasks = [(router, day_start, files) 
+                 for (router, day_start), files in sorted(days.items())]
+    
+    # Process days in parallel - each worker writes via own connection
+    with Pool(processes=MAX_WORKERS) as pool:
+        results = pool.map(process_day_worker, day_tasks)
+    
+    # Aggregate stats from all workers
+    for result in results:
+        stats['processed'] += result['processed']
+        stats['aggregates'] += result['aggregates']
+        stats['errors'] += result['errors']
+        stats['days'] += 1
+    
     return stats
 
 
@@ -273,12 +310,8 @@ def main():
     print("--------------------------------")
     
     with get_db_connection() as conn:
-        # First sync the processed_files table
         sync_processed_files_table(conn)
-        
-        # Then process pending files
         stats = process_pending_files(conn)
-        
         print(f"Processing complete: {stats}")
 
 

@@ -17,6 +17,7 @@ from common import (
     construct_file_path,
     parse_file_path,
     timestamp_to_unix,
+    unix_to_timestamp,
     init_processed_files_table,
 )
 
@@ -246,10 +247,43 @@ def get_pending_files(conn: sqlite3.Connection, limit: int = None) -> list[tuple
     return [(row[0], row[1], row[2], bool(row[3])) for row in rows]
 
 
+def get_complete_days(conn: sqlite3.Connection) -> set[tuple[str, int]]:
+    """
+    Get the set of (router, day_start_timestamp) for days that are complete.
+    
+    A day is complete if its end time (next midnight) is at or before the data horizon.
+    
+    Returns:
+        Set of (router, day_start_unix) tuples for complete days
+    """
+    data_horizon = compute_data_horizon(conn)
+    cursor = conn.cursor()
+    
+    complete_days = set()
+    
+    # Get all distinct days from processed_files
+    rows = cursor.execute("""
+        SELECT DISTINCT router, timestamp FROM processed_files
+    """).fetchall()
+    
+    for router, timestamp in rows:
+        dt = unix_to_timestamp(timestamp)
+        day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        
+        # Day is complete if data horizon is at or past the end of the day
+        if data_horizon >= day_end:
+            day_start_unix = timestamp_to_unix(day_start)
+            complete_days.add((router, day_start_unix))
+    
+    return complete_days
+
+
 def get_files_needing_processing(
     conn: sqlite3.Connection, 
     table_name: str,
-    limit: int = None
+    limit: int = None,
+    complete_days_only: bool = True
 ) -> list[tuple[str, str, int, bool]]:
     """
     Get files that need processing for a specific table.
@@ -259,6 +293,7 @@ def get_files_needing_processing(
         table_name: One of 'flow_stats', 'ip_stats', 'protocol_stats', 
                     'spectrum_stats', 'structure_stats'
         limit: Optional limit on number of files to return
+        complete_days_only: If True (default), only return files from complete days
         
     Returns:
         List of tuples: (file_path, router, timestamp, file_exists)
@@ -281,7 +316,51 @@ def get_files_needing_processing(
         query += f" LIMIT {limit}"
     
     rows = cursor.execute(query).fetchall()
-    return [(row[0], row[1], row[2], bool(row[3])) for row in rows]
+    
+    if not complete_days_only:
+        return [(row[0], row[1], row[2], bool(row[3])) for row in rows]
+    
+    # Filter to only complete days
+    complete_days = get_complete_days(conn)
+    
+    result = []
+    for row in rows:
+        file_path, router, timestamp, file_exists = row
+        # Get the day start for this timestamp
+        dt = unix_to_timestamp(timestamp)
+        day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_unix = timestamp_to_unix(day_start)
+        
+        if (router, day_start_unix) in complete_days:
+            result.append((file_path, router, timestamp, bool(file_exists)))
+    
+    return result
+
+
+def group_files_by_day(
+    files: list[tuple[str, str, int, bool]]
+) -> dict[tuple[str, int], list[tuple[str, str, int, bool]]]:
+    """
+    Group files by (router, day_start_timestamp).
+    
+    Args:
+        files: List of (file_path, router, timestamp, file_exists) tuples
+        
+    Returns:
+        Dict mapping (router, day_start_unix) to list of files for that day
+    """
+    from collections import defaultdict
+    
+    days = defaultdict(list)
+    
+    for file_path, router, timestamp, file_exists in files:
+        dt = unix_to_timestamp(timestamp)
+        day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_start_unix = timestamp_to_unix(day_start)
+        
+        days[(router, day_start_unix)].append((file_path, router, timestamp, file_exists))
+    
+    return dict(days)
 
 
 def mark_file_processed(
@@ -343,6 +422,52 @@ def update_processed_at(conn: sqlite3.Connection, file_path: str) -> None:
           AND structure_stats_status IS NOT NULL
           AND processed_at IS NULL
     """, (file_path,))
+
+
+def batch_mark_processed(
+    conn: sqlite3.Connection,
+    table_name: str,
+    results: list[dict]
+) -> None:
+    """
+    Batch update processed_files status for multiple files.
+    
+    Args:
+        conn: Database connection
+        table_name: One of 'flow_stats', 'ip_stats', 'protocol_stats', 
+                    'spectrum_stats', 'structure_stats'
+        results: List of dicts with 'file_path' and 'success' keys
+    """
+    valid_tables = ['flow_stats', 'ip_stats', 'protocol_stats', 'spectrum_stats', 'structure_stats']
+    if table_name not in valid_tables:
+        raise ValueError(f"Invalid table name: {table_name}. Must be one of {valid_tables}")
+    
+    status_column = f"{table_name}_status"
+    cursor = conn.cursor()
+    
+    for result in results:
+        file_path = result['file_path']
+        success = result.get('success', False)
+        
+        cursor.execute(f"""
+            UPDATE processed_files
+            SET {status_column} = ?
+            WHERE file_path = ?
+        """, (1 if success else 0, file_path))
+    
+    # Update processed_at for any files that are now fully processed
+    cursor.execute("""
+        UPDATE processed_files
+        SET processed_at = CURRENT_TIMESTAMP
+        WHERE processed_at IS NULL
+          AND flow_stats_status IS NOT NULL 
+          AND ip_stats_status IS NOT NULL 
+          AND protocol_stats_status IS NOT NULL 
+          AND spectrum_stats_status IS NOT NULL 
+          AND structure_stats_status IS NOT NULL
+    """)
+    
+    conn.commit()
 
 
 if __name__ == "__main__":
