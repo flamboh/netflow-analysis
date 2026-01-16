@@ -33,6 +33,7 @@ from discovery import (
     get_files_needing_processing,
     group_files_by_day,
     batch_mark_processed,
+    handle_stale_days,
 )
 
 MAAD_PATH = get_optional_env('MAAD_PATH', '/home/obo/oliver/netflow-analysis/maad')
@@ -66,9 +67,10 @@ def extract_ips(file_path: str) -> set[ipaddress.IPv4Address]:
         result = subprocess.run(command, capture_output=True, text=True, timeout=300)
         if result.returncode == 0:
             for line in result.stdout.strip().split("\n"):
-                if line.strip():
+                ip_str = line.strip()
+                if ip_str:
                     try:
-                        ips.add(ipaddress.IPv4Address(line.strip()))
+                        ips.add(ipaddress.IPv4Address(ip_str))
                     except ipaddress.AddressValueError:
                         continue
     except Exception:
@@ -304,6 +306,9 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     Uses day-parallel processing where each worker handles a complete day.
     """
     init_structure_stats_table(conn)
+    
+    # Handle stale days - reset days that have new files mixed with already-processed files
+    handle_stale_days(conn, 'structure_stats')
     
     pending = get_files_needing_processing(conn, 'structure_stats', limit)
     stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}

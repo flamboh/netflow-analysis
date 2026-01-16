@@ -30,6 +30,7 @@ from discovery import (
     get_files_needing_processing,
     group_files_by_day,
     batch_mark_processed,
+    handle_stale_days,
 )
 
 FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
@@ -105,8 +106,8 @@ def process_file(file_info: tuple) -> dict:
                 if line.strip() and ',' in line:
                     try:
                         source_ip, dest_ip = line.strip().split(",")
-                        sa_v4.add(ipaddress.IPv4Address(source_ip))
-                        da_v4.add(ipaddress.IPv4Address(dest_ip))
+                        sa_v4.add(ipaddress.IPv4Address(source_ip.strip()))
+                        da_v4.add(ipaddress.IPv4Address(dest_ip.strip()))
                     except (ValueError, ipaddress.AddressValueError):
                         continue
                         
@@ -115,8 +116,8 @@ def process_file(file_info: tuple) -> dict:
                 if line.strip() and ',' in line:
                     try:
                         source_ip, dest_ip = line.strip().split(",")
-                        sa_v6.add(ipaddress.IPv6Address(source_ip))
-                        da_v6.add(ipaddress.IPv6Address(dest_ip))
+                        sa_v6.add(ipaddress.IPv6Address(source_ip.strip()))
+                        da_v6.add(ipaddress.IPv6Address(dest_ip.strip()))
                     except (ValueError, ipaddress.AddressValueError):
                         continue
         
@@ -295,6 +296,9 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     Uses day-parallel processing where each worker handles a complete day.
     """
     init_ip_stats_table(conn)
+    
+    # Handle stale days - reset days that have new files mixed with already-processed files
+    handle_stale_days(conn, 'ip_stats')
     
     pending = get_files_needing_processing(conn, 'ip_stats', limit)
     stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}
