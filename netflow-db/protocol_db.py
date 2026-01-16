@@ -29,6 +29,7 @@ from discovery import (
     get_files_needing_processing,
     group_files_by_day,
     batch_mark_processed,
+    handle_stale_days,
 )
 
 FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
@@ -273,6 +274,9 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     Uses day-parallel processing where each worker handles a complete day.
     """
     init_protocol_stats_table(conn)
+    
+    # Handle stale days - reset days that have new files mixed with already-processed files
+    handle_stale_days(conn, 'protocol_stats')
     
     pending = get_files_needing_processing(conn, 'protocol_stats', limit)
     stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}

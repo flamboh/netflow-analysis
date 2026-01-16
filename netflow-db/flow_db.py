@@ -23,6 +23,7 @@ from discovery import (
     sync_processed_files_table,
     get_files_needing_processing,
     batch_mark_processed,
+    handle_stale_days,
 )
 
 FIRST_RUN = get_optional_env('FIRST_RUN', 'False').lower() in ('true', '1', 'yes')
@@ -220,6 +221,10 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
         Dictionary with counts: {'processed': N, 'errors': N}
     """
     init_netflow_stats_table(conn)
+    
+    # Handle stale days - reset days that have new files mixed with already-processed files
+    # (flow_stats has no aggregates, but we reset for consistency)
+    handle_stale_days(conn, 'flow_stats')
     
     pending = get_files_needing_processing(conn, 'flow_stats', limit)
     stats = {'processed': 0, 'errors': 0}
