@@ -13,7 +13,7 @@
 		type IpStatsBucket,
 		type IpStatsResponse
 	} from '$lib/types/types';
-	import { generateSlugFromLabel, parseClickedLabel } from './chart-utils';
+	import { generateSlugFromLabel, parseClickedLabel, formatNumber, Y_AXIS_WIDTH } from './chart-utils';
 	import {
 		dateStringToEpochPST,
 		epochToPSTComponents,
@@ -382,9 +382,15 @@
 						},
 						y: {
 							beginAtZero: true,
+							afterFit(axis: { width: number }) {
+								axis.width = Y_AXIS_WIDTH;
+							},
 							title: {
 								display: true,
 								text: 'Unique IPs'
+							},
+							ticks: {
+								callback: (value: string | number) => formatNumber(Number(value))
 							}
 						}
 					}
@@ -413,7 +419,13 @@
 				},
 				y: {
 					...chart.options.scales?.y,
-					title: { display: true, text: 'Unique IPs' }
+					afterFit(axis: { width: number }) {
+						axis.width = Y_AXIS_WIDTH;
+					},
+					title: { display: true, text: 'Unique IPs' },
+					ticks: {
+						callback: (value: string | number) => formatNumber(Number(value))
+					}
 				}
 			};
 			chart.options.onClick = handleChartClick;

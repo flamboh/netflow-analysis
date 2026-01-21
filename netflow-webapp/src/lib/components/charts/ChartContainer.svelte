@@ -8,7 +8,8 @@
 		formatLabels,
 		getXAxisTitle,
 		parseClickedLabel,
-		generateSlugFromLabel
+		generateSlugFromLabel,
+		Y_AXIS_WIDTH
 	} from './chart-utils';
 	import {
 		parseLabelToPSTComponents,
@@ -366,6 +367,9 @@
 						type: 'linear',
 						stacked: true,
 						beginAtZero: true,
+						afterFit(axis: { width: number }) {
+							axis.width = Y_AXIS_WIDTH;
+						},
 						title: {
 							display: true,
 							text: 'Value'
@@ -398,6 +402,9 @@
 						type: 'logarithmic',
 						beginAtZero: true,
 						min: 1,
+						afterFit(axis: { width: number }) {
+							axis.width = Y_AXIS_WIDTH;
+						},
 						title: {
 							display: true,
 							text: 'Value (Log Scale)'
@@ -506,6 +513,11 @@
 								: 'rgba(0,0,0,0.02)';
 						}
 					}
+					},
+					y: {
+						afterFit(axis: { width: number }) {
+							axis.width = Y_AXIS_WIDTH;
+						}
 					}
 				},
 				plugins: {
