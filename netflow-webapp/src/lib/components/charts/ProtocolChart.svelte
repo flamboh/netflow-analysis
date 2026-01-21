@@ -11,7 +11,7 @@
 		type ProtocolStatsBucket,
 		type ProtocolStatsResponse
 	} from '$lib/types/types';
-	import { parseClickedLabel, generateSlugFromLabel } from './chart-utils';
+	import { parseClickedLabel, generateSlugFromLabel, Y_AXIS_WIDTH } from './chart-utils';
 	import {
 		dateStringToEpochPST,
 		epochToPSTComponents,
@@ -350,7 +350,13 @@
 										: 'rgba(0,0,0,0.02)'
 							}
 						},
-						y: { beginAtZero: true, title: { display: true, text: 'Unique Protocols' } }
+						y: {
+							beginAtZero: true,
+							afterFit(axis: { width: number }) {
+								axis.width = Y_AXIS_WIDTH;
+							},
+							title: { display: true, text: 'Unique Protocols' }
+						}
 					}
 				}
 			});
@@ -375,7 +381,13 @@
 								: 'rgba(0,0,0,0.02)'
 					}
 				},
-				y: { ...chart.options.scales?.y, title: { display: true, text: 'Unique Protocols' } }
+				y: {
+					...chart.options.scales?.y,
+					afterFit(axis: { width: number }) {
+						axis.width = Y_AXIS_WIDTH;
+					},
+					title: { display: true, text: 'Unique Protocols' }
+				}
 			};
 			chart.options.onClick = handleChartClick;
 			chart.update();

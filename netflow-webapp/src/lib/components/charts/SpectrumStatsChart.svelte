@@ -11,7 +11,7 @@
 		SpectrumStatsBucket,
 		SpectrumStatsResponse
 	} from '$lib/types/types';
-	import { generateSlugFromLabel, parseClickedLabel } from './chart-utils';
+	import { generateSlugFromLabel, parseClickedLabel, Y_AXIS_WIDTH } from './chart-utils';
 	import {
 		dateStringToEpochPST,
 		epochToPSTComponents,
@@ -439,6 +439,9 @@
 							type: 'linear',
 							min: minAlpha - alphaPadding,
 							max: maxAlpha + alphaPadding,
+							afterFit(axis: { width: number }) {
+								axis.width = Y_AXIS_WIDTH;
+							},
 							title: {
 								display: true,
 								text: 'alpha'
@@ -479,6 +482,9 @@
 				y: {
 					min: minAlpha - alphaPadding,
 					max: maxAlpha + alphaPadding,
+					afterFit(axis: { width: number }) {
+						axis.width = Y_AXIS_WIDTH;
+					},
 					title: { display: true, text: 'alpha' }
 				} as never
 			};

@@ -6,6 +6,9 @@ import {
 	type PSTDateComponents
 } from '$lib/utils/timezone';
 
+/** Fixed y-axis width (px) for consistent chart alignment */
+export const Y_AXIS_WIDTH = 80;
+
 export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption): string[] {
 	switch (groupBy) {
 		case 'date':
