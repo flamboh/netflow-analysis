@@ -97,14 +97,19 @@ def extract_ips(file_path: str) -> tuple[set, set]:
     return source_ips, dest_ips
 
 
-def compute_structure_function(ips: set) -> dict:
-    """Compute structure function using MAAD StructureFunction binary."""
+def compute_structure_function(ips: set) -> list:
+    """
+    Compute structure function using MAAD StructureFunction binary.
+    
+    Returns:
+        List of dicts with 'q', 'tau', and 'sd' keys (matching StructureFunctionPoint interface)
+    """
     if not ips or len(ips) < 10:
-        return {}
+        return []
     
     structure_path = os.path.join(MAAD_PATH, "StructureFunction")
     if not os.path.exists(structure_path):
-        return {}
+        return []
     
     with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
         f.write("ip\n")
@@ -121,12 +126,16 @@ def compute_structure_function(ips: set) -> dict:
         )
         
         if result.returncode == 0:
-            structure = {}
+            structure = []
             for line in result.stdout.strip().split("\n"):
-                if "," in line:
+                parts = line.strip().split(",")
+                if len(parts) >= 3:
                     try:
-                        scale, value = line.strip().split(",")
-                        structure[scale] = value
+                        structure.append({
+                            "q": float(parts[0]),
+                            "tau": float(parts[1]),
+                            "sd": float(parts[2])
+                        })
                     except ValueError:
                         continue
             return structure
@@ -135,7 +144,7 @@ def compute_structure_function(ips: set) -> dict:
     finally:
         os.unlink(temp_path)
     
-    return {}
+    return []
 
 
 def process_file(file_info: tuple) -> dict:

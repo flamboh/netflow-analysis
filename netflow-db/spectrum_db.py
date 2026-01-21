@@ -104,14 +104,19 @@ def extract_ips(file_path: str, ip_version: int) -> tuple[set, set]:
     return source_ips, dest_ips
 
 
-def compute_spectrum(ips: set) -> dict:
-    """Compute spectrum using MAAD Singularities binary."""
+def compute_spectrum(ips: set) -> list:
+    """
+    Compute spectrum using MAAD Singularities binary.
+    
+    Returns:
+        List of dicts with 'alpha' and 'f' keys (matching SpectrumPoint interface)
+    """
     if not ips or len(ips) < 10:
-        return {}
+        return []
     
     singularities_path = os.path.join(MAAD_PATH, "Singularities")
     if not os.path.exists(singularities_path):
-        return {}
+        return []
     
     with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
         f.write("ip\n")
@@ -128,12 +133,15 @@ def compute_spectrum(ips: set) -> dict:
         )
         
         if result.returncode == 0:
-            spectrum = {}
+            spectrum = []
             for line in result.stdout.strip().split("\n"):
                 if "," in line:
                     try:
-                        alpha, f_alpha = line.strip().split(",")
-                        spectrum[alpha] = f_alpha
+                        alpha_str, f_str = line.strip().split(",")
+                        spectrum.append({
+                            "alpha": float(alpha_str),
+                            "f": float(f_str)
+                        })
                     except ValueError:
                         continue
             return spectrum
@@ -142,7 +150,7 @@ def compute_spectrum(ips: set) -> dict:
     finally:
         os.unlink(temp_path)
     
-    return {}
+    return []
 
 
 def process_file(file_info: tuple) -> dict:
