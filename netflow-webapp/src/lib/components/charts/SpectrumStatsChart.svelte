@@ -18,8 +18,12 @@
 		formatDateAsPSTDateString,
 		getWeekdayName
 	} from '$lib/utils/timezone';
+	import { verticalCrosshairPlugin } from './crosshair-plugin';
+	import { crosshairStore } from '$lib/stores/crosshair';
 
-	Chart.register(...registerables);
+	const CHART_ID = 'spectrum';
+
+	Chart.register(...registerables, verticalCrosshairPlugin);
 
 	const IP_TO_GROUP_BY: Record<IpGranularity, GroupByOption> = {
 		'1d': 'date',
@@ -166,6 +170,7 @@
 
 	function destroyChart() {
 		if (chart) {
+			crosshairStore.unregister(CHART_ID);
 			chart.destroy();
 			chart = null;
 		}
@@ -410,8 +415,32 @@
 									return [`alpha = ${point.y.toFixed(6)}`, `f = ${point.f.toFixed(6)}`];
 								}
 							}
+						},
+						verticalCrosshair: {
+							enabled: true,
+							line: {
+								color: 'rgba(100, 100, 100, 0.8)',
+								width: 1,
+								dash: [3, 3]
+							},
+							tooltip: {
+								enabled: true,
+								delay: 500,
+								backgroundColor: 'rgba(0, 0, 0, 0.85)',
+								textColor: 'white',
+								borderColor: 'rgba(100, 100, 100, 0.8)',
+								borderWidth: 1,
+								borderRadius: 4,
+								padding: 8,
+								fontSize: 12,
+								fontFamily: 'system-ui, sans-serif'
+							},
+							sync: {
+								onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
+								getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
+							}
 						}
-					},
+					} as Record<string, unknown>,
 					scales: {
 						x: {
 							type: 'linear',
@@ -450,6 +479,8 @@
 					}
 				}
 			});
+			// Register chart with crosshair store for synchronized crosshairs
+			crosshairStore.register(CHART_ID, chart);
 		} else {
 			chart.data.datasets = [
 				{

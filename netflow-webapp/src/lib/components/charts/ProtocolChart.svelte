@@ -12,6 +12,13 @@
 		type ProtocolStatsResponse
 	} from '$lib/types/types';
 	import { parseClickedLabel, generateSlugFromLabel, Y_AXIS_WIDTH } from './chart-utils';
+	import { verticalCrosshairPlugin } from './crosshair-plugin';
+	import { crosshairStore } from '$lib/stores/crosshair';
+
+	const CHART_ID = 'protocol';
+
+	// Register the crosshair plugin once
+	Chart.register(verticalCrosshairPlugin);
 	import {
 		dateStringToEpochPST,
 		epochToPSTComponents,
@@ -175,6 +182,7 @@
 
 	function destroyChart() {
 		if (chart) {
+			crosshairStore.unregister(CHART_ID);
 			chart.destroy();
 			chart = null;
 		}
@@ -328,7 +336,33 @@
 					responsive: true,
 					maintainAspectRatio: false,
 					interaction: { mode: 'index', intersect: false },
-					plugins: { legend: { position: 'top' } },
+					plugins: {
+						legend: { position: 'top' },
+						verticalCrosshair: {
+							enabled: true,
+							line: {
+								color: 'rgba(100, 100, 100, 0.8)',
+								width: 1,
+								dash: [3, 3]
+							},
+							tooltip: {
+								enabled: true,
+								delay: 500,
+								backgroundColor: 'rgba(0, 0, 0, 0.85)',
+								textColor: 'white',
+								borderColor: 'rgba(100, 100, 100, 0.8)',
+								borderWidth: 1,
+								borderRadius: 4,
+								padding: 8,
+								fontSize: 12,
+								fontFamily: 'system-ui, sans-serif'
+							},
+							sync: {
+								onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
+								getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
+							}
+						}
+					} as Record<string, unknown>,
 					scales: {
 						x: {
 							title: { display: true, text: `Time (${currentGranularity})` },
@@ -360,6 +394,8 @@
 					}
 				}
 			});
+			// Register chart with crosshair store for synchronized crosshairs
+			crosshairStore.register(CHART_ID, chart);
 		} else {
 			chart.data.labels = labels;
 			chart.data.datasets = datasets as never[];

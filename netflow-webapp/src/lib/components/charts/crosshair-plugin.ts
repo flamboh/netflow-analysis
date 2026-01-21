@@ -27,6 +27,13 @@ interface CrosshairOptions {
 		fontSize: number;
 		fontFamily: string;
 	};
+	// Sync options for coordinating crosshairs across multiple charts
+	sync?: {
+		/** Called when hover state changes (label when hovering, null when leaving) */
+		onHover?: (label: string | null) => void;
+		/** Returns external hover label if another chart is being hovered */
+		getExternalLabel?: () => string | null;
+	};
 }
 
 // Store mouse state for each chart instance
@@ -123,7 +130,7 @@ function drawTooltip(
 	ctx.restore();
 }
 
-export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
+export const verticalCrosshairPlugin: Plugin<'line' | 'bar' | 'scatter'> = {
 	id: 'verticalCrosshair',
 
 	defaults: {
@@ -197,6 +204,9 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 				// Calculate hovered date
 				state.hoveredDate = calculateHoveredDate(chart, event.x);
 
+				// Notify sync callback of hover state change
+				options.sync?.onHover?.(state.hoveredDate);
+
 				// Set new timeout to show tooltip if tooltip is enabled
 				if (options.tooltip.enabled && state.hoveredDate) {
 					state.tooltipTimeout = setTimeout(() => {
@@ -216,6 +226,10 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 				state.mouseX = null;
 				state.showTooltip = false;
 				state.hoveredDate = null;
+
+				// Notify sync callback that hover ended
+				options.sync?.onHover?.(null);
+
 				chart.draw(); // Trigger redraw to hide crosshair and tooltip
 			}
 		} else if (event.type === 'mouseout') {
@@ -228,18 +242,53 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 			state.mouseX = null;
 			state.showTooltip = false;
 			state.hoveredDate = null;
+
+			// Notify sync callback that hover ended
+			options.sync?.onHover?.(null);
+
 			chart.draw(); // Trigger redraw to hide crosshair and tooltip
 		}
 	},
 
 	afterDraw(chart: Chart, args: unknown, options: CrosshairOptions) {
 		const state = chartStates.get(chart);
-		if (!state || !options.enabled || !state.isMouseOver || state.mouseX === null) {
+		if (!state || !options.enabled) {
 			return;
 		}
 
 		const ctx = chart.ctx;
 		const chartArea = chart.chartArea;
+
+		// Determine crosshair position: local hover takes precedence over external
+		let crosshairX: number | null = null;
+		let crosshairLabel: string | null = null;
+		let isLocalHover = false;
+
+		if (state.isMouseOver && state.mouseX !== null) {
+			// Local hover - use mouse position directly
+			crosshairX = state.mouseX;
+			crosshairLabel = state.hoveredDate;
+			isLocalHover = true;
+		} else {
+			// Check for external hover from another chart
+			const externalLabel = options.sync?.getExternalLabel?.();
+			if (externalLabel) {
+				// Find the label index and convert to pixel position
+				const labels = chart.data.labels;
+				if (labels && labels.length > 0) {
+					const labelIndex = labels.indexOf(externalLabel);
+					if (labelIndex >= 0) {
+						crosshairX = chart.scales.x.getPixelForValue(labelIndex);
+						crosshairLabel = externalLabel;
+					}
+				}
+			}
+		}
+
+		// Don't draw if no crosshair position
+		if (crosshairX === null) {
+			return;
+		}
 
 		// Save the current canvas state
 		ctx.save();
@@ -257,16 +306,16 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar'> = {
 
 		// Draw vertical line
 		ctx.beginPath();
-		ctx.moveTo(state.mouseX, chartArea.top);
-		ctx.lineTo(state.mouseX, chartArea.bottom);
+		ctx.moveTo(crosshairX, chartArea.top);
+		ctx.lineTo(crosshairX, chartArea.bottom);
 		ctx.stroke();
 
 		// Restore the canvas state
 		ctx.restore();
 
-		// Draw tooltip if enabled and should be shown
-		if (options.tooltip.enabled && state.showTooltip && state.hoveredDate) {
-			drawTooltip(ctx, state.mouseX, state.hoveredDate, chartArea, options.tooltip);
+		// Draw tooltip only for local hover (not external)
+		if (isLocalHover && options.tooltip.enabled && state.showTooltip && crosshairLabel) {
+			drawTooltip(ctx, crosshairX, crosshairLabel, chartArea, options.tooltip);
 		}
 	},
 

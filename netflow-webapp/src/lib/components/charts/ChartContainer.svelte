@@ -4,6 +4,7 @@
 	import { getRelativePosition } from 'chart.js/helpers';
 	import { goto } from '$app/navigation';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
+	import { crosshairStore } from '$lib/stores/crosshair';
 	import {
 		formatLabels,
 		getXAxisTitle,
@@ -38,6 +39,8 @@
 	}
 
 	let { results, groupBy, chartType, dataOptions, onDrillDown, onNavigateToFile }: Props = $props();
+
+	const CHART_ID = 'netflow';
 
 	let chartCanvas: HTMLCanvasElement;
 	let chart: Chart | null = null;
@@ -457,6 +460,10 @@
 							padding: 8,
 							fontSize: 12,
 							fontFamily: 'system-ui, sans-serif'
+						},
+						sync: {
+							onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
+							getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
 						}
 					}
 				} as Record<string, object>
@@ -539,12 +546,19 @@
 							padding: 8,
 							fontSize: 12,
 							fontFamily: 'system-ui, sans-serif'
+						},
+						sync: {
+							onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
+							getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
 						}
 					}
 				} as Record<string, object>
 			}
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} as any);
+
+		// Register chart with crosshair store for synchronized crosshairs
+		crosshairStore.register(CHART_ID, chart);
 
 		const container = chartCanvas.parentElement;
 		if (container) {
@@ -555,6 +569,7 @@
 		}
 
 		return () => {
+			crosshairStore.unregister(CHART_ID);
 			resizeObserver?.disconnect();
 			resizeObserver = null;
 			chart?.destroy();
@@ -563,6 +578,7 @@
 	});
 
 	onDestroy(() => {
+		crosshairStore.unregister(CHART_ID);
 		chart?.destroy();
 		chart = null;
 		resizeObserver?.disconnect();
