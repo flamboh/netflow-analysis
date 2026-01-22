@@ -1,20 +1,18 @@
 """
 Spectrum statistics processor.
 
-Computes IP singularity spectrum from unique source IPs at various granularities.
+Computes IP spectrum from unique source and destination IPs at various granularities.
 Uses day-parallel processing with WAL-enabled direct DB writes.
 """
 
 import sqlite3
 import subprocess
 import ipaddress
+import json
 from datetime import datetime, timedelta
 from multiprocessing import Pool
-from typing import Optional
+from pathlib import Path
 from collections import defaultdict
-import os
-import json
-import tempfile
 
 from common import (
     NETFLOW_DATA_PATH,
@@ -36,7 +34,11 @@ from discovery import (
     handle_stale_days,
 )
 
-MAAD_PATH = get_optional_env('MAAD_PATH', '/home/obo/oliver/netflow-analysis/maad')
+# Spectrum binary path
+SPECTRUM_BIN = get_optional_env(
+    'SPECTRUM_BIN',
+    str(Path(__file__).parent.parent / 'maad' / 'Spectrum')
+)
 
 
 def init_spectrum_stats_table(conn: sqlite3.Connection) -> None:
@@ -45,90 +47,118 @@ def init_spectrum_stats_table(conn: sqlite3.Connection) -> None:
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS spectrum_stats (
             router TEXT NOT NULL,
-            granularity TEXT NOT NULL CHECK (granularity IN ('5m','30m','1h','1d')),
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
             bucket_start INTEGER NOT NULL,
-            bucket_end   INTEGER NOT NULL,
-            spectrum_data TEXT NOT NULL DEFAULT '{}',
-            ip_count INTEGER NOT NULL DEFAULT 0,
+            bucket_end INTEGER NOT NULL,
+            ip_version INTEGER NOT NULL CHECK (ip_version IN (4, 6)),
+            spectrum_json_sa TEXT NOT NULL,
+            spectrum_json_da TEXT NOT NULL,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (router, granularity, bucket_start)
+            PRIMARY KEY (router, granularity, bucket_start, ip_version)
         ) WITHOUT ROWID;
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_spectrum_granularity_time 
+        ON spectrum_stats(granularity, bucket_start);
     """)
     conn.commit()
 
 
-def extract_ips(file_path: str) -> set[ipaddress.IPv4Address]:
-    """Extract unique source IPv4 addresses from a netflow file."""
-    command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa", "-n", "0", "ipv4"]
-    
-    ips: set[ipaddress.IPv4Address] = set()
-    
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
-        if result.returncode == 0:
-            for line in result.stdout.strip().split("\n"):
-                ip_str = line.strip()
-                if ip_str:
-                    try:
-                        ips.add(ipaddress.IPv4Address(ip_str))
-                    except ipaddress.AddressValueError:
-                        continue
-    except Exception:
-        pass
-    
-    return ips
-
-
-def compute_spectrum(ips: set[ipaddress.IPv4Address]) -> dict:
-    """Compute spectrum using MAAD Singularities binary."""
-    if not ips or len(ips) < 10:
-        return {}
-    
-    singularities_path = os.path.join(MAAD_PATH, "Singularities")
-    if not os.path.exists(singularities_path):
-        return {}
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-        f.write("ip\n")
-        for ip in ips:
-            f.write(f"{ip}\n")
-        temp_path = f.name
+def extract_ips(file_path: str) -> tuple[set[ipaddress.IPv4Address], set[ipaddress.IPv4Address]]:
+    """Extract unique source and destination IPv4 addresses from a netflow file."""
+    source_ips: set[ipaddress.IPv4Address] = set()
+    dest_ips: set[ipaddress.IPv4Address] = set()
     
     try:
         result = subprocess.run(
-            [singularities_path, "10", temp_path],
+            ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "ipv4"],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split("\n"):
+                if line.strip() and "," in line:
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        try:
+                            source_ips.add(ipaddress.IPv4Address(parts[0].strip()))
+                        except ipaddress.AddressValueError:
+                            pass
+                        try:
+                            dest_ips.add(ipaddress.IPv4Address(parts[1].strip()))
+                        except ipaddress.AddressValueError:
+                            pass
+    except subprocess.TimeoutExpired:
+        print(f"Timeout extracting IPs from {file_path}")
+    except Exception as e:
+        print(f"Error extracting IPs from {file_path}: {e}")
+    
+    return source_ips, dest_ips
+
+
+def compute_spectrum(ips: set[ipaddress.IPv4Address]) -> list[dict]:
+    """Compute spectrum using MAAD Spectrum binary via stdin.
+    
+    Returns:
+        List of {"alpha": float, "f": float} objects
+    """
+    if not ips or len(ips) < 10:
+        return []
+    
+    # Convert ipaddress objects to strings for stdin
+    input_data = '\n'.join(str(ip) for ip in ips)
+    
+    try:
+        result = subprocess.run(
+            [SPECTRUM_BIN, "/dev/stdin"],
+            input=input_data,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=120
         )
         
-        if result.returncode == 0:
-            spectrum = {}
-            for line in result.stdout.strip().split("\n"):
-                if "," in line:
-                    try:
-                        alpha, f_alpha = line.strip().split(",")
-                        spectrum[alpha] = f_alpha
-                    except ValueError:
-                        continue
-            return spectrum
-    except Exception:
-        pass
-    finally:
-        os.unlink(temp_path)
-    
-    return {}
+        if result.returncode != 0:
+            print(f"Spectrum error (returncode {result.returncode}): {result.stderr}")
+            return []
+        
+        # Parse CSV output: alpha,f (skip header line)
+        lines = result.stdout.strip().split('\n')
+        if len(lines) < 2:
+            return []
+        
+        spectrum = []
+        for line in lines[1:]:  # Skip header
+            parts = line.split(',')
+            if len(parts) == 2:
+                try:
+                    spectrum.append({
+                        "alpha": float(parts[0]),
+                        "f": float(parts[1])
+                    })
+                except ValueError:
+                    continue
+        return spectrum
+    except subprocess.TimeoutExpired:
+        print(f"Spectrum timed out for {len(ips)} IPs")
+        return []
+    except FileNotFoundError:
+        print(f"Spectrum binary not found at {SPECTRUM_BIN}")
+        return []
+    except Exception as e:
+        print(f"Spectrum error: {e}")
+        return []
 
 
 def process_file(file_info: tuple) -> dict:
     """
-    Process a single file and return results.
+    Process a single file and return results for IPv4.
+    
+    Note: IPv6 support is not yet available in MAAD binaries.
     
     Args:
         file_info: Tuple of (file_path, router, timestamp, file_exists)
         
     Returns:
-        Dict with file_path, success, data, and raw_ips (as ipaddress objects)
+        Dict with file_path, success, data, and raw_ips_sa/raw_ips_da (as ipaddress objects)
     """
     file_path, router, timestamp_unix, file_exists = file_info
     
@@ -138,25 +168,29 @@ def process_file(file_info: tuple) -> dict:
         'timestamp': timestamp_unix,
         'success': False,
         'data': None,
-        'raw_ips': None,
+        'raw_ips_sa': None,
+        'raw_ips_da': None,
         'error': None
     }
     
     if not file_exists:
         result['success'] = True
-        result['data'] = {'spectrum': {}, 'ip_count': 0}
-        result['raw_ips'] = set()
+        result['data'] = {'spectrum_sa': [], 'spectrum_da': []}
+        result['raw_ips_sa'] = set()
+        result['raw_ips_da'] = set()
         return result
     
     print(f"[spectrum_stats] Processing {file_path}")
     
     try:
-        ips = extract_ips(file_path)
-        spectrum = compute_spectrum(ips)
+        source_ips, dest_ips = extract_ips(file_path)
+        spectrum_sa = compute_spectrum(source_ips)
+        spectrum_da = compute_spectrum(dest_ips)
         
         result['success'] = True
-        result['data'] = {'spectrum': spectrum, 'ip_count': len(ips)}
-        result['raw_ips'] = ips
+        result['data'] = {'spectrum_sa': spectrum_sa, 'spectrum_da': spectrum_da}
+        result['raw_ips_sa'] = source_ips
+        result['raw_ips_da'] = dest_ips
         
     except Exception as e:
         result['error'] = str(e)
@@ -168,21 +202,29 @@ def process_file(file_info: tuple) -> dict:
 def compute_aggregates(results: list[dict], router: str, day_start: int) -> list[dict]:
     """
     Compute 30m, 1h, and 1d aggregates from 5m results for a single day.
+    Tracks source and destination IPs separately.
     """
     aggregates = []
     
-    buckets: dict[str, dict[int, set[ipaddress.IPv4Address]]] = {
+    # Separate buckets for source and destination IPs
+    buckets_sa: dict[str, dict[int, set[ipaddress.IPv4Address]]] = {
+        '30m': defaultdict(set),
+        '1h': defaultdict(set),
+        '1d': defaultdict(set),
+    }
+    buckets_da: dict[str, dict[int, set[ipaddress.IPv4Address]]] = {
         '30m': defaultdict(set),
         '1h': defaultdict(set),
         '1d': defaultdict(set),
     }
     
     for result in results:
-        if not result['success'] or result['raw_ips'] is None:
+        if not result['success'] or result['raw_ips_sa'] is None:
             continue
         
         timestamp = result['timestamp']
-        ips = result['raw_ips']
+        ips_sa = result['raw_ips_sa']
+        ips_da = result['raw_ips_da']
         
         dt = unix_to_timestamp(timestamp)
         
@@ -195,20 +237,24 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
         bucket_1d_ts = day_start
         
         for granularity, bucket_ts in [('30m', bucket_30m_ts), ('1h', bucket_1h_ts), ('1d', bucket_1d_ts)]:
-            buckets[granularity][bucket_ts].update(ips)
+            buckets_sa[granularity][bucket_ts].update(ips_sa)
+            buckets_da[granularity][bucket_ts].update(ips_da)
     
     durations = {'30m': 1800, '1h': 3600, '1d': 86400}
     
     for granularity in ['30m', '1h', '1d']:
-        for bucket_start, ips in buckets[granularity].items():
-            spectrum = compute_spectrum(ips)
+        for bucket_start in buckets_sa[granularity].keys():
+            ips_sa = buckets_sa[granularity][bucket_start]
+            ips_da = buckets_da[granularity][bucket_start]
+            spectrum_sa = compute_spectrum(ips_sa)
+            spectrum_da = compute_spectrum(ips_da)
             aggregates.append({
                 'router': router,
                 'granularity': granularity,
                 'bucket_start': bucket_start,
                 'bucket_end': bucket_start + durations[granularity],
-                'spectrum': spectrum,
-                'ip_count': len(ips),
+                'spectrum_sa': spectrum_sa,
+                'spectrum_da': spectrum_da,
             })
     
     return aggregates
@@ -220,21 +266,24 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
     inserted_5m = 0
     inserted_agg = 0
     
+    # Process 5m results - IPv4 only for now
     for result in results:
-        if not result['success'] or result['data'] is None:
+        if not result['success']:
             continue
         
-        data = result['data']
         bucket_start = result['timestamp']
         bucket_end = bucket_start + 300
+        
+        spectrum_sa = compute_spectrum(result['raw_ips_sa'])
+        spectrum_da = compute_spectrum(result['raw_ips_da'])
         
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO spectrum_stats 
-                (router, granularity, bucket_start, bucket_end, spectrum_data, ip_count)
-                VALUES (?, '5m', ?, ?, ?, ?)
+                (router, granularity, bucket_start, bucket_end, ip_version, spectrum_json_sa, spectrum_json_da)
+                VALUES (?, '5m', ?, ?, 4, ?, ?)
             """, (result['router'], bucket_start, bucket_end,
-                  json.dumps(data['spectrum']), data['ip_count']))
+                  json.dumps(spectrum_sa), json.dumps(spectrum_da)))
             inserted_5m += 1
         except Exception as e:
             print(f"[spectrum_stats] Error inserting {result['file_path']}: {e}")
@@ -243,10 +292,10 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO spectrum_stats 
-                (router, granularity, bucket_start, bucket_end, spectrum_data, ip_count)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (router, granularity, bucket_start, bucket_end, ip_version, spectrum_json_sa, spectrum_json_da)
+                VALUES (?, ?, ?, ?, 4, ?, ?)
             """, (agg['router'], agg['granularity'], agg['bucket_start'], agg['bucket_end'],
-                  json.dumps(agg['spectrum']), agg['ip_count']))
+                  json.dumps(agg['spectrum_sa']), json.dumps(agg['spectrum_da'])))
             inserted_agg += 1
         except Exception as e:
             print(f"[spectrum_stats] Error inserting aggregate: {e}")
