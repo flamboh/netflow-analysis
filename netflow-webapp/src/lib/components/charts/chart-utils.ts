@@ -2,6 +2,7 @@ import type { GroupByOption, NetflowDataPoint } from '$lib/components/netflow/ty
 import {
 	parseLabelToPSTComponents,
 	parseLabelToDateForDrilldown,
+	epochToPSTComponents,
 	getWeekdayName,
 	type PSTDateComponents
 } from '$lib/utils/timezone';
@@ -9,44 +10,38 @@ import {
 /** Fixed y-axis width (px) for consistent chart alignment */
 export const Y_AXIS_WIDTH = 80;
 
+/**
+ * Format labels from NetFlow data points using PST timezone.
+ * item.time is now an epoch timestamp (as string) from the API.
+ */
 export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption): string[] {
-	switch (groupBy) {
-		case 'date':
-			return results.map((item) => {
-				const year = item.time.slice(0, 4);
-				const month = item.time.slice(4, 6);
-				const day = item.time.slice(6, 8);
+	return results.map((item) => {
+		// Parse epoch timestamp (item.time is a string containing epoch seconds)
+		const epoch = parseInt(item.time, 10);
+		if (!Number.isFinite(epoch)) {
+			return '';
+		}
+
+		// Convert to PST components for consistent display
+		const pst = epochToPSTComponents(epoch);
+		const year = pst.year;
+		const month = String(pst.month).padStart(2, '0');
+		const day = String(pst.day).padStart(2, '0');
+		const hours = String(pst.hours).padStart(2, '0');
+		const minutes = String(pst.minutes).padStart(2, '0');
+
+		switch (groupBy) {
+			case 'date':
 				return `${year}-${month}-${day}`;
-			});
-		case 'hour':
-			return results.map((item) => {
-				const year = item.time.slice(0, 4);
-				const month = item.time.slice(4, 6);
-				const day = item.time.slice(6, 8);
-				const hour = item.time.slice(9, 11);
-				return `${year}-${month}-${day} ${hour}:00`;
-			});
-		case '30min':
-			return results.map((item) => {
-				const year = item.time.slice(0, 4);
-				const month = item.time.slice(4, 6);
-				const day = item.time.slice(6, 8);
-				const hour = item.time.slice(9, 11);
-				const minute = item.time.slice(12, 14);
-				return `${year}-${month}-${day} ${hour}:${minute}`;
-			});
-		case '5min':
-			return results.map((item) => {
-				const year = item.time.slice(0, 4);
-				const month = item.time.slice(4, 6);
-				const day = item.time.slice(6, 8);
-				const hour = item.time.slice(9, 11);
-				const minute = item.time.slice(12, 14);
-				return `${year}-${month}-${day} ${hour}:${minute}`;
-			});
-		default:
-			return [];
-	}
+			case 'hour':
+				return `${year}-${month}-${day} ${hours}:00`;
+			case '30min':
+			case '5min':
+				return `${year}-${month}-${day} ${hours}:${minutes}`;
+			default:
+				return `${year}-${month}-${day}`;
+		}
+	});
 }
 
 export function getXAxisTitle(groupBy: GroupByOption): string {

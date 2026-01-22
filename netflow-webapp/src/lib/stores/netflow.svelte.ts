@@ -6,6 +6,7 @@ import type {
 	DataOption,
 	RouterConfig
 } from '$lib/components/netflow/types.ts';
+import { dateStringToEpochPST } from '$lib/utils/timezone';
 
 class NetflowStore {
 	private _state = $state<ChartState>({
@@ -200,9 +201,9 @@ class NetflowStore {
 		try {
 			const response = await fetch(
 				'/api/netflow/stats?startDate=' +
-					Math.floor(new Date(this._state.startDate).getTime() / 1000) +
+					dateStringToEpochPST(this._state.startDate) +
 					'&endDate=' +
-					Math.floor(new Date(this._state.endDate).getTime() / 1000) +
+					dateStringToEpochPST(this._state.endDate, true) +
 					'&routers=' +
 					this.activeRouters +
 					'&dataOptions=' +

@@ -24,16 +24,21 @@ const DATA_OPTIONS = [
 	// { label: 'Sequence Failures', value: 'sequence_failures' }
 ];
 
-function getGroupByQuery(groupBy: string) {
-	if (groupBy === 'date') {
-		return "strftime('%Y-%m-%d', timestamp, 'unixepoch')";
-	} else if (groupBy === 'hour') {
-		return "strftime('%Y-%m-%d %H:00:00', timestamp, 'unixepoch', 'localtime')";
-	} else if (groupBy === '30min') {
-		return "strftime('%Y-%m-%d %H:', timestamp, 'unixepoch', 'localtime') || CASE WHEN CAST(strftime('%M', timestamp, 'unixepoch', 'localtime') AS INTEGER) < 30 THEN '00:00' ELSE '30:00' END";
-	} else if (groupBy === '5min') {
-		return "strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch', 'localtime')";
-	}
+// Bucket sizes in seconds
+const BUCKET_SIZES: Record<string, number> = {
+	date: 86400, // 24 hours
+	hour: 3600, // 1 hour
+	'30min': 1800, // 30 minutes
+	'5min': 300 // 5 minutes
+};
+
+/**
+ * Generate SQL expression for epoch-based bucket calculation in local time.
+ * Server timezone is set to America/Los_Angeles to handle DST correctly.
+ */
+function getBucketStartQuery(groupBy: string): string {
+	const bucketSize = BUCKET_SIZES[groupBy] ?? BUCKET_SIZES.date;
+	return `(CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime')) AS integer) / ${bucketSize}) * ${bucketSize}`;
 }
 
 function getDataOptions(dataOptionsBinary: number) {
@@ -70,46 +75,38 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	try {
 		const db = new Database(DB_PATH, { readonly: true });
-		const groupByQuery = getGroupByQuery(groupBy);
+		const bucketStartQuery = getBucketStartQuery(groupBy);
 		const dataOptions = getDataOptions(dataOptionsBinary);
 
-		// Build query based on parameters
-		let query = `
+		// Build query using epoch-based bucket calculation
+		const query = `
 			SELECT 
-				${groupByQuery} as date,
+				${bucketStartQuery} as bucket_start,
 				${dataOptions.join(', ')}
 			FROM netflow_stats 
 			WHERE router IN (${routers.map(() => '?').join(',')})
 			AND timestamp >= ? 
 			AND timestamp < ?
+			GROUP BY bucket_start
+			ORDER BY bucket_start
 		`;
 
 		const params = [...routers, startDate, endDate];
 
-		// // Add time filtering if not full day
-		// if (!fullDay) {
-		// 	const startTimeFormatted = `${time.slice(0, 2)}:${time.slice(2, 4)}`;
-		// 	const endTimeFormatted = `${endTime.slice(0, 2)}:${endTime.slice(2, 4)}`;
-
-		// 	query += ` AND TIME(timestamp) >= ? AND TIME(timestamp) <= ?`;
-		// 	params.push(startTimeFormatted, endTimeFormatted);
-		// }
-
-		query += ` GROUP BY ${groupByQuery} ORDER BY date`;
-
 		const stmt = db.prepare(query);
-		const rows = stmt.all(...params) as NetflowStatsRow[];
+		const rows = stmt.all(...params) as (NetflowStatsRow & { bucket_start: number })[];
 
 		db.close();
 
-		// Format results to match the expected structure from +page.svelte
+		// Format results - time is now an epoch timestamp (as string for compatibility)
+		// Frontend will format using PST utilities
 		const result: NetflowStatsResult[] = rows.map((row) => {
-			// Convert date back to YYYYMMDD format
-			const dateStr = row.date.replace(/-/g, '');
+			// Use epoch timestamp as the time field (stored as string for backward compatibility)
+			const bucketStart = row.bucket_start;
 
 			// Build data string in the expected format (matching nfdump -I output)
 			const dataLines = [
-				`Date: ${dateStr}`,
+				`Date: ${bucketStart}`,
 				`Flows: ${row.flows ?? 0}`,
 				`Flows_tcp: ${row.flows_tcp ?? 0}`,
 				`Flows_udp: ${row.flows_udp ?? 0}`,
@@ -125,11 +122,10 @@ export const GET: RequestHandler = async ({ url }) => {
 				`Bytes_udp: ${row.bytes_udp ?? 0}`,
 				`Bytes_icmp: ${row.bytes_icmp ?? 0}`,
 				`Bytes_other: ${row.bytes_other ?? 0}`
-				// `Sequence failures: ${row.sequence_failures}`
 			];
 
 			return {
-				time: dateStr,
+				time: String(bucketStart),
 				data: dataLines.join('\n')
 			};
 		});

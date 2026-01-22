@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
 	import ChartControls from '$lib/components/charts/ChartControls.svelte';
+	import { dateStringToEpochPST } from '$lib/utils/timezone';
 	import type {
 		DataOption,
 		GroupByOption,
@@ -52,8 +53,8 @@
 		error = null;
 
 		const params = new URLSearchParams({
-			startDate: Math.floor(new Date(filters.startDate).getTime() / 1000).toString(),
-			endDate: Math.floor(new Date(filters.endDate).getTime() / 1000).toString(),
+			startDate: dateStringToEpochPST(filters.startDate).toString(),
+			endDate: dateStringToEpochPST(filters.endDate, true).toString(),
 			routers: activeRouters.join(','),
 			dataOptions: dataOptionsToBinary(filters.dataOptions).toString(),
 			groupBy: filters.groupBy

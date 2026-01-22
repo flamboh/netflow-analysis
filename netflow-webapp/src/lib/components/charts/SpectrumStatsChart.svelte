@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { Chart, registerables } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
-	import type { ActiveElement, ChartEvent } from 'chart.js';
+	import type { ActiveElement, ChartEvent, TooltipItem } from 'chart.js';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import type {
 		IpGranularity,
@@ -402,13 +402,13 @@
 						tooltip: {
 							enabled: true,
 							callbacks: {
-								title: (items) => {
+								title: (items: TooltipItem<'scatter'>[]) => {
 									const item = items[0];
 									if (!item) return '';
 									const dataIndex = item.dataIndex;
 									return data[dataIndex]?.timeLabel ?? '';
 								},
-								label: (context) => {
+								label: (context: TooltipItem<'scatter'>) => {
 									const dataIndex = context.dataIndex;
 									const point = data[dataIndex];
 									if (!point) return '';
@@ -575,22 +575,6 @@
 		destroyChart();
 	});
 
-	// Compute f range for color scale legend
-	const fRange = $derived.by(() => {
-		if (buckets.length === 0) return { min: 0, max: 0 };
-		let minF = Infinity;
-		let maxF = -Infinity;
-		buckets.forEach((bucket) => {
-			const points = addressType === 'sa' ? bucket.spectrumSa : bucket.spectrumDa;
-			points.forEach((point) => {
-				minF = Math.min(minF, point.f);
-				maxF = Math.max(maxF, point.f);
-			});
-		});
-		if (minF === Infinity) return { min: 0, max: 0 };
-		return { min: minF, max: maxF };
-	});
-
 	let currentGranularity = $state<IpGranularity>(props.granularity ?? '1h');
 
 	$effect(() => {
@@ -668,18 +652,6 @@
 				</button>
 			</div>
 		</div>
-		{#if buckets.length > 0 && fRange.max > fRange.min}
-			<div class="mt-2 flex items-center gap-2 text-xs text-gray-600">
-				<span>f = {fRange.min.toFixed(6)}</span>
-				<div class="flex h-4 w-32 items-center rounded border border-gray-300">
-					<div
-						class="h-full w-full rounded"
-						style="background: linear-gradient(to right, hsl(270, 70%, 50%), hsl(60, 70%, 50%))"
-					></div>
-				</div>
-				<span>f = {fRange.max.toFixed(6)}</span>
-			</div>
-		{/if}
 	</div>
 	<div class="p-4">
 		<div
