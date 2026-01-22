@@ -35,6 +35,6 @@ export default ts.config(
 		}
 	},
 	{
-		ignores: ['.svelte-kit/**']
+		ignores: ['.svelte-kit/**', 'build/**']
 	}
 );
