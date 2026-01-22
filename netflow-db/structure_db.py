@@ -8,13 +8,11 @@ Uses day-parallel processing with WAL-enabled direct DB writes.
 import sqlite3
 import subprocess
 import ipaddress
+import json
 from datetime import datetime, timedelta
 from multiprocessing import Pool
-from typing import Optional
+from pathlib import Path
 from collections import defaultdict
-import os
-import json
-import tempfile
 
 from common import (
     NETFLOW_DATA_PATH,
@@ -36,7 +34,11 @@ from discovery import (
     handle_stale_days,
 )
 
-MAAD_PATH = get_optional_env('MAAD_PATH', '/home/obo/oliver/netflow-analysis/maad')
+# Structure function binary path (Zig binary in burstify)
+STRUCTURE_FUNCTION_BIN = get_optional_env(
+    'STRUCTURE_FUNCTION_BIN',
+    str(Path(__file__).parent.parent / 'burstify' / 'zig-out' / 'bin' / 'StructureFunction')
+)
 
 
 def init_structure_stats_table(conn: sqlite3.Connection) -> None:
@@ -56,95 +58,95 @@ def init_structure_stats_table(conn: sqlite3.Connection) -> None:
         ) WITHOUT ROWID;
     """)
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_structure_granularity_time
+        CREATE INDEX IF NOT EXISTS idx_structure_granularity_time 
         ON structure_stats(granularity, bucket_start);
     """)
     conn.commit()
 
 
-def extract_ips(file_path: str) -> tuple[set, set]:
-    """
-    Extract unique source and destination IPv4 addresses from a netflow file.
-    
-    Returns:
-        Tuple of (source_ips, dest_ips) as sets of IPv4Address objects
-    """
-    command = ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "-n", "0", "ipv4"]
-    
-    source_ips: set = set()
-    dest_ips: set = set()
+def extract_ips(file_path: str) -> tuple[set[ipaddress.IPv4Address], set[ipaddress.IPv4Address]]:
+    """Extract unique source and destination IPv4 addresses from a netflow file."""
+    source_ips: set[ipaddress.IPv4Address] = set()
+    dest_ips: set[ipaddress.IPv4Address] = set()
     
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(
+            ["nfdump", "-r", file_path, "-q", "-o", "fmt:%sa,%da", "ipv4"],
+            capture_output=True, text=True, timeout=300
+        )
         if result.returncode == 0:
             for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if not line or "," not in line:
-                    continue
-                parts = line.split(",")
-                if len(parts) >= 2:
-                    try:
-                        source_ips.add(ipaddress.IPv4Address(parts[0].strip()))
-                    except (ipaddress.AddressValueError, ValueError):
-                        pass
-                    try:
-                        dest_ips.add(ipaddress.IPv4Address(parts[1].strip()))
-                    except (ipaddress.AddressValueError, ValueError):
-                        pass
-    except Exception:
-        pass
+                if line.strip() and "," in line:
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        try:
+                            source_ips.add(ipaddress.IPv4Address(parts[0].strip()))
+                        except ipaddress.AddressValueError:
+                            pass
+                        try:
+                            dest_ips.add(ipaddress.IPv4Address(parts[1].strip()))
+                        except ipaddress.AddressValueError:
+                            pass
+    except subprocess.TimeoutExpired:
+        print(f"Timeout extracting IPs from {file_path}")
+    except Exception as e:
+        print(f"Error extracting IPs from {file_path}: {e}")
     
     return source_ips, dest_ips
 
 
-def compute_structure_function(ips: set) -> list:
-    """
-    Compute structure function using MAAD StructureFunction binary.
+def compute_structure_function(ips: set[ipaddress.IPv4Address]) -> list[dict]:
+    """Compute structure function using Zig StructureFunction binary via stdin.
     
     Returns:
-        List of dicts with 'q', 'tau', and 'sd' keys (matching StructureFunctionPoint interface)
+        List of {"q": float, "tau": float, "sd": float} objects
     """
     if not ips or len(ips) < 10:
         return []
     
-    structure_path = os.path.join(MAAD_PATH, "StructureFunction")
-    if not os.path.exists(structure_path):
-        return []
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-        f.write("ip\n")
-        for ip in ips:
-            f.write(f"{ip}\n")
-        temp_path = f.name
+    # Convert ipaddress objects to strings for stdin
+    input_data = '\n'.join(str(ip) for ip in ips)
     
     try:
         result = subprocess.run(
-            [structure_path, "10", temp_path],
+            [STRUCTURE_FUNCTION_BIN],
+            input=input_data,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=120
         )
         
-        if result.returncode == 0:
-            structure = []
-            for line in result.stdout.strip().split("\n"):
-                parts = line.strip().split(",")
-                if len(parts) >= 3:
-                    try:
-                        structure.append({
-                            "q": float(parts[0]),
-                            "tau": float(parts[1]),
-                            "sd": float(parts[2])
-                        })
-                    except ValueError:
-                        continue
-            return structure
-    except Exception:
-        pass
-    finally:
-        os.unlink(temp_path)
-    
-    return []
+        if result.returncode != 0:
+            print(f"StructureFunction error (returncode {result.returncode}): {result.stderr}")
+            return []
+        
+        # Parse CSV output: q,tauTilde,sd (skip header line)
+        lines = result.stdout.strip().split('\n')
+        if len(lines) < 2:
+            return []
+        
+        structure = []
+        for line in lines[1:]:  # Skip header
+            parts = line.split(',')
+            if len(parts) == 3:
+                try:
+                    structure.append({
+                        "q": float(parts[0]),
+                        "tau": float(parts[1]),
+                        "sd": float(parts[2])
+                    })
+                except ValueError:
+                    continue
+        return structure
+    except subprocess.TimeoutExpired:
+        print(f"StructureFunction timed out for {len(ips)} IPs")
+        return []
+    except FileNotFoundError:
+        print(f"StructureFunction binary not found at {STRUCTURE_FUNCTION_BIN}")
+        return []
+    except Exception as e:
+        print(f"StructureFunction error: {e}")
+        return []
 
 
 def process_file(file_info: tuple) -> dict:
@@ -157,7 +159,7 @@ def process_file(file_info: tuple) -> dict:
         file_info: Tuple of (file_path, router, timestamp, file_exists)
         
     Returns:
-        Dict with file_path, success, and raw_ips for source/dest
+        Dict with file_path, success, data, and raw_ips_sa/raw_ips_da (as ipaddress objects)
     """
     file_path, router, timestamp_unix, file_exists = file_info
     
@@ -166,24 +168,30 @@ def process_file(file_info: tuple) -> dict:
         'router': router,
         'timestamp': timestamp_unix,
         'success': False,
-        'raw_ips_sa': set(),  # Source IPs (IPv4)
-        'raw_ips_da': set(),  # Dest IPs (IPv4)
+        'data': None,
+        'raw_ips_sa': None,
+        'raw_ips_da': None,
         'error': None
     }
     
     if not file_exists:
         result['success'] = True
+        result['data'] = {'structure_sa': [], 'structure_da': []}
+        result['raw_ips_sa'] = set()
+        result['raw_ips_da'] = set()
         return result
     
     print(f"[structure_stats] Processing {file_path}")
     
     try:
-        # Extract IPv4 source and dest (IPv6 not yet supported by MAAD)
-        sa_v4, da_v4 = extract_ips(file_path)
+        source_ips, dest_ips = extract_ips(file_path)
+        structure_sa = compute_structure_function(source_ips)
+        structure_da = compute_structure_function(dest_ips)
         
         result['success'] = True
-        result['raw_ips_sa'] = sa_v4
-        result['raw_ips_da'] = da_v4
+        result['data'] = {'structure_sa': structure_sa, 'structure_da': structure_da}
+        result['raw_ips_sa'] = source_ips
+        result['raw_ips_da'] = dest_ips
         
     except Exception as e:
         result['error'] = str(e)
@@ -195,19 +203,30 @@ def process_file(file_info: tuple) -> dict:
 def compute_aggregates(results: list[dict], router: str, day_start: int) -> list[dict]:
     """
     Compute 30m, 1h, and 1d aggregates from 5m results for a single day.
-    Returns results for IPv4 with separate source/dest structure functions.
+    Tracks source and destination IPs separately.
     """
     aggregates = []
     
-    # Buckets keyed by (granularity, bucket_ts)
-    buckets_sa: dict[tuple, set] = defaultdict(set)
-    buckets_da: dict[tuple, set] = defaultdict(set)
+    # Separate buckets for source and destination IPs
+    buckets_sa: dict[str, dict[int, set[ipaddress.IPv4Address]]] = {
+        '30m': defaultdict(set),
+        '1h': defaultdict(set),
+        '1d': defaultdict(set),
+    }
+    buckets_da: dict[str, dict[int, set[ipaddress.IPv4Address]]] = {
+        '30m': defaultdict(set),
+        '1h': defaultdict(set),
+        '1d': defaultdict(set),
+    }
     
     for result in results:
-        if not result['success']:
+        if not result['success'] or result['raw_ips_sa'] is None:
             continue
         
         timestamp = result['timestamp']
+        ips_sa = result['raw_ips_sa']
+        ips_da = result['raw_ips_da']
+        
         dt = unix_to_timestamp(timestamp)
         
         bucket_30m = dt.replace(minute=(dt.minute // 30) * 30, second=0, microsecond=0)
@@ -219,27 +238,25 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
         bucket_1d_ts = day_start
         
         for granularity, bucket_ts in [('30m', bucket_30m_ts), ('1h', bucket_1h_ts), ('1d', bucket_1d_ts)]:
-            buckets_sa[(granularity, bucket_ts)].update(result['raw_ips_sa'])
-            buckets_da[(granularity, bucket_ts)].update(result['raw_ips_da'])
+            buckets_sa[granularity][bucket_ts].update(ips_sa)
+            buckets_da[granularity][bucket_ts].update(ips_da)
     
     durations = {'30m': 1800, '1h': 3600, '1d': 86400}
     
-    # Compute structure functions for each bucket
-    for (granularity, bucket_ts), sa_ips in buckets_sa.items():
-        da_ips = buckets_da.get((granularity, bucket_ts), set())
-        
-        structure_sa = compute_structure_function(sa_ips)
-        structure_da = compute_structure_function(da_ips)
-        
-        aggregates.append({
-            'router': router,
-            'granularity': granularity,
-            'bucket_start': bucket_ts,
-            'bucket_end': bucket_ts + durations[granularity],
-            'ip_version': 4,  # IPv4 only for now
-            'structure_sa': structure_sa,
-            'structure_da': structure_da,
-        })
+    for granularity in ['30m', '1h', '1d']:
+        for bucket_start in buckets_sa[granularity].keys():
+            ips_sa = buckets_sa[granularity][bucket_start]
+            ips_da = buckets_da[granularity][bucket_start]
+            structure_sa = compute_structure_function(ips_sa)
+            structure_da = compute_structure_function(ips_da)
+            aggregates.append({
+                'router': router,
+                'granularity': granularity,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_start + durations[granularity],
+                'structure_sa': structure_sa,
+                'structure_da': structure_da,
+            })
     
     return aggregates
 
@@ -277,9 +294,9 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
             cursor.execute("""
                 INSERT OR REPLACE INTO structure_stats 
                 (router, granularity, bucket_start, bucket_end, ip_version, structure_json_sa, structure_json_da)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 4, ?, ?)
             """, (agg['router'], agg['granularity'], agg['bucket_start'], agg['bucket_end'],
-                  agg['ip_version'], json.dumps(agg['structure_sa']), json.dumps(agg['structure_da'])))
+                  json.dumps(agg['structure_sa']), json.dumps(agg['structure_da'])))
             inserted_agg += 1
         except Exception as e:
             print(f"[structure_stats] Error inserting aggregate: {e}")
