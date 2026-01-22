@@ -363,6 +363,160 @@ def group_files_by_day(
     return dict(days)
 
 
+def get_stale_days(
+    conn: sqlite3.Connection,
+    table_name: str
+) -> set[tuple[str, int]]:
+    """
+    Find days that have both processed and unprocessed files for a table.
+    These days need full reprocessing to recalculate aggregates correctly.
+    
+    A day is "stale" if:
+    - It has at least one file with {table}_status = 1 (already processed)
+    - AND it has at least one file with {table}_status IS NULL (pending)
+    
+    Args:
+        conn: Database connection
+        table_name: One of 'flow_stats', 'ip_stats', 'protocol_stats', 
+                    'spectrum_stats', 'structure_stats'
+    
+    Returns:
+        Set of (router, day_start_unix) tuples for stale days
+    """
+    valid_tables = ['flow_stats', 'ip_stats', 'protocol_stats', 'spectrum_stats', 'structure_stats']
+    if table_name not in valid_tables:
+        raise ValueError(f"Invalid table name: {table_name}. Must be one of {valid_tables}")
+    
+    status_column = f"{table_name}_status"
+    cursor = conn.cursor()
+    
+    # Find days that have mixed status (some processed, some pending)
+    # We group by router and day, then check for both statuses
+    query = f"""
+        WITH day_status AS (
+            SELECT 
+                router,
+                (timestamp / 86400) * 86400 AS day_start,
+                MAX(CASE WHEN {status_column} = 1 THEN 1 ELSE 0 END) AS has_processed,
+                MAX(CASE WHEN {status_column} IS NULL THEN 1 ELSE 0 END) AS has_pending
+            FROM processed_files
+            GROUP BY router, day_start
+        )
+        SELECT router, day_start
+        FROM day_status
+        WHERE has_processed = 1 AND has_pending = 1
+    """
+    
+    rows = cursor.execute(query).fetchall()
+    return {(row[0], row[1]) for row in rows}
+
+
+def reset_day_for_reprocessing(
+    conn: sqlite3.Connection,
+    table_name: str,
+    router: str,
+    day_start: int
+) -> dict:
+    """
+    Reset a day for full reprocessing by clearing stats and resetting file status.
+    
+    This function:
+    1. Deletes all stats rows for this day (all granularities: 5m, 30m, 1h, 1d)
+    2. Resets {table}_status to NULL for all files in this day
+    
+    Args:
+        conn: Database connection
+        table_name: The stats table name (e.g., 'ip_stats')
+        router: Router name
+        day_start: Unix timestamp of day start (midnight)
+    
+    Returns:
+        Dict with counts: {'stats_deleted': N, 'files_reset': N}
+    """
+    valid_tables = ['flow_stats', 'ip_stats', 'protocol_stats', 'spectrum_stats', 'structure_stats']
+    if table_name not in valid_tables:
+        raise ValueError(f"Invalid table name: {table_name}. Must be one of {valid_tables}")
+    
+    # Map table_name to actual stats table
+    stats_table_map = {
+        'flow_stats': 'netflow_stats',
+        'ip_stats': 'ip_stats',
+        'protocol_stats': 'protocol_stats',
+        'spectrum_stats': 'spectrum_stats',
+        'structure_stats': 'structure_stats',
+    }
+    stats_table = stats_table_map[table_name]
+    status_column = f"{table_name}_status"
+    
+    day_end = day_start + 86400
+    cursor = conn.cursor()
+    stats = {'stats_deleted': 0, 'files_reset': 0}
+    
+    # Delete stats rows for this day
+    # For netflow_stats, the column is 'timestamp'; for others it's 'bucket_start'
+    if stats_table == 'netflow_stats':
+        cursor.execute(f"""
+            DELETE FROM {stats_table}
+            WHERE router = ? AND timestamp >= ? AND timestamp < ?
+        """, (router, day_start, day_end))
+    else:
+        cursor.execute(f"""
+            DELETE FROM {stats_table}
+            WHERE router = ? AND bucket_start >= ? AND bucket_start < ?
+        """, (router, day_start, day_end))
+    stats['stats_deleted'] = cursor.rowcount
+    
+    # Reset file status for this day
+    cursor.execute(f"""
+        UPDATE processed_files
+        SET {status_column} = NULL
+        WHERE router = ? AND timestamp >= ? AND timestamp < ?
+    """, (router, day_start, day_end))
+    stats['files_reset'] = cursor.rowcount
+    
+    conn.commit()
+    return stats
+
+
+def handle_stale_days(
+    conn: sqlite3.Connection,
+    table_name: str
+) -> dict:
+    """
+    Detect and reset all stale days for a table.
+    
+    Call this before processing to ensure days with new files are fully reprocessed.
+    
+    Args:
+        conn: Database connection
+        table_name: The table being processed
+    
+    Returns:
+        Dict with summary: {'stale_days': N, 'total_stats_deleted': N, 'total_files_reset': N}
+    """
+    stale_days = get_stale_days(conn, table_name)
+    
+    summary = {'stale_days': len(stale_days), 'total_stats_deleted': 0, 'total_files_reset': 0}
+    
+    if not stale_days:
+        return summary
+    
+    print(f"[{table_name}] Found {len(stale_days)} stale days needing reprocessing")
+    
+    for router, day_start in stale_days:
+        day_dt = unix_to_timestamp(day_start)
+        print(f"[{table_name}] Resetting {router} {day_dt.strftime('%Y-%m-%d')} for reprocessing")
+        
+        result = reset_day_for_reprocessing(conn, table_name, router, day_start)
+        summary['total_stats_deleted'] += result['stats_deleted']
+        summary['total_files_reset'] += result['files_reset']
+    
+    print(f"[{table_name}] Reset complete: {summary['total_stats_deleted']} stats deleted, "
+          f"{summary['total_files_reset']} files reset")
+    
+    return summary
+
+
 def mark_file_processed(
     conn: sqlite3.Connection,
     file_path: str,
