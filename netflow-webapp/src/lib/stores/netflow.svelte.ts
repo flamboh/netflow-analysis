@@ -12,10 +12,7 @@ class NetflowStore {
 	private _state = $state<ChartState>({
 		startDate: '2024-03-01',
 		endDate: new Date().toJSON().slice(0, 10),
-		routers: {
-			'cc-ir1-gw': true,
-			'oh-ir1-gw': true
-		},
+		routers: {},
 		groupBy: 'date',
 		chartType: 'stacked',
 		dataOptions: [
@@ -194,11 +191,30 @@ class NetflowStore {
 	}
 
 	// API integration
+	private async ensureRoutersLoaded() {
+		if (Object.keys(this._state.routers).length > 0) {
+			return;
+		}
+
+		const response = await fetch('/api/routers');
+		if (!response.ok) {
+			throw new Error(`Failed to load routers: ${response.statusText}`);
+		}
+
+		const routerList = (await response.json()) as string[];
+		const routerConfig: RouterConfig = {};
+		routerList.forEach((router) => {
+			routerConfig[router] = true;
+		});
+		this._state.routers = routerConfig;
+	}
+
 	async loadData() {
 		this._loading = true;
 		this._error = null;
 
 		try {
+			await this.ensureRoutersLoaded();
 			const response = await fetch(
 				'/api/netflow/stats?startDate=' +
 					dateStringToEpochPST(this._state.startDate) +
