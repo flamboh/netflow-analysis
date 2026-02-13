@@ -26,5 +26,6 @@ vite.config.ts.timestamp-*
 # Database ## Untracked due to size
 *.db*
 *.log
+exploration/
 
 **/local-notes
