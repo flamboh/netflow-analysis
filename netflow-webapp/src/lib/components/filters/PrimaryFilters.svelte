@@ -23,6 +23,8 @@
 		endDate: string;
 		groupBy: GroupByOption;
 		routers: RouterConfig;
+		spectrumRouter: string;
+		spectrumAddressType: 'sa' | 'da';
 		dataOptions: DataOption[];
 		ipMetrics: IpMetricKey[];
 		protocolMetrics: ProtocolMetricKey[];
@@ -34,6 +36,8 @@
 		endDateChange: { endDate: string };
 		groupByChange: { groupBy: GroupByOption };
 		routersChange: { routers: RouterConfig };
+		spectrumRouterChange: { router: string };
+		spectrumAddressTypeChange: { addressType: 'sa' | 'da' };
 		dataOptionsChange: { options: DataOption[] };
 		ipMetricsChange: { metrics: IpMetricKey[] };
 		protocolMetricsChange: { metrics: ProtocolMetricKey[] };
@@ -60,6 +64,20 @@
 		dispatch('routersChange', { routers: nextRouters });
 	}
 
+	function handleSpectrumRouterChange(router: string) {
+		if (router === props.spectrumRouter) {
+			return;
+		}
+		dispatch('spectrumRouterChange', { router });
+	}
+
+	function handleSpectrumAddressTypeChange(addressType: 'sa' | 'da') {
+		if (addressType === props.spectrumAddressType) {
+			return;
+		}
+		dispatch('spectrumAddressTypeChange', { addressType });
+	}
+
 	function handleDataOptionsChange(nextOptions: DataOption[]) {
 		dispatch('dataOptionsChange', { options: nextOptions });
 	}
@@ -81,6 +99,13 @@
 			: [...current, metric];
 		dispatch('protocolMetricsChange', { metrics });
 	}
+
+	const spectrumRouters = $derived(
+		Object.entries(props.routers)
+			.filter(([, enabled]) => enabled)
+			.map(([router]) => router)
+			.sort()
+	);
 </script>
 
 <div class="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
@@ -89,7 +114,7 @@
 		<label class="text-sm text-gray-600">
 			Granularity
 			<select
-				class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 				value={props.groupBy}
 				onchange={handleGroupBySelect}
 				aria-label="Select aggregation granularity"
@@ -148,6 +173,57 @@
 					</span>
 				</label>
 			{/each}
+		</div>
+	</div>
+
+	<div class="space-y-2">
+		<h3 class="text-base font-semibold text-gray-900">Spectrum Metrics</h3>
+		<div class="space-y-2">
+			<div class="flex min-h-6 flex-wrap items-center gap-4">
+				{#if spectrumRouters.length === 0}
+					{#each Array(4) as _, index (index)}
+						<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" aria-hidden="true"
+						></span>
+					{/each}
+				{:else}
+					{#each spectrumRouters as routerName (routerName)}
+						<label class="flex cursor-pointer items-center gap-2">
+							<input
+								type="radio"
+								name="spectrum-router"
+								checked={props.spectrumRouter === routerName}
+								onchange={() => handleSpectrumRouterChange(routerName)}
+								class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<span class="text-sm text-gray-700">{routerName}</span>
+						</label>
+					{/each}
+				{/if}
+			</div>
+		</div>
+		<div class="space-y-2">
+			<div class="flex flex-wrap items-center gap-4">
+				<label class="flex cursor-pointer items-center gap-2">
+					<input
+						type="radio"
+						name="spectrum-address-type"
+						checked={props.spectrumAddressType === 'sa'}
+						onchange={() => handleSpectrumAddressTypeChange('sa')}
+						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span class="text-sm text-gray-700">Source IPv4</span>
+				</label>
+				<label class="flex cursor-pointer items-center gap-2">
+					<input
+						type="radio"
+						name="spectrum-address-type"
+						checked={props.spectrumAddressType === 'da'}
+						onchange={() => handleSpectrumAddressTypeChange('da')}
+						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span class="text-sm text-gray-700">Destination IPv4</span>
+				</label>
+			</div>
 		</div>
 	</div>
 </div>
