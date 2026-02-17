@@ -148,6 +148,20 @@
 		return index === 0;
 	}
 
+	function getBucketStartForTickValue(value: unknown): number | null {
+		if (typeof value !== 'number' || !Number.isFinite(value)) {
+			return null;
+		}
+		const roundedIndex = Math.round(value);
+		if (Math.abs(value - roundedIndex) > 1e-6) {
+			return null;
+		}
+		if (roundedIndex < 0 || roundedIndex >= bucketStarts.length) {
+			return null;
+		}
+		return bucketStarts[roundedIndex] ?? null;
+	}
+
 	// Color gradient function based on f value
 	// Purple (low f) -> Blue -> Cyan -> Green -> Yellow (high f)
 	function getColorForF(f: number, minF: number, maxF: number): string {
@@ -434,24 +448,36 @@
 					scales: {
 						x: {
 							type: 'linear',
-							min: -0.5,
-							max: bucketStarts.length - 0.5,
+							min: 0,
+							max: bucketStarts.length - 1,
 							title: {
 								display: true,
 								text: `Time (${granularity})`
 							},
 							ticks: {
 								stepSize: 1,
-								callback: (_value: unknown, idx: number) => {
-									if (idx >= bucketStarts.length) return '';
-									return formatTickLabel(bucketStarts[idx] ?? 0, granularity, idx);
+								autoSkip: false,
+								maxRotation: 45,
+								minRotation: 45,
+								callback: (value: unknown) => {
+									const bucketStart = getBucketStartForTickValue(value);
+									if (bucketStart === null) return '';
+									const index = Math.round(value as number);
+									return formatTickLabel(bucketStart, granularity, index);
 								}
 							},
 							grid: {
-								color: (ctx: { index: number }) =>
-									shouldHighlightTick(bucketStarts[ctx.index] ?? 0, granularity, ctx.index)
+								color: (ctx: { tick?: { value?: number } }) => {
+									const tickValue = ctx.tick?.value;
+									const bucketStart = getBucketStartForTickValue(tickValue);
+									if (bucketStart === null || typeof tickValue !== 'number') {
+										return 'rgba(0,0,0,0.02)';
+									}
+									const index = Math.round(tickValue);
+									return shouldHighlightTick(bucketStart, granularity, index)
 										? 'rgba(0,0,0,0.08)'
-										: 'rgba(0,0,0,0.02)'
+										: 'rgba(0,0,0,0.02)';
+								}
 							}
 						},
 						y: {
@@ -483,21 +509,33 @@
 			];
 			chart.options.scales = {
 				x: {
-					min: -0.5,
-					max: bucketStarts.length - 0.5,
+					min: 0,
+					max: bucketStarts.length - 1,
 					title: { display: true, text: `Time (${granularity})` },
 					ticks: {
 						stepSize: 1,
-						callback: (_value: unknown, idx: number) => {
-							if (idx >= bucketStarts.length) return '';
-							return formatTickLabel(bucketStarts[idx] ?? 0, granularity, idx);
+						autoSkip: false,
+						maxRotation: 45,
+						minRotation: 45,
+						callback: (value: unknown) => {
+							const bucketStart = getBucketStartForTickValue(value);
+							if (bucketStart === null) return '';
+							const index = Math.round(value as number);
+							return formatTickLabel(bucketStart, granularity, index);
 						}
 					},
 					grid: {
-						color: (ctx: { index: number }) =>
-							shouldHighlightTick(bucketStarts[ctx.index] ?? 0, granularity, ctx.index)
+						color: (ctx: { tick?: { value?: number } }) => {
+							const tickValue = ctx.tick?.value;
+							const bucketStart = getBucketStartForTickValue(tickValue);
+							if (bucketStart === null || typeof tickValue !== 'number') {
+								return 'rgba(0,0,0,0.02)';
+							}
+							const index = Math.round(tickValue);
+							return shouldHighlightTick(bucketStart, granularity, index)
 								? 'rgba(0,0,0,0.08)'
-								: 'rgba(0,0,0,0.02)'
+								: 'rgba(0,0,0,0.02)';
+						}
 					}
 				} as never,
 				y: {
