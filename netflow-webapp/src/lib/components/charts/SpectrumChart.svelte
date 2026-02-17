@@ -21,14 +21,6 @@
 
 	// Watch for data changes and create/update chart
 	$effect(() => {
-		console.log('SpectrumChart effect triggered', {
-			hasCanvas: !!chartCanvas,
-			hasData: !!data,
-			hasSpectrum: !!data?.spectrum,
-			dataLength: data?.spectrum?.length || 0,
-			router: data?.router
-		});
-
 		if (chartCanvas && data?.spectrum?.length > 0) {
 			if (chart) {
 				chart.destroy();
@@ -50,12 +42,12 @@
 				{
 					label: 'f(alpha)',
 					data: points.map((p) => ({ x: p.alpha, y: p.f })),
-					borderColor: 'rgb(147, 51, 234)',
-					backgroundColor: 'rgba(147, 51, 234, 0.1)',
+					borderColor: 'rgb(14, 116, 144)',
+					backgroundColor: 'rgba(14, 116, 144, 0.1)',
 					borderWidth: 2,
 					pointRadius: 3,
 					pointHoverRadius: 5,
-					pointBackgroundColor: 'rgb(147, 51, 234)',
+					pointBackgroundColor: 'rgb(14, 116, 144)',
 					pointBorderColor: 'white',
 					pointBorderWidth: 1,
 					fill: false,
@@ -151,19 +143,18 @@
 </script>
 
 <div class="w-full">
-	<div class="mb-2 text-sm text-gray-600">
+	<div class="mb-2 rounded-lg border border-slate-200/70 bg-slate-50/65 p-3 text-sm text-slate-600">
 		<p>
 			Data Source: {data.metadata.dataSource} | alpha Range: [{data.metadata.alphaRange.min.toFixed(
 				3
 			)}, {data.metadata.alphaRange.max.toFixed(3)}]
 		</p>
 		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
-			<p class="text-xs font-medium text-green-600">
-				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
-				analyzed
+			<p class="text-xs font-medium text-emerald-700">
+				Real NetFlow data analysis ({data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses)
 			</p>
 		{:else if data.metadata.uniqueIPCount !== -1}
-			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
+			<p class="text-xs text-amber-700">Using test data from MAAD sample set</p>
 		{/if}
 	</div>
 	<div class="relative h-96 w-full">

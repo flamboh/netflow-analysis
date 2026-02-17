@@ -34,16 +34,13 @@
 	}
 </script>
 
-<div class="chart-controls mb-4 flex flex-wrap gap-4 rounded-lg bg-gray-50 p-4">
+<div
+	class="chart-controls mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200/70 bg-slate-50/70 p-3"
+>
 	{#if showGroupBy}
 		<div class="flex items-center gap-2">
-			<label for="groupBy" class="text-sm font-medium text-gray-700">Group by:</label>
-			<select
-				id="groupBy"
-				value={groupBy}
-				onchange={handleGroupByChange}
-				class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-			>
+			<label for="groupBy" class="text-sm font-medium text-slate-700">Group by</label>
+			<select id="groupBy" value={groupBy} onchange={handleGroupByChange} class="control-input">
 				<option value="date">Date</option>
 				<option value="hour">Hour</option>
 				<option value="30min">30 Minutes</option>
@@ -53,28 +50,17 @@
 	{/if}
 
 	<div class="flex items-center gap-2">
-		<label for="chartType" class="text-sm font-medium text-gray-700">Chart type:</label>
-		<select
-			id="chartType"
-			value={chartType}
-			onchange={handleChartTypeChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-		>
+		<label for="chartType" class="text-sm font-medium text-slate-700">Chart type</label>
+		<select id="chartType" value={chartType} onchange={handleChartTypeChange} class="control-input">
 			<option value="stacked">Stacked Area</option>
 			<option value="line">Line Chart</option>
 		</select>
 	</div>
 
-	<button
-		type="button"
-		onclick={handleReset}
-		class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-	>
-		Reset View
-	</button>
+	<button type="button" onclick={handleReset} class="btn-primary"> Reset View </button>
 
-	<div class="flex items-center text-sm text-gray-600">
-		<span class="font-medium">Navigation:</span>
-		<span class="ml-1">Click data points to drill down • {groupBy} view</span>
+	<div class="flex items-center text-sm text-slate-600">
+		<span class="font-medium">Tip:</span>
+		<span class="ml-1">click any chart position to drill down ({groupBy} view)</span>
 	</div>
 </div>

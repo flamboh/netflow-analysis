@@ -14,7 +14,9 @@
 
 {#if data}
 	<div class="w-full space-y-4">
-		<div class="mb-2 text-sm text-gray-600">
+		<div
+			class="mb-2 rounded-lg border border-slate-200/70 bg-slate-50/65 p-3 text-sm text-slate-600"
+		>
 			<p>
 				Data Source: {data.metadata.dataSource} | Address Type: {data.metadata.addressType}
 			</p>
@@ -22,12 +24,12 @@
 		</div>
 
 		{#if topSingularities.length > 0}
-			<div class="rounded-lg border bg-green-50 p-4">
-				<h4 class="mb-2 font-semibold">Top Singularities (Most Anomalous)</h4>
+			<div class="rounded-lg border border-emerald-200 bg-emerald-50/65 p-4">
+				<h4 class="mb-2 font-semibold text-emerald-900">Top Singularities (Most Anomalous)</h4>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
 						<thead>
-							<tr class="border-b border-green-200">
+							<tr class="border-b border-emerald-200">
 								<th class="px-2 py-1 text-left">Rank</th>
 								<th class="px-2 py-1 text-left">IP Address</th>
 								<th class="px-2 py-1 text-left">α (Alpha)</th>
@@ -38,7 +40,7 @@
 						</thead>
 						<tbody>
 							{#each topSingularities as singularity (singularity.rank)}
-								<tr class="border-b border-green-100">
+								<tr class="border-b border-emerald-100">
 									<td class="px-2 py-1">{singularity.rank}</td>
 									<td class="px-2 py-1 font-mono">{singularity.address}</td>
 									<td class="px-2 py-1">{singularity.alpha.toFixed(4)}</td>
@@ -54,12 +56,12 @@
 		{/if}
 
 		{#if bottomSingularities.length > 0}
-			<div class="rounded-lg border bg-red-50 p-4">
-				<h4 class="mb-2 font-semibold">Bottom Singularities (Least Anomalous)</h4>
+			<div class="rounded-lg border border-rose-200 bg-rose-50/70 p-4">
+				<h4 class="mb-2 font-semibold text-rose-900">Bottom Singularities (Least Anomalous)</h4>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
 						<thead>
-							<tr class="border-b border-red-200">
+							<tr class="border-b border-rose-200">
 								<th class="px-2 py-1 text-left">Rank</th>
 								<th class="px-2 py-1 text-left">IP Address</th>
 								<th class="px-2 py-1 text-left">α (Alpha)</th>
@@ -70,7 +72,7 @@
 						</thead>
 						<tbody>
 							{#each bottomSingularities as singularity (singularity.rank)}
-								<tr class="border-b border-red-100">
+								<tr class="border-b border-rose-100">
 									<td class="px-2 py-1">{singularity.rank}</td>
 									<td class="px-2 py-1 font-mono">{singularity.address}</td>
 									<td class="px-2 py-1">{singularity.alpha.toFixed(4)}</td>
@@ -86,15 +88,15 @@
 		{/if}
 
 		{#if topSingularities.length === 0 && bottomSingularities.length === 0}
-			<div class="rounded-lg border bg-gray-50 p-4">
-				<p class="text-gray-600">No singularities data available.</p>
+			<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+				<p class="text-slate-600">No singularities data available.</p>
 			</div>
 		{/if}
 	</div>
 {:else}
 	<div class="w-full">
-		<div class="rounded-lg border bg-gray-50 p-4">
-			<p class="text-gray-600">Loading singularities data...</p>
+		<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+			<p class="text-slate-600">Loading singularities data...</p>
 		</div>
 	</div>
 {/if}

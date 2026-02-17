@@ -30,38 +30,42 @@
 	}
 </script>
 
-<div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="mb-4 text-2xl text-black">NetFlow Files</h1>
-
-	<div class="mb-6 rounded-lg border bg-blue-50 p-4">
-		<h2 class="mb-3 text-lg font-semibold">Navigate to File by Timestamp</h2>
-		<div class="flex items-center space-x-3">
-			<div class="flex-1">
-				<label for="timestamp" class="mb-1 block text-sm font-medium text-gray-700">
-					File Timestamp (YYYYMMDDHHmm)
-				</label>
-				<input
-					id="timestamp"
-					type="text"
-					bind:value={timestamp}
-					onkeydown={handleKeydown}
-					placeholder="202501011200"
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-					maxlength="12"
-				/>
-				{#if error}
-					<div class="mt-1 text-sm text-red-600">{error}</div>
-				{/if}
+<div class="app-content-shell">
+	<section class="surface-card">
+		<div class="surface-card-header">
+			<div>
+				<h1 class="text-2xl font-bold text-slate-900">NetFlow Files</h1>
+				<p class="text-sm text-slate-600">Open a processed file directly from its timestamp key</p>
 			</div>
-			<button
-				onclick={navigateToFile}
-				class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-			>
-				Go to File
-			</button>
 		</div>
-		<p class="mt-2 text-sm text-gray-600">
-			Enter the exact 12-digit timestamp from NetFlow filenames (e.g., nfcapd.202501011200)
-		</p>
-	</div>
+		<div class="surface-card-body">
+			<div class="rounded-lg border border-cyan-200/70 bg-cyan-50/60 p-4">
+				<h2 class="mb-3 text-lg font-semibold text-slate-900">Navigate by Timestamp</h2>
+				<div class="flex flex-col gap-3 md:flex-row md:items-end">
+					<div class="flex-1">
+						<label for="timestamp" class="mb-1 block text-sm font-medium text-slate-700">
+							File Timestamp (YYYYMMDDHHmm)
+						</label>
+						<input
+							id="timestamp"
+							type="text"
+							bind:value={timestamp}
+							onkeydown={handleKeydown}
+							placeholder="202501011200"
+							class="control-input w-full"
+							maxlength="12"
+						/>
+						{#if error}
+							<div class="mt-1 text-sm text-red-700">{error}</div>
+						{/if}
+					</div>
+					<button onclick={navigateToFile} class="btn-primary"> Go to File </button>
+				</div>
+				<p class="mt-2 text-sm text-slate-600">
+					Enter the exact 12-digit timestamp from NetFlow filenames, for example
+					<code class="rounded bg-slate-100 px-1 py-0.5">nfcapd.202501011200</code>.
+				</p>
+			</div>
+		</div>
+	</section>
 </div>

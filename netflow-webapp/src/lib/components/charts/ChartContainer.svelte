@@ -46,7 +46,11 @@
 	let chart: Chart | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
-	function formatTickLabel(pst: PSTDateComponents | null, currentGroupBy: GroupByOption, index: number): string {
+	function formatTickLabel(
+		pst: PSTDateComponents | null,
+		currentGroupBy: GroupByOption,
+		index: number
+	): string {
 		if (!pst) {
 			return '';
 		}
@@ -81,7 +85,11 @@
 		return index === 0 ? `${weekday} ${month}/${day}` : '';
 	}
 
-	function shouldHighlightTick(pst: PSTDateComponents | null, currentGroupBy: GroupByOption, index: number): boolean {
+	function shouldHighlightTick(
+		pst: PSTDateComponents | null,
+		currentGroupBy: GroupByOption,
+		index: number
+	): boolean {
 		if (!pst) {
 			return index === 0;
 		}
@@ -139,35 +147,18 @@
 		if (!chart) {
 			return;
 		}
-		// Always get the canvas position and convert to data values
 		const canvasPosition = getRelativePosition(e, chart);
 		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-		const dataY = chart.scales.y.getValueForPixel(canvasPosition.y);
-
-		console.log('=== CHART CLICK DEBUG ===');
-		console.log('Canvas position:', canvasPosition);
-		console.log('Data coordinates:', { x: dataX, y: dataY });
-		console.log('Current groupBy:', groupBy);
-		console.log('Chart labels:', chart.data.labels);
-
-		// Convert the x-axis data value to the appropriate date based on current groupBy
 		let clickedDate: Date;
 
 		if (typeof dataX === 'number') {
-			// dataX is the index in the labels array
 			const labelIndex = Math.round(dataX);
 			const labels = chart.data.labels;
 
-			console.log('Calculated label index:', labelIndex);
-			console.log('Total labels:', labels?.length);
-
 			if (labels && labelIndex >= 0 && labelIndex < labels.length) {
 				const clickedLabel = labels[labelIndex] as string;
-				console.log('Clicked label:', clickedLabel);
 				clickedDate = parseClickedLabel(clickedLabel, groupBy);
 			} else {
-				// Handle clicks outside the data range
-				console.log('Click outside data range, using boundary logic');
 				if (labels && labels.length > 0) {
 					let targetLabel: string;
 					if (labelIndex < 0) {
@@ -177,73 +168,37 @@
 					}
 					clickedDate = parseClickedLabel(targetLabel, groupBy);
 				} else {
-					console.log('No labels available, cannot determine date');
 					return;
 				}
 			}
 		} else {
-			console.log('Unexpected dataX type:', typeof dataX, dataX);
 			return;
 		}
 
-		console.log('Parsed clicked date:', clickedDate);
-
 		const clickedElement = getClickedElement(activeElements);
-		if (clickedElement) {
-			console.log('Clicked on data point:', {
-				dataset: clickedElement.dataset.label,
-				label: clickedElement.label,
-				value: clickedElement.value,
-				datasetIndex: clickedElement.datasetIndex,
-				index: clickedElement.index
-			});
-		} else {
-			console.log('Clicked on empty space - will drill down based on calculated date');
-		}
-
-		// Handle drill-down logic using the calculated clickedDate
-		// This works regardless of whether there was a data point at the exact click location
-		console.log('=== DRILL DOWN LOGIC ===');
-		console.log('Current groupBy:', groupBy);
-		console.log('Using date for drill-down:', clickedDate);
 
 		if (groupBy === 'date') {
 			const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
 			const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
 			const startDateStr = formatDateAsPSTDateString(startOfMonth);
 			const endDateStr = formatDateAsPSTDateString(endOfMonth);
-			console.log('Drilling down to hour view with date range:', {
-				start: startDateStr,
-				end: endDateStr
-			});
 			onDrillDown?.('hour', startDateStr, endDateStr);
 		} else if (groupBy === 'hour') {
 			const startOfWeek = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
 			const endOfWeek = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
 			const startDateStr = formatDateAsPSTDateString(startOfWeek);
 			const endDateStr = formatDateAsPSTDateString(endOfWeek);
-			console.log('Drilling down to 30min view with date range:', {
-				start: startDateStr,
-				end: endDateStr
-			});
 			onDrillDown?.('30min', startDateStr, endDateStr);
 		} else if (groupBy === '30min') {
 			const endDate = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
 			const startDateStr = formatDateAsPSTDateString(clickedDate);
 			const endDateStr = formatDateAsPSTDateString(endDate);
-			console.log('Drilling down to 5min view with date range:', {
-				start: startDateStr,
-				end: endDateStr
-			});
 			onDrillDown?.('5min', startDateStr, endDateStr);
 		} else if (groupBy === '5min') {
-			// For 5min level, we need to create a slug from the clicked date
-			// Convert the date back to a label format that generateSlugFromLabel expects
 			let labelForSlug: string;
 			if (clickedElement) {
 				labelForSlug = clickedElement.label;
 			} else {
-				// Format the date to match the label format for 5min grouping using PST
 				const pst = epochToPSTComponents(Math.floor(clickedDate.getTime() / 1000));
 				const year = pst.year;
 				const month = String(pst.month).padStart(2, '0');
@@ -254,15 +209,12 @@
 			}
 
 			const slug = generateSlugFromLabel(labelForSlug, groupBy);
-			console.log('Navigating to file with slug:', slug);
 			if (onNavigateToFile) {
 				onNavigateToFile(slug);
 			} else {
 				goto(`/api/netflow/files/${slug}`);
 			}
 		}
-
-		console.log('=== END CHART CLICK DEBUG ===');
 	}
 
 	function parseLabelToPST(label: string | undefined): PSTDateComponents | null {
@@ -270,14 +222,18 @@
 		return parseLabelToPSTComponents(label);
 	}
 
-	function getLabelPSTFromLabels(labels: (string | number | null | undefined)[], idx: number): PSTDateComponents | null {
+	function getLabelPSTFromLabels(
+		labels: (string | number | null | undefined)[],
+		idx: number
+	): PSTDateComponents | null {
 		const label = labels[idx];
 		return typeof label === 'string' ? parseLabelToPST(label) : null;
 	}
 
 	function createChartConfig(): ChartConfig {
 		const labels = formatLabels(results, groupBy);
-		const getLabelPST = (idx: number): PSTDateComponents | null => getLabelPSTFromLabels(labels, idx);
+		const getLabelPST = (idx: number): PSTDateComponents | null =>
+			getLabelPSTFromLabels(labels, idx);
 		const xAxisTitle = getXAxisTitle(groupBy);
 
 		// Use manual chart type selection - matches original logic
@@ -492,34 +448,38 @@
 							display: true,
 							text: 'Date'
 						},
-					ticks: {
-						autoSkip: false,
-						maxRotation: 45,
-						minRotation: 45,
-						callback: (_val: string | number, idx: number) =>
-							formatTickLabel(
-								getLabelPSTFromLabels((chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
-								Number(idx)),
-								groupBy,
-								Number(idx)
-							)
-					},
-					grid: {
-						color: (ctx: { index?: number; tick?: { index?: number } }) => {
-							const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
-							const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
-							return shouldHighlightTick(
-								getLabelPSTFromLabels(
-									(chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
+						ticks: {
+							autoSkip: false,
+							maxRotation: 45,
+							minRotation: 45,
+							callback: (_val: string | number, idx: number) =>
+								formatTickLabel(
+									getLabelPSTFromLabels(
+										(chart?.data.labels as (string | number | null | undefined)[] | undefined) ??
+											[],
+										Number(idx)
+									),
+									groupBy,
+									Number(idx)
+								)
+						},
+						grid: {
+							color: (ctx: { index?: number; tick?: { index?: number } }) => {
+								const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
+								const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
+								return shouldHighlightTick(
+									getLabelPSTFromLabels(
+										(chart?.data.labels as (string | number | null | undefined)[] | undefined) ??
+											[],
+										safeIndex
+									),
+									groupBy,
 									safeIndex
-								),
-								groupBy,
-								safeIndex
-							)
-								? 'rgba(0,0,0,0.08)'
-								: 'rgba(0,0,0,0.02)';
+								)
+									? 'rgba(0,0,0,0.08)'
+									: 'rgba(0,0,0,0.02)';
+							}
 						}
-					}
 					},
 					y: {
 						afterFit(axis: { width: number }) {

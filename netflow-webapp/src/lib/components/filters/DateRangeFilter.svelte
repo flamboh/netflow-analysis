@@ -19,26 +19,33 @@
 	}
 </script>
 
-<div class="date-range-filter flex flex-wrap items-center gap-4">
-	<div class="flex items-center gap-2">
-		<label for="startDate" class="text-sm font-medium text-gray-700">Start Date:</label>
-		<input
-			id="startDate"
-			type="date"
-			value={startDate}
-			onchange={handleStartDateChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-		/>
-	</div>
+<div class="date-range-filter">
+	<h3 class="mb-3 text-sm font-semibold tracking-[0.08em] text-slate-700 uppercase">Date Window</h3>
+	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+		<div class="flex flex-col gap-1.5">
+			<label for="startDate" class="text-xs font-medium tracking-[0.06em] text-slate-600 uppercase"
+				>Start Date</label
+			>
+			<input
+				id="startDate"
+				type="date"
+				value={startDate}
+				onchange={handleStartDateChange}
+				class="control-input"
+			/>
+		</div>
 
-	<div class="flex items-center gap-2">
-		<label for="endDate" class="text-sm font-medium text-gray-700">End Date:</label>
-		<input
-			id="endDate"
-			type="date"
-			value={endDate}
-			onchange={handleEndDateChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-		/>
+		<div class="flex flex-col gap-1.5">
+			<label for="endDate" class="text-xs font-medium tracking-[0.06em] text-slate-600 uppercase"
+				>End Date</label
+			>
+			<input
+				id="endDate"
+				type="date"
+				value={endDate}
+				onchange={handleEndDateChange}
+				class="control-input"
+			/>
+		</div>
 	</div>
 </div>

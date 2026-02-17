@@ -162,12 +162,15 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
-	<div class="border-b p-4">
-		<h2 class="text-lg font-semibold text-gray-900">NetFlow Visualization</h2>
+<div class="surface-card">
+	<div class="surface-card-header">
+		<div>
+			<h2 class="text-lg font-semibold text-slate-900">NetFlow Volume</h2>
+			<p class="text-sm text-slate-600">Stacked or line comparison across selected metrics</p>
+		</div>
 	</div>
 
-	<div class="space-y-4 p-4">
+	<div class="surface-card-body space-y-4">
 		<ChartControls
 			groupBy={props.groupBy}
 			{chartType}
@@ -177,21 +180,13 @@
 			showGroupBy={false}
 		/>
 
-		<div
-			class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
-		>
+		<div class="chart-frame">
 			{#if loading}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading data...</div>
-				</div>
+				<div class="status-panel">Loading NetFlow data...</div>
 			{:else if error}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
-				</div>
+				<div class="status-panel status-panel-error">{error}</div>
 			{:else if results.length === 0}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No data available for the selected filters</div>
-				</div>
+				<div class="status-panel">No NetFlow data available for the selected filters.</div>
 			{:else}
 				<ChartContainer
 					{results}

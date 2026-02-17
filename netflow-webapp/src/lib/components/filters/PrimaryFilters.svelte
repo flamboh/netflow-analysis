@@ -81,15 +81,28 @@
 			: [...current, metric];
 		dispatch('protocolMetricsChange', { metrics });
 	}
+
+	const selectedRouterCount = $derived(Object.values(props.routers).filter(Boolean).length);
+	const selectedNetflowMetricCount = $derived(
+		props.dataOptions.filter((option: DataOption) => option.checked).length
+	);
+	const selectedIpMetricCount = $derived(props.ipMetrics.length);
+	const selectedProtocolMetricCount = $derived(props.protocolMetrics.length);
 </script>
 
-<div class="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
-	<div class="flex items-center justify-between">
-		<h2 class="text-lg font-semibold text-gray-900">Filters</h2>
-		<label class="text-sm text-gray-600">
+<div class="surface-card">
+	<div class="surface-card-header">
+		<div>
+			<h2 class="text-lg font-semibold text-slate-900">Filters</h2>
+			<p class="text-xs text-slate-600">
+				{selectedRouterCount} routers, {selectedNetflowMetricCount} NetFlow metrics, {selectedIpMetricCount}
+				IP metrics, {selectedProtocolMetricCount} protocol metrics selected
+			</p>
+		</div>
+		<label class="text-sm font-medium text-slate-700">
 			Granularity
 			<select
-				class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				class="control-input ml-2"
 				value={props.groupBy}
 				onchange={handleGroupBySelect}
 				aria-label="Select aggregation granularity"
@@ -101,53 +114,66 @@
 		</label>
 	</div>
 
-	<DateRangeFilter
-		startDate={props.startDate}
-		endDate={props.endDate}
-		onStartDateChange={handleStartDateChange}
-		onEndDateChange={handleEndDateChange}
-	/>
-
-	<RouterFilter routers={props.routers} onRouterChange={handleRoutersChange} />
-
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">NetFlow Metrics</h3>
-		<MetricSelector dataOptions={props.dataOptions} onDataOptionsChange={handleDataOptionsChange} />
-	</div>
-
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">IP Metrics</h3>
-		<div class="flex flex-wrap items-center gap-4">
-			{#each IP_METRIC_OPTIONS as option (option.key)}
-				<label class="flex cursor-pointer items-center gap-2">
-					<input
-						type="checkbox"
-						checked={props.ipMetrics.includes(option.key)}
-						onchange={() => handleIpMetricToggle(option.key)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700">{option.label}</span>
-				</label>
-			{/each}
+	<div class="surface-card-body space-y-4">
+		<div class="rounded-lg border border-slate-200/70 bg-slate-50/60 p-3">
+			<DateRangeFilter
+				startDate={props.startDate}
+				endDate={props.endDate}
+				onStartDateChange={handleStartDateChange}
+				onEndDateChange={handleEndDateChange}
+			/>
 		</div>
-	</div>
 
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">Protocol Metrics</h3>
-		<div class="flex flex-wrap items-center gap-4">
-			{#each ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as const as key (key)}
-				<label class="flex cursor-pointer items-center gap-2">
-					<input
-						type="checkbox"
-						checked={props.protocolMetrics.includes(key)}
-						onchange={() => handleProtocolMetricToggle(key)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700">
-						{key === 'uniqueProtocolsIpv4' ? 'Unique Protocols IPv4' : 'Unique Protocols IPv6'}
-					</span>
-				</label>
-			{/each}
+		<div class="rounded-lg border border-slate-200/70 bg-slate-50/60 p-3">
+			<RouterFilter routers={props.routers} onRouterChange={handleRoutersChange} />
+		</div>
+
+		<div class="space-y-2">
+			<h3 class="text-base font-semibold text-slate-900">NetFlow Metrics</h3>
+			<MetricSelector
+				dataOptions={props.dataOptions}
+				onDataOptionsChange={handleDataOptionsChange}
+			/>
+		</div>
+
+		<div class="space-y-2">
+			<h3 class="text-base font-semibold text-slate-900">IP Metrics</h3>
+			<div class="flex flex-wrap items-center gap-3">
+				{#each IP_METRIC_OPTIONS as option (option.key)}
+					<label
+						class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2"
+					>
+						<input
+							type="checkbox"
+							checked={props.ipMetrics.includes(option.key)}
+							onchange={() => handleIpMetricToggle(option.key)}
+							class="h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-700"
+						/>
+						<span class="text-sm text-slate-700">{option.label}</span>
+					</label>
+				{/each}
+			</div>
+		</div>
+
+		<div class="space-y-2">
+			<h3 class="text-base font-semibold text-slate-900">Protocol Metrics</h3>
+			<div class="flex flex-wrap items-center gap-3">
+				{#each ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as const as key (key)}
+					<label
+						class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2"
+					>
+						<input
+							type="checkbox"
+							checked={props.protocolMetrics.includes(key)}
+							onchange={() => handleProtocolMetricToggle(key)}
+							class="h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-700"
+						/>
+						<span class="text-sm text-slate-700">
+							{key === 'uniqueProtocolsIpv4' ? 'Unique Protocols IPv4' : 'Unique Protocols IPv6'}
+						</span>
+					</label>
+				{/each}
+			</div>
 		</div>
 	</div>
 </div>

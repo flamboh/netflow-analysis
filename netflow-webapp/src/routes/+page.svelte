@@ -128,8 +128,20 @@
 	<meta name="description" content="NetFlow analysis and visualization tool" />
 </svelte:head>
 
-<div class="min-h-screen bg-gray-100">
-	<main class="mx-auto flex max-w-[90vw] flex-col gap-2 px-4 py-8 sm:px-2 lg:px-4">
+<div class="min-h-screen">
+	<main class="app-content-shell flex flex-col gap-4">
+		<section class="surface-card">
+			<div class="surface-card-body">
+				<p class="text-sm font-semibold tracking-[0.12em] text-cyan-800/75 uppercase">Dashboard</p>
+				<h2 class="mt-1 text-2xl font-bold text-slate-900">Traffic Trends and MAAD Signals</h2>
+				<p class="mt-2 max-w-4xl text-sm text-slate-600">
+					Use the filters to compare routers and drill from daily rollups down to file-level
+					windows. Charts stay synchronized so hover and drill-down behavior is consistent across
+					metrics.
+				</p>
+			</div>
+		</section>
+
 		<PrimaryFilters
 			{startDate}
 			{endDate}

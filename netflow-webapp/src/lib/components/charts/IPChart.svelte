@@ -13,7 +13,12 @@
 		type IpStatsBucket,
 		type IpStatsResponse
 	} from '$lib/types/types';
-	import { generateSlugFromLabel, parseClickedLabel, formatNumber, Y_AXIS_WIDTH } from './chart-utils';
+	import {
+		generateSlugFromLabel,
+		parseClickedLabel,
+		formatNumber,
+		Y_AXIS_WIDTH
+	} from './chart-utils';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 
@@ -107,7 +112,11 @@
 		return `${year}-${month}-${day} ${hours}:${minutes}`;
 	}
 
-	function formatTickLabel(bucketStart: number, granularity: IpGranularity, _index: number): string {
+	function formatTickLabel(
+		bucketStart: number,
+		granularity: IpGranularity,
+		_index: number
+	): string {
 		const pst = epochToPSTComponents(bucketStart);
 		const day = pst.day.toString().padStart(2, '0');
 		const month = pst.month.toString().padStart(2, '0');
@@ -143,7 +152,11 @@
 		return '';
 	}
 
-	function shouldHighlightTick(bucketStart: number, granularity: IpGranularity, index: number): boolean {
+	function shouldHighlightTick(
+		bucketStart: number,
+		granularity: IpGranularity,
+		index: number
+	): boolean {
 		const pst = epochToPSTComponents(bucketStart);
 		const hours = pst.hours;
 		const minutes = pst.minutes;
@@ -399,15 +412,15 @@
 								maxRotation: 45,
 								minRotation: 45,
 								callback: (_value, idx) =>
-									formatTickLabel(bucketStarts[idx as number] ?? 0, currentGranularity, idx as number)
+									formatTickLabel(
+										bucketStarts[idx as number] ?? 0,
+										currentGranularity,
+										idx as number
+									)
 							},
 							grid: {
 								color: (ctx) =>
-									shouldHighlightTick(
-										bucketStarts[ctx.index] ?? 0,
-										currentGranularity,
-										ctx.index
-									)
+									shouldHighlightTick(bucketStarts[ctx.index] ?? 0, currentGranularity, ctx.index)
 										? 'rgba(0,0,0,0.08)'
 										: 'rgba(0,0,0,0.02)'
 							}
@@ -563,30 +576,23 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
-	<div class="border-b p-4">
-		<h3 class="text-lg font-semibold text-gray-900">Unique IP Counts</h3>
+<div class="surface-card">
+	<div class="surface-card-header">
+		<div>
+			<h3 class="text-lg font-semibold text-slate-900">Unique IP Counts</h3>
+			<p class="text-sm text-slate-600">Source and destination IPv4/IPv6 counts by router</p>
+		</div>
 	</div>
-	<div class="p-4">
-		<div
-			class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
-		>
+	<div class="surface-card-body">
+		<div class="chart-frame">
 			{#if loading}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading IP data...</div>
-				</div>
+				<div class="status-panel">Loading IP data...</div>
 			{:else if error}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
-				</div>
+				<div class="status-panel status-panel-error">{error}</div>
 			{:else if activeMetrics.length === 0}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Select at least one metric to display.</div>
-				</div>
+				<div class="status-panel">Select at least one metric to display.</div>
 			{:else if buckets.length === 0}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No IP data for the selected window.</div>
-				</div>
+				<div class="status-panel">No IP data for the selected window.</div>
 			{:else}
 				<div class="h-full">
 					<canvas bind:this={chartCanvas} aria-label="IP chart"></canvas>

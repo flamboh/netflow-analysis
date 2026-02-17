@@ -158,14 +158,12 @@
 		return index === 0;
 	}
 
-	// Color gradient function based on f value
-	// Purple (low f) -> Blue -> Cyan -> Green -> Yellow (high f)
+	// Color gradient based on f value: navy (low f) to amber (high f)
 	function getColorForF(f: number, minF: number, maxF: number): string {
-		if (maxF === minF) return 'hsl(180, 70%, 50%)';
+		if (maxF === minF) return 'hsl(195, 70%, 45%)';
 		const normalized = (f - minF) / (maxF - minF);
-		// HSL: hue 270=purple, 180=cyan, 120=green, 60=yellow
-		const hue = 270 - normalized * 210; // 270 (purple) to 60 (yellow)
-		return `hsl(${hue}, 70%, 50%)`;
+		const hue = 210 - normalized * 170;
+		return `hsl(${hue}, 76%, 46%)`;
 	}
 
 	function destroyChart() {
@@ -617,16 +615,20 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
-	<div class="border-b p-4">
+<div class="surface-card">
+	<div class="surface-card-header">
 		<div class="flex items-center justify-between">
-			<h3 class="text-lg font-semibold text-gray-900">Spectrum</h3>
+			<div>
+				<h3 class="text-lg font-semibold text-slate-900">Spectrum</h3>
+				<p class="text-sm text-slate-600">Time-indexed multifractal spectrum density</p>
+			</div>
 			<div class="flex items-center gap-2">
 				<button
 					type="button"
-					class="rounded px-3 py-1 text-sm font-medium transition-colors {addressType === 'sa'
-						? 'bg-blue-600 text-white'
-						: 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
+					class="rounded-md border px-3 py-1 text-sm font-medium transition-colors {addressType ===
+					'sa'
+						? 'border-cyan-700 bg-cyan-700 text-white'
+						: 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'}"
 					onclick={() => {
 						if (addressType !== 'sa') {
 							addressType = 'sa';
@@ -638,9 +640,10 @@
 				</button>
 				<button
 					type="button"
-					class="rounded px-3 py-1 text-sm font-medium transition-colors {addressType === 'da'
-						? 'bg-blue-600 text-white'
-						: 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
+					class="rounded-md border px-3 py-1 text-sm font-medium transition-colors {addressType ===
+					'da'
+						? 'border-cyan-700 bg-cyan-700 text-white'
+						: 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'}"
 					onclick={() => {
 						if (addressType !== 'da') {
 							addressType = 'da';
@@ -653,22 +656,14 @@
 			</div>
 		</div>
 	</div>
-	<div class="p-4">
-		<div
-			class="h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
-		>
+	<div class="surface-card-body">
+		<div class="chart-frame chart-frame-tall">
 			{#if loading}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading spectrum data...</div>
-				</div>
+				<div class="status-panel">Loading spectrum data...</div>
 			{:else if error}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
-				</div>
+				<div class="status-panel status-panel-error">{error}</div>
 			{:else if buckets.length === 0}
-				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No spectrum data for the selected window.</div>
-				</div>
+				<div class="status-panel">No spectrum data for the selected window.</div>
 			{:else}
 				<div class="h-full">
 					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>

@@ -10,14 +10,12 @@
 	}
 
 	interface StructureFunctionData {
-		slug: string;
 		router: string;
 		filename: string;
 		structureFunction: StructureFunctionPoint[];
 		metadata: {
 			dataSource: string;
 			uniqueIPCount?: number;
-			pointCount: number;
 			qRange: { min: number; max: number };
 		};
 	}
@@ -39,14 +37,6 @@
 
 	// Watch for data changes and create/update chart
 	$effect(() => {
-		console.log('StructureFunctionChart effect triggered', {
-			hasCanvas: !!chartCanvas,
-			hasData: !!data,
-			hasStructureFunction: !!data?.structureFunction,
-			dataLength: data?.structureFunction?.length || 0,
-			router: data?.router
-		});
-
 		if (chartCanvas && data?.structureFunction?.length > 0) {
 			if (chart) {
 				chart.destroy();
@@ -202,23 +192,17 @@
 </script>
 
 <div class="w-full">
-	<div class="mb-2 text-sm text-gray-600">
+	<div class="mb-2 rounded-lg border border-slate-200/70 bg-slate-50/65 p-3 text-sm text-slate-600">
 		<p>
-			Data Source: {data.metadata.dataSource} | q Range: [{data.metadata.qRange.min.toFixed(1)}, {data.metadata.qRange.max.toFixed(
-				1
-			)}]
+			Data Source: {data.metadata.dataSource} | q Range: [{data.metadata.qRange.min.toFixed(1)},
+			{data.metadata.qRange.max.toFixed(1)}]
 		</p>
 		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
-			<p class="text-xs font-medium text-green-600">
-				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
-				analyzed
+			<p class="text-xs font-medium text-emerald-700">
+				Real NetFlow data analysis ({data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses)
 			</p>
-			<!-- {:else if data.metadata.uniqueIPCount === -1}
-			<p class="text-xs font-medium text-green-600">
-				✓ Real NetFlow Data Analysis - IPv4 source addresses processed directly
-			</p> -->
 		{:else if data.metadata.uniqueIPCount !== -1}
-			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
+			<p class="text-xs text-amber-700">Using test data from MAAD sample set</p>
 		{/if}
 	</div>
 	<div class="relative h-96 w-full">

@@ -5,7 +5,11 @@
 	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
-	import { createDateFromPSTComponents, epochToPSTComponents, formatTimestampAsPST } from '$lib/utils/timezone';
+	import {
+		createDateFromPSTComponents,
+		epochToPSTComponents,
+		formatTimestampAsPST
+	} from '$lib/utils/timezone';
 
 	let { data }: PageProps = $props();
 	let structureFunctionDataSource = $state(new Map());
@@ -45,11 +49,11 @@
 		const day = parseInt(slug.slice(6, 8), 10);
 		const hour = parseInt(slug.slice(8, 10), 10);
 		const minute = parseInt(slug.slice(10, 12), 10);
-		
+
 		// Create a PST date and add 5 minutes
 		const currentDate = createDateFromPSTComponents(year, month, day, hour, minute);
 		const nextDate = new Date(currentDate.getTime() + 5 * 60 * 1000);
-		
+
 		// Convert back to PST components
 		const nextPST = epochToPSTComponents(Math.floor(nextDate.getTime() / 1000));
 
@@ -127,7 +131,6 @@
 			if (token !== loadToken) {
 				return;
 			}
-			console.log(`IP counts loaded for ${router} (${source ? 'source' : 'destination'}):`, result);
 			if (source) {
 				IPCountsSource.set(router, result);
 				IPCountsSource = new Map(IPCountsSource);
@@ -173,12 +176,7 @@
 			if (token !== loadToken) {
 				return;
 			}
-			console.log(
-				`Structure function data loaded for ${router} (${source ? 'source' : 'destination'}):`,
-				result
-			);
 
-			// Store the result in the appropriate data map
 			if (source) {
 				structureFunctionDataSource.set(router, result);
 				structureFunctionDataSource = new Map(structureFunctionDataSource);
@@ -238,12 +236,7 @@
 			if (token !== loadToken) {
 				return;
 			}
-			console.log(
-				`Spectrum data loaded for ${router} (${source ? 'source' : 'destination'}):`,
-				result
-			);
 
-			// Store the result in the appropriate data map
 			if (source) {
 				spectrumDataSource.set(router, result);
 				spectrumDataSource = new Map(spectrumDataSource);
@@ -308,12 +301,7 @@
 			if (token !== loadToken) {
 				return;
 			}
-			console.log(
-				`Singularities data loaded for ${router} (${source ? 'source' : 'destination'}):`,
-				result
-			);
 
-			// Store the result in the appropriate data map
 			if (source) {
 				singularitiesDataSource.set(router, result);
 				singularitiesDataSource = new Map(singularitiesDataSource);
@@ -361,275 +349,305 @@
 	}
 </script>
 
-<div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
-	<h1 class="mb-2 flex items-center justify-between text-2xl text-black">
-		NetFlow File: {data.fileInfo.filename}
-		<a
-			class="w-24 rounded bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700"
-			href={`/api/netflow/files/${nextSlug}`}
-		>
-			Next File
-		</a>
-	</h1>
-
-	<div class="mb-2 rounded-lg border bg-blue-100 p-4">
-		<h2 class="mb-2 text-lg font-semibold">File Information</h2>
-		<div class="grid grid-cols-3 gap-2">
-			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
-			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
+<div class="app-content-shell space-y-4">
+	<section class="surface-card">
+		<div class="surface-card-header">
 			<div>
-				{#if data.summary?.length}
-					Processed in DB: {formatTimestampAsPST(Date.parse(data.summary[0].processed_at))}
-				{:else}
-					Processed in DB: N/A
-				{/if}
+				<p class="text-sm font-semibold tracking-[0.12em] text-cyan-800/75 uppercase">
+					NetFlow File
+				</p>
+				<h1 class="mt-1 text-2xl font-bold text-slate-900">{data.fileInfo.filename}</h1>
+			</div>
+			<a class="btn-primary" href={`/api/netflow/files/${nextSlug}`}>Next File</a>
+		</div>
+		<div class="surface-card-body">
+			<div class="grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-3">
+				<div class="rounded-lg border border-slate-200 bg-slate-50/65 p-3">
+					<p class="text-xs tracking-[0.08em] text-slate-500 uppercase">Date</p>
+					<p class="mt-1 font-semibold">
+						{data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}
+					</p>
+				</div>
+				<div class="rounded-lg border border-slate-200 bg-slate-50/65 p-3">
+					<p class="text-xs tracking-[0.08em] text-slate-500 uppercase">Time</p>
+					<p class="mt-1 font-semibold">{data.fileInfo.hour}:{data.fileInfo.minute}</p>
+				</div>
+				<div class="rounded-lg border border-slate-200 bg-slate-50/65 p-3">
+					<p class="text-xs tracking-[0.08em] text-slate-500 uppercase">Processed In DB</p>
+					<p class="mt-1 font-semibold">
+						{#if data.summary?.length}
+							{formatTimestampAsPST(Date.parse(data.summary[0].processed_at))}
+						{:else}
+							N/A
+						{/if}
+					</p>
+				</div>
 			</div>
 		</div>
-	</div>
+	</section>
 
-	<div class="space-y-2">
+	{#if data.summary?.length === 0}
+		<section class="surface-card">
+			<div class="surface-card-body">
+				<p class="text-slate-600">No router records were returned for this file.</p>
+			</div>
+		</section>
+	{:else}
 		{#each data.summary as record (record.router)}
-			<div class="rounded-lg border bg-white shadow-sm">
-				<!-- Router Data Summary -->
-				<div class="bg-cisco-blue rounded-t-lg p-4">
-					<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
-					<h3 class="text-md mb-2 font-semibold">
-						Absolute Path: <br />
-						{record.file_path}
-					</h3>
-					<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
-						<div>
-							<h3 class="text-md font-semibold">Unique IP Count (Source)</h3>
-							<div>
-								IPv4: {IPCountsSource.get(record.router)?.ipv4Count == null
+			<section class="surface-card overflow-hidden">
+				<div class="surface-card-header bg-cyan-700/10">
+					<div>
+						<h2 class="text-xl font-semibold text-slate-900">{record.router}</h2>
+						<p class="mt-1 text-xs text-slate-600">Source file path</p>
+						<p class="font-mono text-xs break-all text-slate-700">{record.file_path}</p>
+					</div>
+				</div>
+
+				<div class="surface-card-body space-y-6">
+					<div class="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+						<div class="rounded-lg border border-slate-200 bg-slate-50/65 p-3">
+							<h3 class="font-semibold text-slate-900">Unique IP Count (Source)</h3>
+							<p class="mt-1 text-slate-700">
+								IPv4:
+								{IPCountsSource.get(record.router)?.ipv4Count == null
 									? '...'
 									: formatCount(IPCountsSource.get(record.router)?.ipv4Count)}
-							</div>
-							<div>
-								IPv6: {IPCountsSource.get(record.router)?.ipv6Count == null
+							</p>
+							<p class="text-slate-700">
+								IPv6:
+								{IPCountsSource.get(record.router)?.ipv6Count == null
 									? '...'
 									: formatCount(IPCountsSource.get(record.router)?.ipv6Count)}
-							</div>
+							</p>
 						</div>
-						<div>
-							<h3 class="text-md font-semibold">Unique IP Count (Destination)</h3>
-							<div>
-								IPv4: {IPCountsDestination.get(record.router)?.ipv4Count == null
+
+						<div class="rounded-lg border border-slate-200 bg-slate-50/65 p-3">
+							<h3 class="font-semibold text-slate-900">Unique IP Count (Destination)</h3>
+							<p class="mt-1 text-slate-700">
+								IPv4:
+								{IPCountsDestination.get(record.router)?.ipv4Count == null
 									? '...'
 									: formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}
-							</div>
-							<div>
-								IPv6: {IPCountsDestination.get(record.router)?.ipv6Count == null
+							</p>
+							<p class="text-slate-700">
+								IPv6:
+								{IPCountsDestination.get(record.router)?.ipv6Count == null
 									? '...'
 									: formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}
-							</div>
+							</p>
 						</div>
 					</div>
-					<div class="grid grid-cols-4 gap-4 text-sm">
-						<div>
-							<h4 class="font-medium">Flows</h4>
-							<p>Total: {record.flows.toLocaleString()}</p>
+
+					<div class="grid grid-cols-1 gap-3 text-sm lg:grid-cols-4">
+						<div class="rounded-lg border border-slate-200 bg-white p-3">
+							<h4 class="font-semibold text-slate-900">Flows</h4>
+							<p class="mt-1">Total: {record.flows.toLocaleString()}</p>
 							<p>TCP: {record.flows_tcp.toLocaleString()}</p>
 							<p>UDP: {record.flows_udp.toLocaleString()}</p>
 							<p>ICMP: {record.flows_icmp.toLocaleString()}</p>
 							<p>Other: {record.flows_other.toLocaleString()}</p>
 						</div>
-						<div>
-							<h4 class="font-medium">Packets</h4>
-							<p>Total: {record.packets.toLocaleString()}</p>
+						<div class="rounded-lg border border-slate-200 bg-white p-3">
+							<h4 class="font-semibold text-slate-900">Packets</h4>
+							<p class="mt-1">Total: {record.packets.toLocaleString()}</p>
 							<p>TCP: {record.packets_tcp.toLocaleString()}</p>
 							<p>UDP: {record.packets_udp.toLocaleString()}</p>
 							<p>ICMP: {record.packets_icmp.toLocaleString()}</p>
 							<p>Other: {record.packets_other.toLocaleString()}</p>
 						</div>
-						<div>
-							<h4 class="font-medium">Bytes</h4>
-							<p>Total: {record.bytes.toLocaleString()}</p>
+						<div class="rounded-lg border border-slate-200 bg-white p-3">
+							<h4 class="font-semibold text-slate-900">Bytes</h4>
+							<p class="mt-1">Total: {record.bytes.toLocaleString()}</p>
 							<p>TCP: {record.bytes_tcp.toLocaleString()}</p>
 							<p>UDP: {record.bytes_udp.toLocaleString()}</p>
 							<p>ICMP: {record.bytes_icmp.toLocaleString()}</p>
 							<p>Other: {record.bytes_other.toLocaleString()}</p>
 						</div>
-						<div>
-							<h4 class="font-medium">Timestamps & Metrics</h4>
-							<p>First: {formatTimestampAsPST(record.first_timestamp * 1000)}</p>
+						<div class="rounded-lg border border-slate-200 bg-white p-3">
+							<h4 class="font-semibold text-slate-900">Timing and Health</h4>
+							<p class="mt-1">First: {formatTimestampAsPST(record.first_timestamp * 1000)}</p>
 							<p>Last: {formatTimestampAsPST(record.last_timestamp * 1000)}</p>
 							<p>First ms: {record.msec_first}</p>
 							<p>Last ms: {record.msec_last}</p>
 							<p>Seq failures: {record.sequence_failures.toLocaleString()}</p>
 						</div>
 					</div>
+
+					<div class="border-t border-slate-200 pt-5">
+						<h4 class="mb-4 text-lg font-semibold text-slate-900">MAAD Analysis</h4>
+
+						<div class="mb-6">
+							<h5 class="mb-3 text-base font-medium text-slate-800">Structure Function tau(q)</h5>
+							<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+								<div class="space-y-3">
+									<h6 class="text-sm font-semibold tracking-[0.07em] text-cyan-800/80 uppercase">
+										Source Address
+									</h6>
+									{#if loadingSource.get(record.router)}
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600">
+											Loading source address analysis...
+										</div>
+									{:else if errorsSource.get(record.router)}
+										<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+											<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
+											<button
+												class="btn-primary mt-3"
+												onclick={() => reloadStructure(record.router, true)}
+											>
+												Retry Source
+											</button>
+										</div>
+									{:else if structureFunctionDataSource.get(record.router)}
+										<StructureFunctionChart data={structureFunctionDataSource.get(record.router)} />
+									{/if}
+								</div>
+
+								<div class="space-y-3">
+									<h6 class="text-sm font-semibold tracking-[0.07em] text-cyan-800/80 uppercase">
+										Destination Address
+									</h6>
+									{#if loadingDestination.get(record.router)}
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600">
+											Loading destination address analysis...
+										</div>
+									{:else if errorsDestination.get(record.router)}
+										<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+											<p>
+												Error loading destination analysis: {errorsDestination.get(record.router)}
+											</p>
+											<button
+												class="btn-primary mt-3"
+												onclick={() => reloadStructure(record.router, false)}
+											>
+												Retry Destination
+											</button>
+										</div>
+									{:else if structureFunctionDataDestination.get(record.router)}
+										<StructureFunctionChart
+											data={structureFunctionDataDestination.get(record.router)}
+										/>
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						<div class="mb-6">
+							<h5 class="mb-3 text-base font-medium text-slate-800">Spectrum f(alpha)</h5>
+							<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+								<div class="space-y-3">
+									<h6 class="text-sm font-semibold tracking-[0.07em] text-cyan-800/80 uppercase">
+										Source Address
+									</h6>
+									{#if loadingSpectrumSource.get(record.router)}
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600">
+											Loading source spectrum analysis...
+										</div>
+									{:else if errorsSpectrumSource.get(record.router)}
+										<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+											<p>
+												Error loading source spectrum: {errorsSpectrumSource.get(record.router)}
+											</p>
+											<button
+												class="btn-primary mt-3"
+												onclick={() => reloadSpectrum(record.router, true)}
+											>
+												Retry Source
+											</button>
+										</div>
+									{:else if spectrumDataSource.get(record.router)}
+										<SpectrumChart data={spectrumDataSource.get(record.router)} />
+									{/if}
+								</div>
+
+								<div class="space-y-3">
+									<h6 class="text-sm font-semibold tracking-[0.07em] text-cyan-800/80 uppercase">
+										Destination Address
+									</h6>
+									{#if loadingSpectrumDestination.get(record.router)}
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600">
+											Loading destination spectrum analysis...
+										</div>
+									{:else if errorsSpectrumDestination.get(record.router)}
+										<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+											<p>
+												Error loading destination spectrum: {errorsSpectrumDestination.get(
+													record.router
+												)}
+											</p>
+											<button
+												class="btn-primary mt-3"
+												onclick={() => reloadSpectrum(record.router, false)}
+											>
+												Retry Destination
+											</button>
+										</div>
+									{:else if spectrumDataDestination.get(record.router)}
+										<SpectrumChart data={spectrumDataDestination.get(record.router)} />
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						<div class="space-y-4">
+							<h5 class="text-base font-medium text-slate-800">Singularities Analysis</h5>
+							<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+								<div class="space-y-3">
+									<h6 class="text-sm font-semibold tracking-[0.07em] text-cyan-800/80 uppercase">
+										Source Address
+									</h6>
+									{#if loadingSingularitiesSource.get(record.router)}
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600">
+											Loading source singularities analysis...
+										</div>
+									{:else if errorsSingularitiesSource.get(record.router)}
+										<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+											<p>
+												Error loading source singularities: {errorsSingularitiesSource.get(
+													record.router
+												)}
+											</p>
+											<button
+												class="btn-primary mt-3"
+												onclick={() => reloadSingularities(record.router, true)}
+											>
+												Retry Source
+											</button>
+										</div>
+									{:else if singularitiesDataSource.get(record.router)}
+										<SingularitiesList data={singularitiesDataSource.get(record.router)} />
+									{/if}
+								</div>
+
+								<div class="space-y-3">
+									<h6 class="text-sm font-semibold tracking-[0.07em] text-cyan-800/80 uppercase">
+										Destination Address
+									</h6>
+									{#if loadingSingularitiesDestination.get(record.router)}
+										<div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600">
+											Loading destination singularities analysis...
+										</div>
+									{:else if errorsSingularitiesDestination.get(record.router)}
+										<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+											<p>
+												Error loading destination singularities:
+												{errorsSingularitiesDestination.get(record.router)}
+											</p>
+											<button
+												class="btn-primary mt-3"
+												onclick={() => reloadSingularities(record.router, false)}
+											>
+												Retry Destination
+											</button>
+										</div>
+									{:else if singularitiesDataDestination.get(record.router)}
+										<SingularitiesList data={singularitiesDataDestination.get(record.router)} />
+									{/if}
+								</div>
+							</div>
+						</div>
+					</div>
 				</div>
-
-				<!-- MAAD Analysis for this Router -->
-				<div class="rounded-b-lg p-4">
-					<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
-
-					<!-- Structure Function Analysis -->
-					<div class="mb-6">
-						<h5 class="text-md mb-3 font-medium text-gray-700">Structure Function tau(q)</h5>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<!-- Source Address Analysis -->
-							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-blue-700">Source Address Analysis</h6>
-								{#if loadingSource.get(record.router)}
-									<div class="flex items-center justify-center py-6">
-										<div class="text-gray-600">Loading source address analysis...</div>
-									</div>
-								{:else if errorsSource.get(record.router)}
-									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-										<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
-										<button
-											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => reloadStructure(record.router, true)}
-										>
-											Retry Source
-										</button>
-									</div>
-								{:else if structureFunctionDataSource.get(record.router)}
-									<StructureFunctionChart data={structureFunctionDataSource.get(record.router)} />
-								{/if}
-							</div>
-
-							<!-- Destination Address Analysis -->
-							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-blue-700">Destination Address Analysis</h6>
-								{#if loadingDestination.get(record.router)}
-									<div class="flex items-center justify-center py-6">
-										<div class="text-gray-600">Loading destination address analysis...</div>
-									</div>
-								{:else if errorsDestination.get(record.router)}
-									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-										<p>
-											Error loading destination analysis: {errorsDestination.get(record.router)}
-										</p>
-										<button
-											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => reloadStructure(record.router, false)}
-										>
-											Retry Destination
-										</button>
-									</div>
-								{:else if structureFunctionDataDestination.get(record.router)}
-									<StructureFunctionChart
-										data={structureFunctionDataDestination.get(record.router)}
-									/>
-								{/if}
-							</div>
-						</div>
-					</div>
-
-					<!-- Multifractal Spectrum Analysis -->
-					<div class="mb-4">
-						<h5 class="text-md mb-3 font-medium text-gray-700">Spectrum f(alpha)</h5>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<!-- Source Address Spectrum -->
-							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-blue-700">Source Address Spectrum</h6>
-								{#if loadingSpectrumSource.get(record.router)}
-									<div class="flex items-center justify-center py-6">
-										<div class="text-gray-600">Loading source spectrum analysis...</div>
-									</div>
-								{:else if errorsSpectrumSource.get(record.router)}
-									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-										<p>Error loading source spectrum: {errorsSpectrumSource.get(record.router)}</p>
-										<button
-											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => reloadSpectrum(record.router, true)}
-										>
-											Retry Source
-										</button>
-									</div>
-								{:else if spectrumDataSource.get(record.router)}
-									<SpectrumChart data={spectrumDataSource.get(record.router)} />
-								{/if}
-							</div>
-
-							<!-- Destination Address Spectrum -->
-							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-blue-700">Destination Address Spectrum</h6>
-								{#if loadingSpectrumDestination.get(record.router)}
-									<div class="flex items-center justify-center py-6">
-										<div class="text-gray-600">Loading destination spectrum analysis...</div>
-									</div>
-								{:else if errorsSpectrumDestination.get(record.router)}
-									<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-										<p>
-											Error loading destination spectrum: {errorsSpectrumDestination.get(
-												record.router
-											)}
-										</p>
-										<button
-											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => reloadSpectrum(record.router, false)}
-										>
-											Retry Destination
-										</button>
-									</div>
-								{:else if spectrumDataDestination.get(record.router)}
-									<SpectrumChart data={spectrumDataDestination.get(record.router)} />
-								{/if}
-							</div>
-						</div>
-					</div>
-					<!-- Singularities Analysis -->
-					<div class="space-y-4">
-						<h5 class="text-lg font-semibold">Singularities Analysis</h5>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<!-- Source Address Singularities -->
-							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-blue-700">Source Address Singularities</h6>
-								{#if loadingSingularitiesSource.get(record.router)}
-									<div class="flex items-center justify-center py-6">
-										<div class="text-gray-600">Loading source singularities analysis...</div>
-									</div>
-								{:else if errorsSingularitiesSource.get(record.router)}
-									<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-										<p class="text-red-700">
-											Error loading source singularities: {errorsSingularitiesSource.get(
-												record.router
-											)}
-										</p>
-										<button
-											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => reloadSingularities(record.router, true)}
-										>
-											Retry Source
-										</button>
-									</div>
-								{:else if singularitiesDataSource.get(record.router)}
-									<SingularitiesList data={singularitiesDataSource.get(record.router)} />
-								{/if}
-							</div>
-							<!-- Destination Address Singularities -->
-							<div class="space-y-3">
-								<h6 class="text-sm font-medium text-blue-700">Destination Address Singularities</h6>
-								{#if loadingSingularitiesDestination.get(record.router)}
-									<div class="flex items-center justify-center py-6">
-										<div class="text-gray-600">Loading destination singularities analysis...</div>
-									</div>
-								{:else if errorsSingularitiesDestination.get(record.router)}
-									<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-										<p class="text-red-700">
-											Error loading destination singularities: {errorsSingularitiesDestination.get(
-												record.router
-											)}
-										</p>
-										<button
-											class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-											onclick={() => reloadSingularities(record.router, false)}
-										>
-											Retry Destination
-										</button>
-									</div>
-								{:else if singularitiesDataDestination.get(record.router)}
-									<SingularitiesList data={singularitiesDataDestination.get(record.router)} />
-								{/if}
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
+			</section>
 		{/each}
-	</div>
+	{/if}
 </div>
