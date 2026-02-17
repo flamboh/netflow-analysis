@@ -79,7 +79,9 @@ def get_db_connection(wal_mode: bool = True):
     Yields:
         sqlite3.Connection object
     """
-    conn = sqlite3.connect(DATABASE_PATH)
+    # Use autocommit mode so transaction boundaries are fully explicit.
+    # Processor modules call BEGIN/COMMIT/ROLLBACK manually.
+    conn = sqlite3.connect(DATABASE_PATH, isolation_level=None)
     try:
         if wal_mode:
             conn.execute("PRAGMA journal_mode=WAL;")
