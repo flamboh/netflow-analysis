@@ -1,45 +1,111 @@
-# Repository Guidelines
+# Coding Agent Guidelines
 
-## Project Structure & Module Organization
-`netflow-webapp/` covers SvelteKit: `src/routes` for pages, `src/routes/api` for endpoints, shared UI and types in `src/lib` (extend `src/lib/types/types.ts`), assets in `static/`. `netflow-db/` houses `flow_db.py`, `ip_db.py`, planned `maad_db.py`, logs, and `flowStats.db`. `maad/` contains the Haskell MAAD tools; compile with `nix-shell` and `./compile.sh`. Keep binaries, SQLite files, and captures out of git.
+## Scope
 
-## Architecture & Key Endpoints
-`flow_db.py` ingests captures from `NETFLOW_DATA_PATH` into `flowStats.db`; `maad_db.py` will batch MAAD spectra into that store. The frontend queries `better-sqlite3` endpoints—`/api/netflow/stats`, `/api/netflow/files/[slug]`, `/api/netflow/files/[slug]/structure-function`—and renders Chart.js views in `src/routes/+page.svelte`. File detail pages surface structure-function plots for routers `cc-ir1-gw` and `oh-ir1-gw`.
+This file is for coding agents working in this repository. Prefer concrete, verifiable commands over assumptions.
 
-## Build, Test, and Development Commands
+## Project Structure
+
+- `netflow-webapp/`: SvelteKit frontend and API routes.
+- `netflow-webapp/src/routes`: Pages and route-level loaders.
+- `netflow-webapp/src/routes/api`: HTTP endpoints and file-detail utilities.
+- `netflow-webapp/src/lib`: Shared UI, stores, helpers, and common types (`src/lib/types/types.ts`).
+- `netflow-db/`: Python data ingestion/aggregation scripts, logs, and SQLite database files.
+- `maad/`: Haskell MAAD tooling (`nix-shell` + `./compile.sh` when MAAD binaries are needed).
+- `burstify/`: Zig MAAD tooling.
+
+## Backend Pipeline Notes
+
+- `netflow-db/flow_db.py`
+- `netflow-db/ip_db.py`
+- `netflow-db/protocol_db.py`
+- `netflow-db/spectrum_db.py`
+- `netflow-db/structure_db.py`
+- `netflow-db/discovery.py`
+- `netflow-db/pipeline.py`
+
+## Git
+
+Use Graphite to draft and create PRs:
+
 ```bash
-cd netflow-webapp
+# Create a branch with a single commit
+#   - the --all flag will stage any modified files
+#   - a branch will be created from the given `--message`
+#   - the commit will have the given `--message`
+#   - the branch will be checked out for you
+gt create --all --message "feat(api): Add new API method for fetching users"
+
+# Push changes to your remote and create a new pull request
+gt submit
+
+
+# If you need to make any follow up changes to the PR, you can
+# amend the existing commit with gt modify
+echo "some more changes" >> file.js
+gt modify --all
+
+
+# Submit new changes
+gt submit
+```
+
+See `gt --help` for more.
+Keep large generated artifacts out of git (SQLite DB/WAL/SHM files, captures, compiled binaries).
+
+## Key Endpoints
+
+Core routes commonly used by the frontend:
+
+- `/api/netflow/stats`
+- `/api/netflow/files/[slug]`
+- `/api/netflow/files/[slug]/structure-function`
+
+Other utility routes exist for protocol, IP, spectrum, singularities, and router metadata. Discover the full set in `netflow-webapp/src/routes/api`.
+
+## Commands
+
+Frontend (`netflow-webapp/`):
+
+```bash
 npm install
-npm run dev
 npm run build
-npm run preview
 npm run check
 npm run lint
 npm run format
+npm run validate
 ```
-Commands map to dev server (`dev`), production bundle and preview (`build`/`preview`), type checks (`check`), linting (`lint`), and formatting (`format`).
+
+Do not start `npm run dev` or `npm run preview` unless the user explicitly asks. Assume a dev server may already be running.
+
+Backend (`netflow-db/`) validation:
+
 ```bash
-cd netflow-db
-poetry install
-poetry run python flow_db.py
+python -m py_compile *.py
 ```
-Refresh `flowStats.db` with the command above; invoke `maad_db.py` when caching spectra.  
-```bash
-cd maad
-nix-shell
-./compile.sh
-./Singularities 10 test_data/simple.csv
-```
-Use the Nix shell for GHC deps, then run MAAD binaries against fixtures in `test_data/`.
 
-## Coding Style & Naming Conventions
-Frontend code follows TypeScript + Svelte conventions with 2-space indent; keep components PascalCase, colocate helpers in `src/lib`, and share types through `src/lib/types/types.ts`. Let the Prettier Tailwind plugin order utility classes. Python scripts use 4-space indent, snake_case, and `Path` utilities with configuration sourced from `.env`. Haskell modules stay CamelCase with minimal inline notes.
+Run backend compile checks after backend Python edits and before handing off work.
 
-## Testing Guidelines
-Run `npm run check` and `npm run lint` before committing, adding route-level smoke tests for new pages or endpoints. Validate ingestion changes by running `poetry run python flow_db.py` on a small window and checking counts via `sqlite3 flowStats.db "SELECT COUNT(*) FROM netflow_stats;"`. Exercise MAAD updates against `maad/test_data/` and regenerate plots through `maad/plots/` when logic changes.
+## Style Conventions
 
-## Commit & Pull Request Guidelines
-Keep commit subjects short, present-tense, and single-sentence (`parallelize ip_db.py with multiprocessing`). PRs should call out intent, affected areas, validation commands, and environment needs (SSH tunnel, `.env`). Link tickets when available, attach refreshed UI screenshots for frontend tweaks, and flag database or schema updates.
+- Frontend: TypeScript + Svelte, 2-space indent, PascalCase components, shared types in `src/lib/types/types.ts`.
+- Python: 4-space indent, snake_case, prefer `pathlib.Path` and environment-driven config.
+- Keep comments short and only where logic is non-obvious.
 
-## Data Access & Configuration
-Populate `.env` with `NETFLOW_DATA_PATH`, `AVAILABLE_ROUTERS`, and `DATABASE_PATH`. NetFlow captures stay on the secured storage referenced by `NETFLOW_DATA_PATH`; keep those assets out of git. Use SSH tunneling (`ssh -L 5173:localhost:5173 user@pinot`) for remote datasets and format timestamps as `YYYY-MM-DD HH:mm:ss`.
+## Testing Expectations
+
+- Frontend changes: run `npm run validate` in `netflow-webapp/`.
+- Backend changes: run `python -m py_compile *.py` in `netflow-db/`.
+- Add or update route-level smoke coverage when introducing new pages or endpoints.
+
+## Environment & Data
+
+Expected `.env` keys include:
+
+- `NETFLOW_DATA_PATH`
+- `AVAILABLE_ROUTERS`
+- `DATABASE_PATH`
+- `LOG_PATH`
+- `FIRST_RUN`
+
+Router identities are environment-configured and must not be hardcoded in documentation or logic assumptions. Use `YYYY-MM-DD HH:mm:ss` for timestamp formatting.
