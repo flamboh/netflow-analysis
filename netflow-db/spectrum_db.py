@@ -39,6 +39,7 @@ SPECTRUM_BIN = get_optional_env(
     'SPECTRUM_BIN',
     str(Path(__file__).parent.parent / 'maad' / 'Spectrum')
 )
+MIN_IPS_FOR_SPECTRUM = 100
 
 
 def init_spectrum_stats_table(conn: sqlite3.Connection) -> None:
@@ -101,7 +102,7 @@ def compute_spectrum(ips: set[ipaddress.IPv4Address]) -> list[dict]:
     Returns:
         List of {"alpha": float, "f": float} objects
     """
-    if not ips or len(ips) < 10:
+    if not ips or len(ips) < MIN_IPS_FOR_SPECTRUM:
         return []
     
     # Convert ipaddress objects to strings for stdin
@@ -120,13 +121,16 @@ def compute_spectrum(ips: set[ipaddress.IPv4Address]) -> list[dict]:
             print(f"Spectrum error (returncode {result.returncode}): {result.stderr}")
             return []
         
-        # Parse CSV output: alpha,f (skip header line)
+        # Parse CSV output: alpha,f (header may or may not be present)
         lines = result.stdout.strip().split('\n')
-        if len(lines) < 2:
+        if not lines:
             return []
         
         spectrum = []
-        for line in lines[1:]:  # Skip header
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
             parts = line.split(',')
             if len(parts) == 2:
                 try:
