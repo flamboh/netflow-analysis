@@ -280,7 +280,7 @@ def process_day_worker(day_info: tuple) -> dict:
     inserted_agg = len(aggregates)
     
     print(f"[ip_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
-          f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
+          f"{inserted_5m} 5m prepared, {inserted_agg} agg prepared, {errors} errors")
     
     return {
         'router': router,
