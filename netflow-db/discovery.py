@@ -492,18 +492,45 @@ def handle_stale_days(
         table_name: The table being processed
     
     Returns:
-        Dict with summary: {'stale_days': N, 'total_stats_deleted': N, 'total_files_reset': N}
+        Dict with summary:
+        {
+            'stale_days_total': N,
+            'stale_days_reset': N,
+            'stale_days_skipped_old': N,
+            'total_stats_deleted': N,
+            'total_files_reset': N
+        }
     """
     stale_days = get_stale_days(conn, table_name)
-    
-    summary = {'stale_days': len(stale_days), 'total_stats_deleted': 0, 'total_files_reset': 0}
-    
-    if not stale_days:
+
+    # Never auto-reset stale days older than 30 days.
+    # This prevents long-range historical rewrites when discovery finds late files.
+    cutoff_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=30)
+    cutoff_unix = timestamp_to_unix(cutoff_dt)
+
+    stale_days_recent = {(router, day_start) for router, day_start in stale_days if day_start >= cutoff_unix}
+    stale_days_skipped_old = len(stale_days) - len(stale_days_recent)
+
+    summary = {
+        'stale_days_total': len(stale_days),
+        'stale_days_reset': len(stale_days_recent),
+        'stale_days_skipped_old': stale_days_skipped_old,
+        'total_stats_deleted': 0,
+        'total_files_reset': 0,
+    }
+
+    if not stale_days_recent:
+        if stale_days_skipped_old:
+            print(f"[{table_name}] Found {stale_days_skipped_old} stale days older than cutoff "
+                  f"({cutoff_dt.strftime('%Y-%m-%d')}), skipping reset")
         return summary
-    
-    print(f"[{table_name}] Found {len(stale_days)} stale days needing reprocessing")
-    
-    for router, day_start in stale_days:
+
+    print(f"[{table_name}] Found {len(stale_days_recent)} stale days needing reprocessing")
+    if stale_days_skipped_old:
+        print(f"[{table_name}] Skipping {stale_days_skipped_old} stale days older than cutoff "
+              f"({cutoff_dt.strftime('%Y-%m-%d')})")
+
+    for router, day_start in stale_days_recent:
         day_dt = unix_to_timestamp(day_start)
         print(f"[{table_name}] Resetting {router} {day_dt.strftime('%Y-%m-%d')} for reprocessing")
         

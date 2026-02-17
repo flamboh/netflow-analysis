@@ -39,6 +39,7 @@ STRUCTURE_FUNCTION_BIN = get_optional_env(
     'STRUCTURE_FUNCTION_BIN',
     str(Path(__file__).parent.parent / 'burstify' / 'zig-out' / 'bin' / 'StructureFunction')
 )
+MIN_IPS_FOR_STRUCTURE = 100
 
 
 def init_structure_stats_table(conn: sqlite3.Connection) -> None:
@@ -101,7 +102,7 @@ def compute_structure_function(ips: set[ipaddress.IPv4Address]) -> list[dict]:
     Returns:
         List of {"q": float, "tau": float, "sd": float} objects
     """
-    if not ips or len(ips) < 10:
+    if not ips or len(ips) < MIN_IPS_FOR_STRUCTURE:
         return []
     
     # Convert ipaddress objects to strings for stdin
@@ -120,13 +121,16 @@ def compute_structure_function(ips: set[ipaddress.IPv4Address]) -> list[dict]:
             print(f"StructureFunction error (returncode {result.returncode}): {result.stderr}")
             return []
         
-        # Parse CSV output: q,tauTilde,sd (skip header line)
+        # Parse CSV output: q,tauTilde,sd (header may or may not be present)
         lines = result.stdout.strip().split('\n')
-        if len(lines) < 2:
+        if not lines:
             return []
         
         structure = []
-        for line in lines[1:]:  # Skip header
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
             parts = line.split(',')
             if len(parts) == 3:
                 try:
