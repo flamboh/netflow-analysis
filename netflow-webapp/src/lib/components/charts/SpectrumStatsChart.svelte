@@ -4,7 +4,7 @@
 	import { Chart, registerables } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import type { ActiveElement, ChartEvent, TooltipItem } from 'chart.js';
-	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
+	import type { GroupByOption } from '$lib/components/netflow/types.ts';
 	import type {
 		IpGranularity,
 		SpectrumPoint,
@@ -43,7 +43,8 @@
 		startDate?: string;
 		endDate?: string;
 		granularity?: IpGranularity;
-		routers?: RouterConfig;
+		router?: string;
+		addressType?: 'sa' | 'da';
 	}>();
 
 	const dispatch = createEventDispatcher<{
@@ -54,21 +55,10 @@
 	const today = new Date();
 	const formatDate = (date: Date): string => formatDateAsPSTDateString(date);
 
-	function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
-		if (!config) {
-			return [];
-		}
-		return Object.entries(config)
-			.filter(([, enabled]) => enabled)
-			.map(([name]) => name.trim())
-			.filter((name) => name.length > 0)
-			.sort();
-	}
-
 	let buckets = $state<SpectrumStatsBucket[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
-	let addressType = $state<'sa' | 'da'>('sa');
+	let addressType = $state<'sa' | 'da'>(props.addressType ?? 'sa');
 	let bucketStarts: number[] = [];
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
@@ -528,7 +518,7 @@
 		startDate: string;
 		endDate: string;
 		granularity: IpGranularity;
-		routers: string[];
+		router: string;
 	};
 
 	let lastFiltersKey = '';
@@ -543,7 +533,7 @@
 			startDate: toEpochSeconds(filters.startDate).toString(),
 			endDate: toEpochSeconds(filters.endDate, true).toString(),
 			granularity: filters.granularity,
-			routers: filters.routers.join(',')
+			routers: filters.router
 		});
 
 		try {
@@ -578,27 +568,30 @@
 	let currentGranularity = $state<IpGranularity>(props.granularity ?? '1h');
 
 	$effect(() => {
-		// Access props directly to ensure Svelte tracks them as dependencies
-		const routerConfig = props.routers;
+		const router = props.router?.trim() ?? '';
 		const startDateProp = props.startDate;
 		const endDateProp = props.endDate;
 		const granularityProp = props.granularity;
+		const nextAddressType = props.addressType ?? 'sa';
 
-		if (!routerConfig || Object.keys(routerConfig).length === 0) {
-			return;
+		if (nextAddressType !== addressType) {
+			addressType = nextAddressType;
+			if (chart) {
+				renderChart();
+			}
 		}
 
 		const filters: FilterInputs = {
 			startDate: startDateProp ?? '2025-01-01',
 			endDate: endDateProp ?? formatDate(today),
 			granularity: granularityProp ?? '1h',
-			routers: deriveSelectedRouters(routerConfig)
+			router
 		};
 
 		currentGranularity = filters.granularity;
 
-		if (filters.routers.length === 0) {
-			error = 'Select at least one router to view spectrum statistics';
+		if (filters.router.length === 0) {
+			error = 'Select a router to view spectrum statistics';
 			buckets = [];
 			destroyChart();
 			lastFiltersKey = JSON.stringify(filters);
@@ -621,36 +614,6 @@
 	<div class="border-b p-4">
 		<div class="flex items-center justify-between">
 			<h3 class="text-lg font-semibold text-gray-900">Spectrum</h3>
-			<div class="flex items-center gap-2">
-				<button
-					type="button"
-					class="rounded px-3 py-1 text-sm font-medium transition-colors {addressType === 'sa'
-						? 'bg-blue-600 text-white'
-						: 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
-					onclick={() => {
-						if (addressType !== 'sa') {
-							addressType = 'sa';
-							if (chart) renderChart();
-						}
-					}}
-				>
-					Source Addresses
-				</button>
-				<button
-					type="button"
-					class="rounded px-3 py-1 text-sm font-medium transition-colors {addressType === 'da'
-						? 'bg-blue-600 text-white'
-						: 'bg-gray-200 text-gray-700 hover:bg-gray-300'}"
-					onclick={() => {
-						if (addressType !== 'da') {
-							addressType = 'da';
-							if (chart) renderChart();
-						}
-					}}
-				>
-					Destination Addresses
-				</button>
-			</div>
 		</div>
 	</div>
 	<div class="p-4">

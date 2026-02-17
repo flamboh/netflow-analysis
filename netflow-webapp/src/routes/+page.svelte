@@ -22,6 +22,8 @@
 	let endDate = $state(params.endDate);
 	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);
 	let selectedRouters = $state<RouterConfig>({});
+	let selectedSpectrumRouter = $state('');
+	let selectedSpectrumAddressType = $state<'sa' | 'da'>('sa');
 	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
 	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
 	let ipMetrics = $state<IpMetricKey[]>([...defaultIpMetrics]);
@@ -35,6 +37,13 @@
 	};
 
 	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
+
+	function getEnabledRouters(routers: RouterConfig): string[] {
+		return Object.entries(routers)
+			.filter(([, enabled]) => enabled)
+			.map(([router]) => router)
+			.sort();
+	}
 
 	watch(
 		() => params.startDate,
@@ -81,6 +90,10 @@
 				routerConfig[router] = true;
 			});
 			selectedRouters = routerConfig;
+			const enabledRouters = getEnabledRouters(routerConfig);
+			if (!selectedSpectrumRouter || !enabledRouters.includes(selectedSpectrumRouter)) {
+				selectedSpectrumRouter = enabledRouters[0] ?? '';
+			}
 		} catch (err) {
 			console.error(err);
 		}
@@ -111,7 +124,12 @@
 	}
 
 	function handleRoutersChange(event: CustomEvent<{ routers: RouterConfig }>) {
-		selectedRouters = event.detail.routers;
+		const nextRouters = event.detail.routers;
+		selectedRouters = nextRouters;
+		const enabledRouters = getEnabledRouters(nextRouters);
+		if (!enabledRouters.includes(selectedSpectrumRouter)) {
+			selectedSpectrumRouter = enabledRouters[0] ?? '';
+		}
 	}
 
 	function handleDataOptionsChange(event: CustomEvent<{ options: DataOption[] }>) {
@@ -135,6 +153,8 @@
 			{endDate}
 			groupBy={selectedGroupBy}
 			routers={selectedRouters}
+			spectrumRouter={selectedSpectrumRouter}
+			spectrumAddressType={selectedSpectrumAddressType}
 			{dataOptions}
 			{ipMetrics}
 			{protocolMetrics}
@@ -142,6 +162,12 @@
 			on:endDateChange={handleEndDateChange}
 			on:groupByChange={handleGroupByChange}
 			on:routersChange={handleRoutersChange}
+			on:spectrumRouterChange={(event) => {
+				selectedSpectrumRouter = event.detail.router;
+			}}
+			on:spectrumAddressTypeChange={(event) => {
+				selectedSpectrumAddressType = event.detail.addressType;
+			}}
 			on:dataOptionsChange={handleDataOptionsChange}
 			on:ipMetricsChange={handleIpMetricsChange}
 			on:protocolMetricsChange={(event) => {
@@ -183,7 +209,8 @@
 			{startDate}
 			{endDate}
 			granularity={ipGranularity}
-			routers={selectedRouters}
+			router={selectedSpectrumRouter}
+			addressType={selectedSpectrumAddressType}
 			on:dateChange={handleDateChange}
 			on:groupByChange={handleGroupByChange}
 		/>
