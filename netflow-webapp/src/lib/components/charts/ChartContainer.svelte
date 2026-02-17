@@ -46,7 +46,11 @@
 	let chart: Chart | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
-	function formatTickLabel(pst: PSTDateComponents | null, currentGroupBy: GroupByOption, index: number): string {
+	function formatTickLabel(
+		pst: PSTDateComponents | null,
+		currentGroupBy: GroupByOption,
+		index: number
+	): string {
 		if (!pst) {
 			return '';
 		}
@@ -81,7 +85,11 @@
 		return index === 0 ? `${weekday} ${month}/${day}` : '';
 	}
 
-	function shouldHighlightTick(pst: PSTDateComponents | null, currentGroupBy: GroupByOption, index: number): boolean {
+	function shouldHighlightTick(
+		pst: PSTDateComponents | null,
+		currentGroupBy: GroupByOption,
+		index: number
+	): boolean {
 		if (!pst) {
 			return index === 0;
 		}
@@ -270,14 +278,18 @@
 		return parseLabelToPSTComponents(label);
 	}
 
-	function getLabelPSTFromLabels(labels: (string | number | null | undefined)[], idx: number): PSTDateComponents | null {
+	function getLabelPSTFromLabels(
+		labels: (string | number | null | undefined)[],
+		idx: number
+	): PSTDateComponents | null {
 		const label = labels[idx];
 		return typeof label === 'string' ? parseLabelToPST(label) : null;
 	}
 
 	function createChartConfig(): ChartConfig {
 		const labels = formatLabels(results, groupBy);
-		const getLabelPST = (idx: number): PSTDateComponents | null => getLabelPSTFromLabels(labels, idx);
+		const getLabelPST = (idx: number): PSTDateComponents | null =>
+			getLabelPSTFromLabels(labels, idx);
 		const xAxisTitle = getXAxisTitle(groupBy);
 
 		// Use manual chart type selection - matches original logic
@@ -492,34 +504,38 @@
 							display: true,
 							text: 'Date'
 						},
-					ticks: {
-						autoSkip: false,
-						maxRotation: 45,
-						minRotation: 45,
-						callback: (_val: string | number, idx: number) =>
-							formatTickLabel(
-								getLabelPSTFromLabels((chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
-								Number(idx)),
-								groupBy,
-								Number(idx)
-							)
-					},
-					grid: {
-						color: (ctx: { index?: number; tick?: { index?: number } }) => {
-							const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
-							const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
-							return shouldHighlightTick(
-								getLabelPSTFromLabels(
-									(chart?.data.labels as (string | number | null | undefined)[] | undefined) ?? [],
+						ticks: {
+							autoSkip: false,
+							maxRotation: 45,
+							minRotation: 45,
+							callback: (_val: string | number, idx: number) =>
+								formatTickLabel(
+									getLabelPSTFromLabels(
+										(chart?.data.labels as (string | number | null | undefined)[] | undefined) ??
+											[],
+										Number(idx)
+									),
+									groupBy,
+									Number(idx)
+								)
+						},
+						grid: {
+							color: (ctx: { index?: number; tick?: { index?: number } }) => {
+								const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
+								const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
+								return shouldHighlightTick(
+									getLabelPSTFromLabels(
+										(chart?.data.labels as (string | number | null | undefined)[] | undefined) ??
+											[],
+										safeIndex
+									),
+									groupBy,
 									safeIndex
-								),
-								groupBy,
-								safeIndex
-							)
-								? 'rgba(0,0,0,0.08)'
-								: 'rgba(0,0,0,0.02)';
+								)
+									? 'rgba(0,0,0,0.08)'
+									: 'rgba(0,0,0,0.02)';
+							}
 						}
-					}
 					},
 					y: {
 						afterFit(axis: { width: number }) {

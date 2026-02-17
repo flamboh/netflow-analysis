@@ -5,7 +5,11 @@
 	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
-	import { createDateFromPSTComponents, epochToPSTComponents, formatTimestampAsPST } from '$lib/utils/timezone';
+	import {
+		createDateFromPSTComponents,
+		epochToPSTComponents,
+		formatTimestampAsPST
+	} from '$lib/utils/timezone';
 
 	let { data }: PageProps = $props();
 	let structureFunctionDataSource = $state(new Map());
@@ -45,11 +49,11 @@
 		const day = parseInt(slug.slice(6, 8), 10);
 		const hour = parseInt(slug.slice(8, 10), 10);
 		const minute = parseInt(slug.slice(10, 12), 10);
-		
+
 		// Create a PST date and add 5 minutes
 		const currentDate = createDateFromPSTComponents(year, month, day, hour, minute);
 		const nextDate = new Date(currentDate.getTime() + 5 * 60 * 1000);
-		
+
 		// Convert back to PST components
 		const nextPST = epochToPSTComponents(Math.floor(nextDate.getTime() / 1000));
 

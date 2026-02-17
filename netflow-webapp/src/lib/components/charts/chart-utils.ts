@@ -129,7 +129,7 @@ export function formatNetflowTick(
 	if (!label) return '';
 	const pst = safePSTComponents(label);
 	if (!pst) return '';
-	
+
 	const weekday = getWeekdayName(pst.dayOfWeek);
 	const month = pst.month;
 	const day = pst.day;

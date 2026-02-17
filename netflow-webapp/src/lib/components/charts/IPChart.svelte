@@ -13,7 +13,12 @@
 		type IpStatsBucket,
 		type IpStatsResponse
 	} from '$lib/types/types';
-	import { generateSlugFromLabel, parseClickedLabel, formatNumber, Y_AXIS_WIDTH } from './chart-utils';
+	import {
+		generateSlugFromLabel,
+		parseClickedLabel,
+		formatNumber,
+		Y_AXIS_WIDTH
+	} from './chart-utils';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 
@@ -107,7 +112,11 @@
 		return `${year}-${month}-${day} ${hours}:${minutes}`;
 	}
 
-	function formatTickLabel(bucketStart: number, granularity: IpGranularity, _index: number): string {
+	function formatTickLabel(
+		bucketStart: number,
+		granularity: IpGranularity,
+		_index: number
+	): string {
 		const pst = epochToPSTComponents(bucketStart);
 		const day = pst.day.toString().padStart(2, '0');
 		const month = pst.month.toString().padStart(2, '0');
@@ -143,7 +152,11 @@
 		return '';
 	}
 
-	function shouldHighlightTick(bucketStart: number, granularity: IpGranularity, index: number): boolean {
+	function shouldHighlightTick(
+		bucketStart: number,
+		granularity: IpGranularity,
+		index: number
+	): boolean {
 		const pst = epochToPSTComponents(bucketStart);
 		const hours = pst.hours;
 		const minutes = pst.minutes;
@@ -399,15 +412,15 @@
 								maxRotation: 45,
 								minRotation: 45,
 								callback: (_value, idx) =>
-									formatTickLabel(bucketStarts[idx as number] ?? 0, currentGranularity, idx as number)
+									formatTickLabel(
+										bucketStarts[idx as number] ?? 0,
+										currentGranularity,
+										idx as number
+									)
 							},
 							grid: {
 								color: (ctx) =>
-									shouldHighlightTick(
-										bucketStarts[ctx.index] ?? 0,
-										currentGranularity,
-										ctx.index
-									)
+									shouldHighlightTick(bucketStarts[ctx.index] ?? 0, currentGranularity, ctx.index)
 										? 'rgba(0,0,0,0.08)'
 										: 'rgba(0,0,0,0.02)'
 							}
