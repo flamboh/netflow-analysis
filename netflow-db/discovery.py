@@ -608,7 +608,8 @@ def update_processed_at(conn: sqlite3.Connection, file_path: str) -> None:
 def batch_mark_processed(
     conn: sqlite3.Connection,
     table_name: str,
-    results: list[dict]
+    results: list[dict],
+    commit: bool = True
 ) -> None:
     """
     Batch update processed_files status for multiple files.
@@ -618,6 +619,7 @@ def batch_mark_processed(
         table_name: One of 'flow_stats', 'ip_stats', 'protocol_stats', 
                     'spectrum_stats', 'structure_stats'
         results: List of dicts with 'file_path' and 'success' keys
+        commit: If True (default), commits the transaction
     """
     valid_tables = ['flow_stats', 'ip_stats', 'protocol_stats', 'spectrum_stats', 'structure_stats']
     if table_name not in valid_tables:
@@ -648,7 +650,8 @@ def batch_mark_processed(
           AND structure_stats_status IS NOT NULL
     """)
     
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 Structure function statistics processor.
 
 Computes IP structure function from unique source IPs at various granularities.
-Uses day-parallel processing with WAL-enabled direct DB writes.
+Uses day-parallel processing with parent-thread DB writes.
 """
 
 import sqlite3
@@ -265,59 +265,48 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
     return aggregates
 
 
-def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: list[dict]) -> tuple[int, int]:
-    """Insert 5m results and aggregate results into the database."""
+def insert_results(conn: sqlite3.Connection, rows_5m: list[dict], rows_agg: list[dict]) -> tuple[int, int]:
+    """Insert prepared 5m and aggregate rows into the database (no commit)."""
     cursor = conn.cursor()
     inserted_5m = 0
     inserted_agg = 0
     
-    # Process 5m results - IPv4 only for now
-    for result in results:
-        if not result['success']:
-            continue
-        
-        bucket_start = result['timestamp']
-        bucket_end = bucket_start + 300
-        
-        structure_sa = compute_structure_function(result['raw_ips_sa'])
-        structure_da = compute_structure_function(result['raw_ips_da'])
-        
+    for row in rows_5m:
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO structure_stats 
                 (router, granularity, bucket_start, bucket_end, ip_version, structure_json_sa, structure_json_da)
                 VALUES (?, '5m', ?, ?, 4, ?, ?)
-            """, (result['router'], bucket_start, bucket_end,
-                  json.dumps(structure_sa), json.dumps(structure_da)))
+            """, (row['router'], row['bucket_start'], row['bucket_end'],
+                  row['structure_json_sa'], row['structure_json_da']))
             inserted_5m += 1
         except Exception as e:
-            print(f"[structure_stats] Error inserting {result['file_path']}: {e}")
+            print(f"[structure_stats] Error inserting 5m row {row['router']} {row['bucket_start']}: {e}")
     
-    for agg in aggregates:
+    for agg in rows_agg:
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO structure_stats 
                 (router, granularity, bucket_start, bucket_end, ip_version, structure_json_sa, structure_json_da)
                 VALUES (?, ?, ?, ?, 4, ?, ?)
             """, (agg['router'], agg['granularity'], agg['bucket_start'], agg['bucket_end'],
-                  json.dumps(agg['structure_sa']), json.dumps(agg['structure_da'])))
+                  agg['structure_json_sa'], agg['structure_json_da']))
             inserted_agg += 1
         except Exception as e:
             print(f"[structure_stats] Error inserting aggregate: {e}")
     
-    conn.commit()
     return inserted_5m, inserted_agg
 
 
 def process_day_worker(day_info: tuple) -> dict:
     """
-    Process a complete day - runs in separate process with own DB connection.
+    Process a complete day and return rows for parent-thread insertion.
     
     Args:
         day_info: Tuple of (router, day_start, day_files)
         
     Returns:
-        Dict with processing statistics
+        Dict with processing statistics and prepared insert payloads
     """
     router, day_start, day_files = day_info
     day_dt = unix_to_timestamp(day_start)
@@ -330,17 +319,35 @@ def process_day_worker(day_info: tuple) -> dict:
     # Compute aggregates from accumulated data
     aggregates = compute_aggregates(results, router, day_start)
     
-    # Each worker opens its own connection (WAL allows concurrent writes)
-    with get_db_connection() as conn:
-        init_structure_stats_table(conn)
-        
-        # Write directly to DB
-        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
-        
-        # Mark files as processed
-        batch_mark_processed(conn, 'structure_stats', results)
-    
+    rows_5m = []
+    for result in results:
+        if not result['success'] or result['data'] is None:
+            continue
+        bucket_start = result['timestamp']
+        data = result['data']
+        rows_5m.append({
+            'router': result['router'],
+            'bucket_start': bucket_start,
+            'bucket_end': bucket_start + 300,
+            'structure_json_sa': json.dumps(data['structure_sa']),
+            'structure_json_da': json.dumps(data['structure_da']),
+        })
+
+    rows_agg = []
+    for agg in aggregates:
+        rows_agg.append({
+            'router': agg['router'],
+            'granularity': agg['granularity'],
+            'bucket_start': agg['bucket_start'],
+            'bucket_end': agg['bucket_end'],
+            'structure_json_sa': json.dumps(agg['structure_sa']),
+            'structure_json_da': json.dumps(agg['structure_da']),
+        })
+
+    mark_results = [{'file_path': r['file_path'], 'success': r['success']} for r in results]
     errors = len([r for r in results if not r['success']])
+    inserted_5m = len(rows_5m)
+    inserted_agg = len(rows_agg)
     
     print(f"[structure_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
           f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
@@ -350,7 +357,10 @@ def process_day_worker(day_info: tuple) -> dict:
         'day': day_start,
         'processed': inserted_5m,
         'aggregates': inserted_agg,
-        'errors': errors
+        'errors': errors,
+        'rows_5m': rows_5m,
+        'rows_agg': rows_agg,
+        'mark_results': mark_results,
     }
 
 
@@ -379,16 +389,30 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     day_tasks = [(router, day_start, files) 
                  for (router, day_start), files in sorted(days.items())]
     
-    # Process days in parallel - each worker writes via own connection
+    # Process days in parallel - parent thread owns all database writes
     with Pool(processes=MAX_WORKERS) as pool:
-        results = pool.map(process_day_worker, day_tasks)
-    
-    # Aggregate stats from all workers
-    for result in results:
-        stats['processed'] += result['processed']
-        stats['aggregates'] += result['aggregates']
-        stats['errors'] += result['errors']
-        stats['days'] += 1
+        for result in pool.imap_unordered(process_day_worker, day_tasks, chunksize=1):
+            day_dt = unix_to_timestamp(result['day']).strftime('%Y-%m-%d')
+            print(f"[structure_stats] Parent writing {result['router']} {day_dt}")
+            try:
+                conn.execute("BEGIN")
+                inserted_5m, inserted_agg = insert_results(conn, result['rows_5m'], result['rows_agg'])
+                batch_mark_processed(conn, 'structure_stats', result['mark_results'], commit=False)
+                conn.commit()
+
+                stats['processed'] += inserted_5m
+                stats['aggregates'] += inserted_agg
+                stats['errors'] += result['errors']
+                print(f"[structure_stats] Parent commit complete {result['router']} {day_dt}: "
+                      f"{inserted_5m} 5m, {inserted_agg} agg, {result['errors']} errors")
+            except Exception as e:
+                conn.rollback()
+                failed_count = len(result['mark_results'])
+                stats['errors'] += failed_count
+                print(f"[structure_stats] Parent transaction failed for {result['router']} {day_dt}: {e}")
+                print(f"[structure_stats] Rolled back {result['router']} {day_dt}; counted {failed_count} errors")
+            finally:
+                stats['days'] += 1
     
     return stats
 
