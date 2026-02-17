@@ -2,7 +2,7 @@
 IP statistics processor.
 
 Processes nfcapd files to extract unique IP address counts at various granularities.
-Uses day-parallel processing with WAL-enabled direct DB writes.
+Uses day-parallel processing with parent-thread DB writes.
 """
 
 import sqlite3
@@ -200,34 +200,27 @@ def compute_aggregates(results: list[dict], router: str, day_start: int) -> list
     return aggregates
 
 
-def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: list[dict]) -> tuple[int, int]:
-    """Insert 5m results and aggregate results into the database."""
+def insert_results(conn: sqlite3.Connection, rows_5m: list[dict], rows_agg: list[dict]) -> tuple[int, int]:
+    """Insert prepared 5m and aggregate rows into the database (no commit)."""
     cursor = conn.cursor()
     inserted_5m = 0
     inserted_agg = 0
     
-    for result in results:
-        if not result['success'] or result['data'] is None:
-            continue
-        
-        data = result['data']
-        bucket_start = result['timestamp']
-        bucket_end = bucket_start + 300
-        
+    for row in rows_5m:
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO ip_stats 
                 (router, granularity, bucket_start, bucket_end, 
                  sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count)
                 VALUES (?, '5m', ?, ?, ?, ?, ?, ?)
-            """, (result['router'], bucket_start, bucket_end,
-                  data['sa_ipv4_count'], data['da_ipv4_count'],
-                  data['sa_ipv6_count'], data['da_ipv6_count']))
+            """, (row['router'], row['bucket_start'], row['bucket_end'],
+                  row['sa_ipv4_count'], row['da_ipv4_count'],
+                  row['sa_ipv6_count'], row['da_ipv6_count']))
             inserted_5m += 1
         except Exception as e:
-            print(f"[ip_stats] Error inserting {result['file_path']}: {e}")
+            print(f"[ip_stats] Error inserting 5m row {row['router']} {row['bucket_start']}: {e}")
     
-    for agg in aggregates:
+    for agg in rows_agg:
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO ip_stats 
@@ -241,19 +234,18 @@ def insert_results(conn: sqlite3.Connection, results: list[dict], aggregates: li
         except Exception as e:
             print(f"[ip_stats] Error inserting aggregate: {e}")
     
-    conn.commit()
     return inserted_5m, inserted_agg
 
 
 def process_day_worker(day_info: tuple) -> dict:
     """
-    Process a complete day - runs in separate process with own DB connection.
+    Process a complete day and return rows for parent-thread insertion.
     
     Args:
         day_info: Tuple of (router, day_start, day_files)
         
     Returns:
-        Dict with processing statistics
+        Dict with processing statistics and prepared insert payloads
     """
     router, day_start, day_files = day_info
     day_dt = unix_to_timestamp(day_start)
@@ -266,27 +258,39 @@ def process_day_worker(day_info: tuple) -> dict:
     # Compute aggregates from accumulated data
     aggregates = compute_aggregates(results, router, day_start)
     
-    # Each worker opens its own connection (WAL allows concurrent writes)
-    with get_db_connection() as conn:
-        init_ip_stats_table(conn)
-        
-        # Write directly to DB
-        inserted_5m, inserted_agg = insert_results(conn, results, aggregates)
-        
-        # Mark files as processed
-        batch_mark_processed(conn, 'ip_stats', results)
-    
+    rows_5m = []
+    for result in results:
+        if not result['success'] or result['data'] is None:
+            continue
+        data = result['data']
+        bucket_start = result['timestamp']
+        rows_5m.append({
+            'router': result['router'],
+            'bucket_start': bucket_start,
+            'bucket_end': bucket_start + 300,
+            'sa_ipv4_count': data['sa_ipv4_count'],
+            'da_ipv4_count': data['da_ipv4_count'],
+            'sa_ipv6_count': data['sa_ipv6_count'],
+            'da_ipv6_count': data['da_ipv6_count'],
+        })
+
+    mark_results = [{'file_path': r['file_path'], 'success': r['success']} for r in results]
     errors = len([r for r in results if not r['success']])
+    inserted_5m = len(rows_5m)
+    inserted_agg = len(aggregates)
     
     print(f"[ip_stats] Worker complete {router} {day_dt.strftime('%Y-%m-%d')}: "
-          f"{inserted_5m} 5m, {inserted_agg} agg, {errors} errors")
+          f"{inserted_5m} 5m prepared, {inserted_agg} agg prepared, {errors} errors")
     
     return {
         'router': router,
         'day': day_start,
         'processed': inserted_5m,
         'aggregates': inserted_agg,
-        'errors': errors
+        'errors': errors,
+        'rows_5m': rows_5m,
+        'rows_agg': aggregates,
+        'mark_results': mark_results,
     }
 
 
@@ -315,16 +319,30 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     day_tasks = [(router, day_start, files) 
                  for (router, day_start), files in sorted(days.items())]
     
-    # Process days in parallel - each worker writes via own connection
+    # Process days in parallel - parent thread owns all database writes
     with Pool(processes=MAX_WORKERS) as pool:
-        results = pool.map(process_day_worker, day_tasks)
-    
-    # Aggregate stats from all workers
-    for result in results:
-        stats['processed'] += result['processed']
-        stats['aggregates'] += result['aggregates']
-        stats['errors'] += result['errors']
-        stats['days'] += 1
+        for result in pool.imap_unordered(process_day_worker, day_tasks, chunksize=1):
+            day_dt = unix_to_timestamp(result['day']).strftime('%Y-%m-%d')
+            print(f"[ip_stats] Parent writing {result['router']} {day_dt}")
+            try:
+                conn.execute("BEGIN")
+                inserted_5m, inserted_agg = insert_results(conn, result['rows_5m'], result['rows_agg'])
+                batch_mark_processed(conn, 'ip_stats', result['mark_results'], commit=False)
+                conn.commit()
+
+                stats['processed'] += inserted_5m
+                stats['aggregates'] += inserted_agg
+                stats['errors'] += result['errors']
+                print(f"[ip_stats] Parent commit complete {result['router']} {day_dt}: "
+                      f"{inserted_5m} 5m, {inserted_agg} agg, {result['errors']} errors")
+            except Exception as e:
+                conn.rollback()
+                failed_count = len(result['mark_results'])
+                stats['errors'] += failed_count
+                print(f"[ip_stats] Parent transaction failed for {result['router']} {day_dt}: {e}")
+                print(f"[ip_stats] Rolled back {result['router']} {day_dt}; counted {failed_count} errors")
+            finally:
+                stats['days'] += 1
     
     return stats
 
