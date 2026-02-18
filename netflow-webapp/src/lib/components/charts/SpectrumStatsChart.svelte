@@ -77,6 +77,7 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let addressType = $state<'sa' | 'da'>(props.addressType ?? 'sa');
+	let currentRouter = $state((props.router ?? '').trim());
 	let bucketStarts: number[] = [];
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
@@ -373,15 +374,16 @@
 		timeLabel: string;
 	}
 
-	function buildDatasets(bucketStarts: number[]): {
+	function buildDatasets(
+		selectedBuckets: SpectrumStatsBucket[],
+		bucketStarts: number[]
+	): {
 		data: DataPoint[];
 		minF: number;
 		maxF: number;
 		minAlpha: number;
 		maxAlpha: number;
 	} {
-		const selectedBuckets = buckets;
-
 		// Create a map for quick lookup: bucketStart -> spectrum points
 		const bucketMap = new Map<number, SpectrumPoint[]>();
 		selectedBuckets.forEach((bucket) => {
@@ -438,8 +440,14 @@
 			return;
 		}
 
+		const selectedBuckets = currentRouter
+			? buckets.filter((bucket) => bucket.router === currentRouter)
+			: [];
+
 		// Get unique time buckets, sorted
-		bucketStarts = Array.from(new Set(buckets.map((b) => b.bucketStart))).sort((a, b) => a - b);
+		bucketStarts = Array.from(new Set(selectedBuckets.map((b) => b.bucketStart))).sort(
+			(a, b) => a - b
+		);
 
 		if (bucketStarts.length === 0) {
 			if (chart) {
@@ -449,7 +457,7 @@
 			return;
 		}
 
-		const { data, minF, maxF, minAlpha, maxAlpha } = buildDatasets(bucketStarts);
+		const { data, minF, maxF, minAlpha, maxAlpha } = buildDatasets(selectedBuckets, bucketStarts);
 
 		if (data.length === 0) {
 			if (chart) {
@@ -651,7 +659,7 @@
 		startDate: string;
 		endDate: string;
 		granularity: IpGranularity;
-		router: string;
+		routers: string[];
 	};
 
 	let lastFiltersKey = '';
@@ -666,7 +674,7 @@
 			startDate: toEpochSeconds(filters.startDate).toString(),
 			endDate: toEpochSeconds(filters.endDate, true).toString(),
 			granularity: filters.granularity,
-			routers: filters.router
+			routers: filters.routers.join(',')
 		});
 
 		try {
@@ -704,7 +712,13 @@
 	let currentGranularity = $state<IpGranularity>(props.granularity ?? '1h');
 
 	$effect(() => {
-		const router = props.router?.trim() ?? '';
+		const availableRouters = (props.availableRouters ?? [])
+			.map((router: string) => router.trim())
+			.filter((router: string) => router.length > 0);
+		const requestedRouter = props.router?.trim() ?? '';
+		const nextRouter = availableRouters.includes(requestedRouter)
+			? requestedRouter
+			: (availableRouters[0] ?? '');
 		const startDateProp = props.startDate;
 		const endDateProp = props.endDate;
 		const granularityProp = props.granularity;
@@ -716,18 +730,24 @@
 				renderChart();
 			}
 		}
+		if (nextRouter !== currentRouter) {
+			currentRouter = nextRouter;
+			if (chart) {
+				renderChart();
+			}
+		}
 
 		const filters: FilterInputs = {
 			startDate: startDateProp ?? '2025-01-01',
 			endDate: endDateProp ?? formatDate(today),
 			granularity: granularityProp ?? '1h',
-			router
+			routers: availableRouters
 		};
 
 		currentGranularity = filters.granularity;
 
-		if (filters.router.length === 0) {
-			error = 'Select a router to view spectrum statistics';
+		if (filters.routers.length === 0) {
+			error = 'Select at least one router to view spectrum statistics';
 			buckets = [];
 			destroyChart();
 			lastFiltersKey = JSON.stringify(filters);

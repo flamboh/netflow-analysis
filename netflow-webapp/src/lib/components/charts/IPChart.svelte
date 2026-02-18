@@ -88,13 +88,6 @@
 			.sort();
 	}
 
-	function arraysEqual<T>(a: T[], b: T[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		return a.every((value, index) => value === b[index]);
-	}
-
 	let activeMetrics = $state<IpMetricKey[]>(props.activeMetrics ?? DEFAULT_METRICS);
 	let currentGranularity = $state<IpGranularity>(props.granularity ?? '1d');
 
@@ -572,6 +565,7 @@
 	};
 
 	let lastFiltersKey = '';
+	let lastIncomingMetricsKey = '';
 	let requestToken = 0;
 
 	async function loadData(filters: FilterInputs, token: number) {
@@ -619,6 +613,20 @@
 	});
 
 	$effect(() => {
+		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
+		const nextKey = JSON.stringify(incomingMetrics);
+		if (nextKey === lastIncomingMetricsKey) {
+			return;
+		}
+		lastIncomingMetricsKey = nextKey;
+		activeMetrics = [...incomingMetrics];
+		void (async () => {
+			await tick();
+			renderChart();
+		})();
+	});
+
+	$effect(() => {
 		const routerConfig = props.routers;
 		if (!routerConfig || Object.keys(routerConfig).length === 0) {
 			return;
@@ -630,16 +638,6 @@
 			granularity: getGranularity(),
 			routers: deriveSelectedRouters(routerConfig)
 		};
-
-		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
-		if (!arraysEqual(activeMetrics, incomingMetrics)) {
-			activeMetrics = [...incomingMetrics];
-			// wait for the DOM to reconcile (canvas may re-mount) before painting
-			void (async () => {
-				await tick();
-				renderChart();
-			})();
-		}
 
 		currentGranularity = filters.granularity;
 
