@@ -1,4 +1,6 @@
+import type { Chart } from 'chart.js';
 import type { GroupByOption, NetflowDataPoint } from '$lib/components/netflow/types.ts';
+import type { RangeSelectionState } from '$lib/stores/rangeSelection';
 import {
 	parseLabelToPSTComponents,
 	parseLabelToDateForDrilldown,
@@ -9,6 +11,147 @@ import {
 
 /** Fixed y-axis width (px) for consistent chart alignment */
 export const Y_AXIS_WIDTH = 80;
+export const MIN_DRAG_PIXELS = 6;
+
+export interface RangeDragState {
+	isDraggingRange: boolean;
+	dragStartX: number;
+	dragCurrentX: number;
+	selectionTop: number;
+	selectionHeight: number;
+	suppressNextClick: boolean;
+}
+
+export function createRangeDragState(): RangeDragState {
+	return {
+		isDraggingRange: false,
+		dragStartX: 0,
+		dragCurrentX: 0,
+		selectionTop: 0,
+		selectionHeight: 0,
+		suppressNextClick: false
+	};
+}
+
+export function getChartArea(chart: Chart | null) {
+	if (!chart) return null;
+	return chart.chartArea;
+}
+
+export function clampToChartX(chart: Chart | null, x: number): number {
+	const area = getChartArea(chart);
+	if (!area) return x;
+	return Math.max(area.left, Math.min(area.right, x));
+}
+
+export function indexFromPixelX(chart: Chart | null, pixelX: number): number | null {
+	if (!chart?.data.labels) return null;
+	const labels = chart.data.labels;
+	if (!labels || labels.length === 0) return null;
+	const value = chart.scales.x.getValueForPixel(pixelX);
+	if (typeof value !== 'number' || Number.isNaN(value)) return null;
+	const rounded = Math.round(value);
+	return Math.max(0, Math.min(labels.length - 1, rounded));
+}
+
+export function getSelectionLabels(
+	chart: Chart | null,
+	startIndex: number,
+	endIndex: number
+): { startLabel: string; endLabel: string } | null {
+	if (!chart?.data.labels) return null;
+	const labels = chart.data.labels as string[];
+	if (labels.length === 0) return null;
+	const from = Math.max(0, Math.min(labels.length - 1, Math.min(startIndex, endIndex)));
+	const to = Math.max(0, Math.min(labels.length - 1, Math.max(startIndex, endIndex)));
+	const startLabel = labels[from];
+	const endLabel = labels[to];
+	if (!startLabel || !endLabel) return null;
+	return { startLabel, endLabel };
+}
+
+export function beginRangeDrag(
+	state: RangeDragState,
+	event: MouseEvent,
+	chartCanvas: HTMLCanvasElement | null,
+	chart: Chart | null,
+	onPreviewRange?: (startIndex: number, endIndex: number) => void
+): void {
+	if (event.button !== 0 || !chartCanvas) return;
+	const rect = chartCanvas.getBoundingClientRect();
+	const x = event.clientX - rect.left;
+	const y = event.clientY - rect.top;
+	const area = getChartArea(chart);
+	if (!area) return;
+	if (x < area.left || x > area.right || y < area.top || y > area.bottom) return;
+	state.isDraggingRange = true;
+	state.dragStartX = clampToChartX(chart, x);
+	state.dragCurrentX = state.dragStartX;
+	state.selectionTop = area.top;
+	state.selectionHeight = area.bottom - area.top;
+	const startIndex = indexFromPixelX(chart, state.dragStartX);
+	if (startIndex !== null) {
+		onPreviewRange?.(startIndex, startIndex);
+	}
+}
+
+export function updateRangeDrag(
+	state: RangeDragState,
+	event: MouseEvent,
+	chartCanvas: HTMLCanvasElement | null,
+	chart: Chart | null,
+	onPreviewRange?: (startIndex: number, endIndex: number) => void
+): void {
+	if (!state.isDraggingRange || !chartCanvas) return;
+	const rect = chartCanvas.getBoundingClientRect();
+	const x = event.clientX - rect.left;
+	state.dragCurrentX = clampToChartX(chart, x);
+	const startIndex = indexFromPixelX(chart, state.dragStartX);
+	const endIndex = indexFromPixelX(chart, state.dragCurrentX);
+	if (startIndex !== null && endIndex !== null) {
+		onPreviewRange?.(startIndex, endIndex);
+	}
+}
+
+export function endRangeDrag(
+	state: RangeDragState,
+	chart: Chart | null,
+	onCommitRange: (startIndex: number, endIndex: number) => void
+): void {
+	if (!state.isDraggingRange) return;
+	const wasDrag = Math.abs(state.dragCurrentX - state.dragStartX) >= MIN_DRAG_PIXELS;
+	if (wasDrag) {
+		const startIndex = indexFromPixelX(chart, state.dragStartX);
+		const endIndex = indexFromPixelX(chart, state.dragCurrentX);
+		if (startIndex !== null && endIndex !== null) {
+			onCommitRange(startIndex, endIndex);
+			state.suppressNextClick = true;
+		}
+	}
+	state.isDraggingRange = false;
+}
+
+export function buildMirroredSelectionStyle(
+	chart: Chart | null,
+	mirroredRange: RangeSelectionState | null,
+	sourceChartId: string
+): string | null {
+	if (!mirroredRange || mirroredRange.sourceChartId === sourceChartId || !chart?.data.labels)
+		return null;
+	const labels = chart.data.labels as string[];
+	const startIndex = labels.indexOf(mirroredRange.startLabel);
+	const endIndex = labels.indexOf(mirroredRange.endLabel);
+	if (startIndex === -1 || endIndex === -1) return null;
+	const area = getChartArea(chart);
+	if (!area) return null;
+	const rawLeft = chart.scales.x.getPixelForValue(Math.min(startIndex, endIndex));
+	const rawRight = chart.scales.x.getPixelForValue(Math.max(startIndex, endIndex));
+	const left = Math.max(area.left, Math.min(rawLeft, rawRight));
+	const right = Math.min(area.right, Math.max(rawLeft, rawRight));
+	const width = right - left;
+	if (!Number.isFinite(width) || width < MIN_DRAG_PIXELS) return null;
+	return `left:${left}px; width:${width}px; top:${area.top}px; height:${area.bottom - area.top}px;`;
+}
 
 /**
  * Format labels from NetFlow data points using PST timezone.
@@ -111,6 +254,36 @@ export function generateSlugFromLabel(label: string, groupBy: GroupByOption): st
 		return `${year}${month}${day}${hour}${minute}`;
 	}
 	return '';
+}
+
+export function groupByBucketDurationMs(groupBy: GroupByOption): number {
+	if (groupBy === 'date') return 24 * 60 * 60 * 1000;
+	if (groupBy === 'hour') return 60 * 60 * 1000;
+	if (groupBy === '30min') return 30 * 60 * 1000;
+	return 5 * 60 * 1000;
+}
+
+/**
+ * Choose granularity from selected range duration.
+ * Thresholds are calibrated from existing click drilldown windows:
+ * 1 day -> 5min, 7 days -> 30min, 31 days -> hour.
+ */
+export function chooseAdaptiveGranularity(
+	rangeMs: number
+): GroupByOption {
+	const oneDay = 24 * 60 * 60 * 1000;
+	const sevenDays = 7 * oneDay;
+	const thirtyOneDays = 31 * oneDay;
+
+	// Midpoints between known-good drilldown windows.
+	const fiveMinCutoff = (oneDay + sevenDays) / 2; // 4 days
+	const thirtyMinCutoff = (sevenDays + thirtyOneDays) / 2; // 19 days
+	const hourCutoff = thirtyOneDays * 2; // 62 days
+
+	if (rangeMs <= fiveMinCutoff) return '5min';
+	if (rangeMs <= thirtyMinCutoff) return '30min';
+	if (rangeMs <= hourCutoff) return 'hour';
+	return 'date';
 }
 
 /**

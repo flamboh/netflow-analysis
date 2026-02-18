@@ -5,12 +5,22 @@
 	import { goto } from '$app/navigation';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
+	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
 	import {
 		formatLabels,
 		getXAxisTitle,
 		parseClickedLabel,
 		generateSlugFromLabel,
-		Y_AXIS_WIDTH
+		Y_AXIS_WIDTH,
+		MIN_DRAG_PIXELS,
+		groupByBucketDurationMs,
+		chooseAdaptiveGranularity,
+		createRangeDragState,
+		getSelectionLabels,
+		beginRangeDrag,
+		updateRangeDrag,
+		endRangeDrag,
+		buildMirroredSelectionStyle
 	} from './chart-utils';
 	import {
 		parseLabelToPSTComponents,
@@ -45,6 +55,66 @@
 	let chartCanvas: HTMLCanvasElement;
 	let chart: Chart | null = null;
 	let resizeObserver: ResizeObserver | null = null;
+	let rangeDrag = $state(createRangeDragState());
+	let selectionLeft = $derived(Math.min(rangeDrag.dragStartX, rangeDrag.dragCurrentX));
+	let selectionWidth = $derived(Math.abs(rangeDrag.dragCurrentX - rangeDrag.dragStartX));
+	let mirroredRange = $state<RangeSelectionState | null>(null);
+
+	$effect(() => {
+		const unsubscribe = rangeSelectionStore.subscribe((value) => {
+			mirroredRange = value;
+		});
+		return unsubscribe;
+	});
+
+	function publishRangeSelection(startIndex: number, endIndex: number) {
+		const labels = getSelectionLabels(chart, startIndex, endIndex);
+		if (!labels) return;
+		rangeSelectionStore.set({ sourceChartId: CHART_ID, ...labels });
+	}
+
+	function applyRangeDrilldown(startIndex: number, endIndex: number) {
+		if (!chart?.data.labels || !onDrillDown) return;
+		const labels = chart.data.labels as string[];
+		if (labels.length === 0) return;
+		const safeStart = Math.max(0, Math.min(labels.length - 1, startIndex));
+		const safeEnd = Math.max(0, Math.min(labels.length - 1, endIndex));
+		const from = Math.min(safeStart, safeEnd);
+		const to = Math.max(safeStart, safeEnd);
+		const startLabel = labels[from];
+		const endLabel = labels[to];
+		if (!startLabel || !endLabel) return;
+
+		const startDate = parseClickedLabel(startLabel, groupBy);
+		const endBucketStart = parseClickedLabel(endLabel, groupBy);
+		if (Number.isNaN(startDate.getTime()) || Number.isNaN(endBucketStart.getTime())) return;
+
+		const endExclusive = new Date(endBucketStart.getTime() + groupByBucketDurationMs(groupBy));
+		const selectedRangeMs = endExclusive.getTime() - startDate.getTime();
+		const nextGroupBy = chooseAdaptiveGranularity(selectedRangeMs);
+		onDrillDown(
+			nextGroupBy,
+			formatDateAsPSTDateString(startDate),
+			formatDateAsPSTDateString(endExclusive)
+		);
+	}
+
+	function handleRangeMouseDown(event: MouseEvent) {
+		beginRangeDrag(rangeDrag, event, chartCanvas, chart, publishRangeSelection);
+	}
+
+	function handleRangeMouseMove(event: MouseEvent) {
+		updateRangeDrag(rangeDrag, event, chartCanvas, chart, publishRangeSelection);
+	}
+
+	function finishRangeSelection() {
+		endRangeDrag(rangeDrag, chart, applyRangeDrilldown);
+		rangeSelectionStore.set(null);
+	}
+
+	let mirroredSelectionStyle = $derived(
+		buildMirroredSelectionStyle(chart, mirroredRange, CHART_ID)
+	);
 
 	function formatTickLabel(
 		pst: PSTDateComponents | null,
@@ -144,6 +214,10 @@
 		e: MouseEvent,
 		activeElements: { datasetIndex: number; index: number }[]
 	) {
+		if (rangeDrag.suppressNextClick) {
+			rangeDrag.suppressNextClick = false;
+			return;
+		}
 		if (!chart) {
 			return;
 		}
@@ -595,6 +669,9 @@
 
 	onDestroy(() => {
 		crosshairStore.unregister(CHART_ID);
+		if (mirroredRange?.sourceChartId === CHART_ID) {
+			rangeSelectionStore.set(null);
+		}
 		chart?.destroy();
 		chart = null;
 		resizeObserver?.disconnect();
@@ -613,8 +690,27 @@
 	});
 </script>
 
-<div class="chart-container">
+<div
+	class="chart-container"
+	role="presentation"
+	onmousedown={handleRangeMouseDown}
+	onmousemove={handleRangeMouseMove}
+	onmouseup={finishRangeSelection}
+	onmouseleave={finishRangeSelection}
+>
 	<canvas bind:this={chartCanvas} class="h-full w-full"></canvas>
+	{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
+		<div
+			class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+			style={`left:${selectionLeft}px; width:${selectionWidth}px; top:${rangeDrag.selectionTop}px; height:${rangeDrag.selectionHeight}px;`}
+		></div>
+	{/if}
+	{#if !rangeDrag.isDraggingRange && mirroredSelectionStyle !== null}
+		<div
+			class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+			style={mirroredSelectionStyle}
+		></div>
+	{/if}
 </div>
 
 <style>

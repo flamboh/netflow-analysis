@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
@@ -158,20 +159,8 @@
 		draggable="true"
 		data-drag-handle
 	>
-		<h2 class="text-lg font-semibold text-gray-900">NetFlow Visualization</h2>
-		<span
-			class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400"
-			aria-hidden="true"
-		>
-			<span class="grid grid-cols-3 grid-rows-2 gap-[2px]">
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-			</span>
-		</span>
+		<h2 class="text-lg font-semibold text-gray-900">Traffic Overview</h2>
+		<DragGrip />
 	</div>
 
 	<div class="space-y-4 p-4">

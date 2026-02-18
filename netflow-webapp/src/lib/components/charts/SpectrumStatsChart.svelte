@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Chart, registerables } from 'chart.js/auto';
@@ -11,7 +12,20 @@
 		SpectrumStatsBucket,
 		SpectrumStatsResponse
 	} from '$lib/types/types';
-	import { generateSlugFromLabel, parseClickedLabel, Y_AXIS_WIDTH } from './chart-utils';
+	import {
+		generateSlugFromLabel,
+		parseClickedLabel,
+		Y_AXIS_WIDTH,
+		MIN_DRAG_PIXELS,
+		groupByBucketDurationMs,
+		chooseAdaptiveGranularity,
+		createRangeDragState,
+		getSelectionLabels,
+		beginRangeDrag,
+		updateRangeDrag,
+		endRangeDrag,
+		buildMirroredSelectionStyle
+	} from './chart-utils';
 	import {
 		dateStringToEpochPST,
 		epochToPSTComponents,
@@ -20,6 +34,7 @@
 	} from '$lib/utils/timezone';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
+	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
 
 	const CHART_ID = 'spectrum';
 
@@ -67,6 +82,17 @@
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let chart: Chart<'scatter', any[], any> | null = null;
+	let rangeDrag = $state(createRangeDragState());
+	let selectionLeft = $derived(Math.min(rangeDrag.dragStartX, rangeDrag.dragCurrentX));
+	let selectionWidth = $derived(Math.abs(rangeDrag.dragStartX - rangeDrag.dragCurrentX));
+	let mirroredRange = $state<RangeSelectionState | null>(null);
+
+	$effect(() => {
+		const unsubscribe = rangeSelectionStore.subscribe((value) => {
+			mirroredRange = value;
+		});
+		return unsubscribe;
+	});
 
 	function toEpochSeconds(dateString: string, isEnd = false): number {
 		return dateStringToEpochPST(dateString, isEnd);
@@ -203,8 +229,54 @@
 			return;
 		}
 		addressType = nextAddressType;
+		if (chart) {
+			renderChart();
+		}
 		dispatch('addressTypeChange', { addressType: nextAddressType });
 	}
+
+	function publishRangeSelection(startIndex: number, endIndex: number) {
+		const labels = getSelectionLabels(chart, startIndex, endIndex);
+		if (!labels) return;
+		rangeSelectionStore.set({ sourceChartId: CHART_ID, ...labels });
+	}
+
+	function applyRangeDrilldown(startIndex: number, endIndex: number) {
+		if (!chart?.data.labels) return;
+		const labels = chart.data.labels as string[];
+		const from = Math.max(0, Math.min(labels.length - 1, Math.min(startIndex, endIndex)));
+		const to = Math.max(0, Math.min(labels.length - 1, Math.max(startIndex, endIndex)));
+		const startLabel = labels[from];
+		const endLabel = labels[to];
+		if (!startLabel || !endLabel) return;
+
+		const groupBy = IP_TO_GROUP_BY[currentGranularity];
+		if (!groupBy) return;
+
+		const startDate = parseClickedLabel(startLabel, groupBy);
+		const endBucketStart = parseClickedLabel(endLabel, groupBy);
+		if (Number.isNaN(startDate.getTime()) || Number.isNaN(endBucketStart.getTime())) return;
+		const endExclusive = new Date(endBucketStart.getTime() + groupByBucketDurationMs(groupBy));
+		const selectedRangeMs = endExclusive.getTime() - startDate.getTime();
+		const nextGroupBy = chooseAdaptiveGranularity(selectedRangeMs);
+		emitDrilldown(nextGroupBy, startDate, endExclusive);
+	}
+
+	function handleRangeMouseDown(event: MouseEvent) {
+		beginRangeDrag(rangeDrag, event, chartCanvas, chart, publishRangeSelection);
+	}
+
+	function handleRangeMouseMove(event: MouseEvent) {
+		updateRangeDrag(rangeDrag, event, chartCanvas, chart, publishRangeSelection);
+	}
+
+	function finishRangeSelection() {
+		endRangeDrag(rangeDrag, chart, applyRangeDrilldown);
+		rangeSelectionStore.set(null);
+	}
+	let mirroredSelectionStyle = $derived(
+		buildMirroredSelectionStyle(chart, mirroredRange, CHART_ID)
+	);
 
 	function getLabelFromIndex(index: number): string | null {
 		if (!chart || !chart.data.labels) {
@@ -218,6 +290,10 @@
 	}
 
 	function handleChartClick(event: ChartEvent, activeElements: ActiveElement[]) {
+		if (rangeDrag.suppressNextClick) {
+			rangeDrag.suppressNextClick = false;
+			return;
+		}
 		if (!chart || !chart.data.labels) {
 			return;
 		}
@@ -516,6 +592,7 @@
 			// Register chart with crosshair store for synchronized crosshairs
 			crosshairStore.register(CHART_ID, chart);
 		} else {
+			chart.data.labels = labels;
 			chart.data.datasets = [
 				{
 					data: data.map((d) => ({ x: d.x, y: d.y })),
@@ -618,6 +695,9 @@
 	}
 
 	onDestroy(() => {
+		if (mirroredRange?.sourceChartId === CHART_ID) {
+			rangeSelectionStore.set(null);
+		}
 		destroyChart();
 	});
 
@@ -673,25 +753,16 @@
 		data-drag-handle
 	>
 		<h3 class="text-lg font-semibold text-gray-900">Spectrum</h3>
-		<span
-			class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400"
-			aria-hidden="true"
-		>
-			<span class="grid grid-cols-3 grid-rows-2 gap-[2px]">
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
-			</span>
-		</span>
+		<DragGrip />
 	</div>
 	<div class="p-4">
 		<div class="mb-4 space-y-2">
 			<div class="flex min-h-6 flex-wrap items-center gap-4">
 				{#if (props.availableRouters ?? []).length === 0}
-					<span class="text-sm text-gray-500">No enabled routers selected.</span>
+					{#each Array(4) as _, index (index)}
+						<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" aria-hidden="true"
+						></span>
+					{/each}
 				{:else}
 					{#each props.availableRouters ?? [] as routerName (routerName)}
 						<label class="flex cursor-pointer items-center gap-2">
@@ -732,7 +803,12 @@
 		</div>
 
 		<div
-			class="h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			role="presentation"
+			onmousedown={handleRangeMouseDown}
+			onmousemove={handleRangeMouseMove}
+			onmouseup={finishRangeSelection}
+			onmouseleave={finishRangeSelection}
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
@@ -749,6 +825,18 @@
 			{:else}
 				<div class="h-full">
 					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
+					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
+						<div
+							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+							style={`left:${selectionLeft}px; width:${selectionWidth}px; top:${rangeDrag.selectionTop}px; height:${rangeDrag.selectionHeight}px;`}
+						></div>
+					{/if}
+					{#if !rangeDrag.isDraggingRange && mirroredSelectionStyle !== null}
+						<div
+							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+							style={mirroredSelectionStyle}
+						></div>
+					{/if}
 				</div>
 			{/if}
 		</div>
