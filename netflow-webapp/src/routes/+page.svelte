@@ -28,6 +28,13 @@
 	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
 	let ipMetrics = $state<IpMetricKey[]>([...defaultIpMetrics]);
 	let protocolMetrics = $state<ProtocolMetricKey[]>(['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6']);
+	type ChartCardId = 'dashboard' | 'ip' | 'protocol' | 'spectrum';
+	const DEFAULT_CHART_ORDER: ChartCardId[] = ['dashboard', 'ip', 'protocol', 'spectrum'];
+	const CHART_ORDER_STORAGE_KEY = 'netflow-main-chart-order-v1';
+	let chartOrder = $state<ChartCardId[]>([...DEFAULT_CHART_ORDER]);
+	let draggedChartId = $state<ChartCardId | null>(null);
+	let dropTargetChartId = $state<ChartCardId | null>(null);
+	let dragPreviewElement: HTMLElement | null = null;
 
 	const GROUP_BY_TO_IP: Record<GroupByOption, IpGranularity> = {
 		date: '1d',
@@ -37,6 +44,137 @@
 	};
 
 	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
+
+	function isValidChartOrder(value: unknown): value is ChartCardId[] {
+		if (!Array.isArray(value)) {
+			return false;
+		}
+		if (value.length !== DEFAULT_CHART_ORDER.length) {
+			return false;
+		}
+		const order = new Set(value);
+		return DEFAULT_CHART_ORDER.every((id) => order.has(id));
+	}
+
+	function loadChartOrder() {
+		try {
+			const raw = localStorage.getItem(CHART_ORDER_STORAGE_KEY);
+			if (!raw) {
+				return;
+			}
+			const parsed = JSON.parse(raw) as unknown;
+			if (isValidChartOrder(parsed)) {
+				chartOrder = parsed;
+			}
+		} catch (error) {
+			console.error('Failed to load chart order', error);
+		}
+	}
+
+	function persistChartOrder() {
+		try {
+			localStorage.setItem(CHART_ORDER_STORAGE_KEY, JSON.stringify(chartOrder));
+		} catch (error) {
+			console.error('Failed to save chart order', error);
+		}
+	}
+
+	function moveChartCard(draggedId: ChartCardId, targetId: ChartCardId) {
+		if (draggedId === targetId) {
+			return;
+		}
+		const draggedIndex = chartOrder.indexOf(draggedId);
+		const targetIndex = chartOrder.indexOf(targetId);
+		if (draggedIndex === -1 || targetIndex === -1) {
+			return;
+		}
+		const nextOrder = [...chartOrder];
+		nextOrder.splice(draggedIndex, 1);
+		nextOrder.splice(targetIndex, 0, draggedId);
+		chartOrder = nextOrder;
+	}
+
+	function clearDragPreview() {
+		if (dragPreviewElement) {
+			dragPreviewElement.remove();
+			dragPreviewElement = null;
+		}
+	}
+
+	function handleChartDragStart(event: DragEvent, chartId: ChartCardId) {
+		const target = event.target as HTMLElement | null;
+		if (!target?.closest('[data-drag-handle]')) {
+			event.preventDefault();
+			return;
+		}
+		clearDragPreview();
+		draggedChartId = chartId;
+		dropTargetChartId = chartId;
+		if (event.dataTransfer) {
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', chartId);
+
+			const card = target?.closest('[data-chart-card]') as HTMLElement | null;
+			if (card) {
+				const rect = card.getBoundingClientRect();
+				const clone = card.cloneNode(true) as HTMLElement;
+				clone.style.position = 'fixed';
+				clone.style.top = '-10000px';
+				clone.style.left = '-10000px';
+				clone.style.width = `${rect.width}px`;
+				clone.style.height = `${rect.height}px`;
+				clone.style.opacity = '1';
+				clone.style.pointerEvents = 'none';
+				clone.style.margin = '0';
+				document.body.appendChild(clone);
+				event.dataTransfer.setDragImage(
+					clone,
+					Math.max(0, event.clientX - rect.left),
+					Math.max(0, event.clientY - rect.top)
+				);
+				dragPreviewElement = clone;
+			}
+		}
+	}
+
+	function handleChartDragOver(event: DragEvent, targetId: ChartCardId) {
+		if (!draggedChartId || draggedChartId === targetId) {
+			return;
+		}
+		event.preventDefault();
+		dropTargetChartId = targetId;
+		if (event.dataTransfer) {
+			event.dataTransfer.dropEffect = 'move';
+		}
+	}
+
+	function handleChartDragLeave(event: DragEvent, chartId: ChartCardId) {
+		const currentTarget = event.currentTarget as HTMLElement | null;
+		const relatedTarget = event.relatedTarget as Node | null;
+		if (currentTarget && relatedTarget && currentTarget.contains(relatedTarget)) {
+			return;
+		}
+		if (dropTargetChartId === chartId) {
+			dropTargetChartId = null;
+		}
+	}
+
+	function handleChartDrop(event: DragEvent, targetId: ChartCardId) {
+		event.preventDefault();
+		if (draggedChartId && targetId !== draggedChartId) {
+			moveChartCard(draggedChartId, targetId);
+			persistChartOrder();
+		}
+		draggedChartId = null;
+		dropTargetChartId = null;
+		clearDragPreview();
+	}
+
+	function handleChartDragEnd() {
+		draggedChartId = null;
+		dropTargetChartId = null;
+		clearDragPreview();
+	}
 
 	function getEnabledRouters(routers: RouterConfig): string[] {
 		return Object.entries(routers)
@@ -74,6 +212,8 @@
 	);
 
 	onMount(async () => {
+		loadChartOrder();
+
 		try {
 			const response = await fetch('/api/routers');
 			if (!response.ok) {
@@ -175,44 +315,69 @@
 			}}
 		/>
 
-		<NetflowDashboard
-			{startDate}
-			{endDate}
-			groupBy={selectedGroupBy}
-			routers={selectedRouters}
-			{dataOptions}
-			on:dateChange={handleDateChange}
-			on:groupByChange={handleGroupByChange}
-		/>
-
-		<IPChart
-			{startDate}
-			{endDate}
-			granularity={ipGranularity}
-			routers={selectedRouters}
-			activeMetrics={ipMetrics}
-			on:dateChange={handleDateChange}
-			on:groupByChange={handleGroupByChange}
-		/>
-
-		<ProtocolChart
-			{startDate}
-			{endDate}
-			granularity={ipGranularity}
-			routers={selectedRouters}
-			activeMetrics={protocolMetrics}
-			on:dateChange={handleDateChange}
-			on:groupByChange={handleGroupByChange}
-		/>
-
-		<SpectrumStatsChart
-			{startDate}
-			{endDate}
-			granularity={ipGranularity}
-			router={selectedSpectrumRouter}
-			addressType={selectedSpectrumAddressType}
-			on:dateChange={handleDateChange}
-			on:groupByChange={handleGroupByChange}
-		/>
+		<div role="list" aria-label="Reorderable charts" class="flex flex-col gap-2">
+			{#each chartOrder as chartId (chartId)}
+				<section
+					role="listitem"
+					data-chart-card
+					class={`rounded-lg ${dropTargetChartId === chartId && draggedChartId && draggedChartId !== chartId ? 'ring-2 ring-blue-400 ring-offset-2' : ''}`}
+					ondragstart={(event) => {
+						handleChartDragStart(event, chartId);
+					}}
+					ondragend={handleChartDragEnd}
+					ondragover={(event) => {
+						handleChartDragOver(event, chartId);
+					}}
+					ondragleave={(event) => {
+						handleChartDragLeave(event, chartId);
+					}}
+					ondrop={(event) => {
+						handleChartDrop(event, chartId);
+					}}
+				>
+					{#if chartId === 'dashboard'}
+						<NetflowDashboard
+							{startDate}
+							{endDate}
+							groupBy={selectedGroupBy}
+							routers={selectedRouters}
+							{dataOptions}
+							on:dateChange={handleDateChange}
+							on:groupByChange={handleGroupByChange}
+						/>
+					{:else if chartId === 'ip'}
+						<IPChart
+							{startDate}
+							{endDate}
+							granularity={ipGranularity}
+							routers={selectedRouters}
+							activeMetrics={ipMetrics}
+							on:dateChange={handleDateChange}
+							on:groupByChange={handleGroupByChange}
+						/>
+					{:else if chartId === 'protocol'}
+						<ProtocolChart
+							{startDate}
+							{endDate}
+							granularity={ipGranularity}
+							routers={selectedRouters}
+							activeMetrics={protocolMetrics}
+							on:dateChange={handleDateChange}
+							on:groupByChange={handleGroupByChange}
+						/>
+					{:else}
+						<SpectrumStatsChart
+							{startDate}
+							{endDate}
+							granularity={ipGranularity}
+							router={selectedSpectrumRouter}
+							addressType={selectedSpectrumAddressType}
+							on:dateChange={handleDateChange}
+							on:groupByChange={handleGroupByChange}
+						/>
+					{/if}
+				</section>
+			{/each}
+		</div>
 	</main>
 </div>

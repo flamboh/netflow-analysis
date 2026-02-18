@@ -528,8 +528,22 @@
 </script>
 
 <div class="rounded-lg border bg-white shadow-sm">
-	<div class="border-b p-4">
+	<div
+		class="relative border-b p-4 select-none cursor-grab active:cursor-grabbing"
+		draggable="true"
+		data-drag-handle
+	>
 		<h3 class="text-lg font-semibold text-gray-900">Unique Protocol Counts</h3>
+		<span class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400" aria-hidden="true">
+			<span class="grid grid-cols-3 grid-rows-2 gap-[2px]">
+				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
+				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
+				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
+				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
+				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
+				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
+			</span>
+		</span>
 	</div>
 	<div class="p-4">
 		<div
