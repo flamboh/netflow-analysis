@@ -44,6 +44,7 @@
 	};
 
 	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
+	const availableSpectrumRouters = $derived(getEnabledRouters(selectedRouters));
 
 	function isValidChartOrder(value: unknown): value is ChartCardId[] {
 		if (!Array.isArray(value)) {
@@ -279,6 +280,15 @@
 	function handleIpMetricsChange(event: CustomEvent<{ metrics: IpMetricKey[] }>) {
 		ipMetrics = event.detail.metrics;
 	}
+
+	function handleResetView() {
+		const defaultStartDate = '2025-02-11';
+		const today = new Date().toJSON().slice(0, 10);
+		selectedGroupBy = 'date';
+		startDate = defaultStartDate;
+		endDate = today;
+		params.update({ groupBy: selectedGroupBy, startDate, endDate });
+	}
 </script>
 
 <svelte:head>
@@ -293,26 +303,11 @@
 			{endDate}
 			groupBy={selectedGroupBy}
 			routers={selectedRouters}
-			spectrumRouter={selectedSpectrumRouter}
-			spectrumAddressType={selectedSpectrumAddressType}
-			{dataOptions}
-			{ipMetrics}
-			{protocolMetrics}
 			on:startDateChange={handleStartDateChange}
 			on:endDateChange={handleEndDateChange}
 			on:groupByChange={handleGroupByChange}
 			on:routersChange={handleRoutersChange}
-			on:spectrumRouterChange={(event) => {
-				selectedSpectrumRouter = event.detail.router;
-			}}
-			on:spectrumAddressTypeChange={(event) => {
-				selectedSpectrumAddressType = event.detail.addressType;
-			}}
-			on:dataOptionsChange={handleDataOptionsChange}
-			on:ipMetricsChange={handleIpMetricsChange}
-			on:protocolMetricsChange={(event) => {
-				protocolMetrics = event.detail.metrics;
-			}}
+			on:resetView={handleResetView}
 		/>
 
 		<div role="list" aria-label="Reorderable charts" class="flex flex-col gap-2">
@@ -344,6 +339,7 @@
 							{dataOptions}
 							on:dateChange={handleDateChange}
 							on:groupByChange={handleGroupByChange}
+							on:dataOptionsChange={handleDataOptionsChange}
 						/>
 					{:else if chartId === 'ip'}
 						<IPChart
@@ -354,6 +350,7 @@
 							activeMetrics={ipMetrics}
 							on:dateChange={handleDateChange}
 							on:groupByChange={handleGroupByChange}
+							on:metricsChange={handleIpMetricsChange}
 						/>
 					{:else if chartId === 'protocol'}
 						<ProtocolChart
@@ -364,6 +361,9 @@
 							activeMetrics={protocolMetrics}
 							on:dateChange={handleDateChange}
 							on:groupByChange={handleGroupByChange}
+							on:metricsChange={(event) => {
+								protocolMetrics = event.detail.metrics;
+							}}
 						/>
 					{:else}
 						<SpectrumStatsChart
@@ -372,8 +372,15 @@
 							granularity={ipGranularity}
 							router={selectedSpectrumRouter}
 							addressType={selectedSpectrumAddressType}
+							availableRouters={availableSpectrumRouters}
 							on:dateChange={handleDateChange}
 							on:groupByChange={handleGroupByChange}
+							on:routerChange={(event) => {
+								selectedSpectrumRouter = event.detail.router;
+							}}
+							on:addressTypeChange={(event) => {
+								selectedSpectrumAddressType = event.detail.addressType;
+							}}
 						/>
 					{/if}
 				</section>

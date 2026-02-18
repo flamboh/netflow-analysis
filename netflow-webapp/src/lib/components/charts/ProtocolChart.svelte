@@ -50,6 +50,7 @@
 	const dispatch = createEventDispatcher<{
 		dateChange: { startDate: string; endDate: string };
 		groupByChange: { groupBy: GroupByOption };
+		metricsChange: { metrics: ProtocolMetricKey[] };
 	}>();
 
 	const props = $props<{
@@ -202,6 +203,14 @@
 			startDate: formatDate(start),
 			endDate: formatDate(end)
 		});
+	}
+
+	function handleMetricToggle(metric: ProtocolMetricKey) {
+		const nextMetrics = activeMetrics.includes(metric)
+			? activeMetrics.filter((item) => item !== metric)
+			: [...activeMetrics, metric];
+		activeMetrics = nextMetrics;
+		dispatch('metricsChange', { metrics: nextMetrics });
 	}
 
 	function getLabelFromIndex(index: number): string | null {
@@ -529,12 +538,15 @@
 
 <div class="rounded-lg border bg-white shadow-sm">
 	<div
-		class="relative border-b p-4 select-none cursor-grab active:cursor-grabbing"
+		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
 		<h3 class="text-lg font-semibold text-gray-900">Unique Protocol Counts</h3>
-		<span class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400" aria-hidden="true">
+		<span
+			class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400"
+			aria-hidden="true"
+		>
 			<span class="grid grid-cols-3 grid-rows-2 gap-[2px]">
 				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
 				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
@@ -546,6 +558,22 @@
 		</span>
 	</div>
 	<div class="p-4">
+		<div class="mb-4 flex flex-wrap items-center gap-4">
+			{#each ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as const as key (key)}
+				<label class="flex cursor-pointer items-center gap-2">
+					<input
+						type="checkbox"
+						checked={activeMetrics.includes(key)}
+						onchange={() => handleMetricToggle(key)}
+						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span class="text-sm text-gray-700">
+						{key === 'uniqueProtocolsIpv4' ? 'Unique Protocols IPv4' : 'Unique Protocols IPv6'}
+					</span>
+				</label>
+			{/each}
+		</div>
+
 		<div
 			class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
 		>

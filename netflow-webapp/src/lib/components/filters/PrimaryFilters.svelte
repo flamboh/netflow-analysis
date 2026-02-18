@@ -2,9 +2,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import DateRangeFilter from '$lib/components/filters/DateRangeFilter.svelte';
 	import RouterFilter from '$lib/components/filters/RouterFilter.svelte';
-	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
-	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
-	import { IP_METRIC_OPTIONS, type IpMetricKey, type ProtocolMetricKey } from '$lib/types/types';
+	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 
 	interface GroupBySelectOption {
 		value: GroupByOption;
@@ -23,11 +21,6 @@
 		endDate: string;
 		groupBy: GroupByOption;
 		routers: RouterConfig;
-		spectrumRouter: string;
-		spectrumAddressType: 'sa' | 'da';
-		dataOptions: DataOption[];
-		ipMetrics: IpMetricKey[];
-		protocolMetrics: ProtocolMetricKey[];
 		groupByOptions?: GroupBySelectOption[];
 	}>();
 
@@ -36,11 +29,7 @@
 		endDateChange: { endDate: string };
 		groupByChange: { groupBy: GroupByOption };
 		routersChange: { routers: RouterConfig };
-		spectrumRouterChange: { router: string };
-		spectrumAddressTypeChange: { addressType: 'sa' | 'da' };
-		dataOptionsChange: { options: DataOption[] };
-		ipMetricsChange: { metrics: IpMetricKey[] };
-		protocolMetricsChange: { metrics: ProtocolMetricKey[] };
+		resetView: Record<string, never>;
 	}>();
 
 	function handleStartDateChange(date: string) {
@@ -64,66 +53,42 @@
 		dispatch('routersChange', { routers: nextRouters });
 	}
 
-	function handleSpectrumRouterChange(router: string) {
-		if (router === props.spectrumRouter) {
-			return;
-		}
-		dispatch('spectrumRouterChange', { router });
+	function handleResetView() {
+		dispatch('resetView', {});
 	}
-
-	function handleSpectrumAddressTypeChange(addressType: 'sa' | 'da') {
-		if (addressType === props.spectrumAddressType) {
-			return;
-		}
-		dispatch('spectrumAddressTypeChange', { addressType });
-	}
-
-	function handleDataOptionsChange(nextOptions: DataOption[]) {
-		dispatch('dataOptionsChange', { options: nextOptions });
-	}
-
-	function handleIpMetricToggle(metric: IpMetricKey) {
-		const current = props.ipMetrics;
-		const isActive = current.includes(metric);
-		const metrics = isActive
-			? current.filter((item: IpMetricKey) => item !== metric)
-			: [...current, metric];
-		dispatch('ipMetricsChange', { metrics });
-	}
-
-	function handleProtocolMetricToggle(metric: ProtocolMetricKey) {
-		const current = props.protocolMetrics;
-		const isActive = current.includes(metric);
-		const metrics = isActive
-			? current.filter((item: ProtocolMetricKey) => item !== metric)
-			: [...current, metric];
-		dispatch('protocolMetricsChange', { metrics });
-	}
-
-	const spectrumRouters = $derived(
-		Object.entries(props.routers)
-			.filter(([, enabled]) => enabled)
-			.map(([router]) => router)
-			.sort()
-	);
 </script>
 
 <div class="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
 	<div class="flex items-center justify-between">
 		<h2 class="text-lg font-semibold text-gray-900">Filters</h2>
-		<label class="text-sm text-gray-600">
-			Granularity
-			<select
-				class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-				value={props.groupBy}
-				onchange={handleGroupBySelect}
-				aria-label="Select aggregation granularity"
+		<div class="flex items-center gap-4">
+			<label class="text-sm text-gray-600">
+				Granularity
+				<select
+					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					value={props.groupBy}
+					onchange={handleGroupBySelect}
+					aria-label="Select aggregation granularity"
+				>
+					{#each props.groupByOptions ?? DEFAULT_GROUP_BY_OPTIONS as option (option.value)}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</label>
+
+			<button
+				type="button"
+				onclick={handleResetView}
+				class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 			>
-				{#each props.groupByOptions ?? DEFAULT_GROUP_BY_OPTIONS as option (option.value)}
-					<option value={option.value}>{option.label}</option>
-				{/each}
-			</select>
-		</label>
+				Reset View
+			</button>
+		</div>
+	</div>
+
+	<div class="text-sm text-gray-600">
+		<span class="font-medium">Navigation:</span>
+		<span class="ml-1">Click chart to drill down</span>
 	</div>
 
 	<DateRangeFilter
@@ -134,96 +99,4 @@
 	/>
 
 	<RouterFilter routers={props.routers} onRouterChange={handleRoutersChange} />
-
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">NetFlow Metrics</h3>
-		<MetricSelector dataOptions={props.dataOptions} onDataOptionsChange={handleDataOptionsChange} />
-	</div>
-
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">IP Metrics</h3>
-		<div class="flex flex-wrap items-center gap-4">
-			{#each IP_METRIC_OPTIONS as option (option.key)}
-				<label class="flex cursor-pointer items-center gap-2">
-					<input
-						type="checkbox"
-						checked={props.ipMetrics.includes(option.key)}
-						onchange={() => handleIpMetricToggle(option.key)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700">{option.label}</span>
-				</label>
-			{/each}
-		</div>
-	</div>
-
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">Protocol Metrics</h3>
-		<div class="flex flex-wrap items-center gap-4">
-			{#each ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'] as const as key (key)}
-				<label class="flex cursor-pointer items-center gap-2">
-					<input
-						type="checkbox"
-						checked={props.protocolMetrics.includes(key)}
-						onchange={() => handleProtocolMetricToggle(key)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700">
-						{key === 'uniqueProtocolsIpv4' ? 'Unique Protocols IPv4' : 'Unique Protocols IPv6'}
-					</span>
-				</label>
-			{/each}
-		</div>
-	</div>
-
-	<div class="space-y-2">
-		<h3 class="text-base font-semibold text-gray-900">Spectrum Metrics</h3>
-		<div class="space-y-2">
-			<div class="flex min-h-6 flex-wrap items-center gap-4">
-				{#if spectrumRouters.length === 0}
-					{#each Array(4) as _, index (index)}
-						<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" aria-hidden="true"
-						></span>
-					{/each}
-				{:else}
-					{#each spectrumRouters as routerName (routerName)}
-						<label class="flex cursor-pointer items-center gap-2">
-							<input
-								type="radio"
-								name="spectrum-router"
-								checked={props.spectrumRouter === routerName}
-								onchange={() => handleSpectrumRouterChange(routerName)}
-								class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-							/>
-							<span class="text-sm text-gray-700">{routerName}</span>
-						</label>
-					{/each}
-				{/if}
-			</div>
-		</div>
-		<div class="space-y-2">
-			<div class="flex flex-wrap items-center gap-4">
-				<label class="flex cursor-pointer items-center gap-2">
-					<input
-						type="radio"
-						name="spectrum-address-type"
-						checked={props.spectrumAddressType === 'sa'}
-						onchange={() => handleSpectrumAddressTypeChange('sa')}
-						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700">Source IPv4</span>
-				</label>
-				<label class="flex cursor-pointer items-center gap-2">
-					<input
-						type="radio"
-						name="spectrum-address-type"
-						checked={props.spectrumAddressType === 'da'}
-						onchange={() => handleSpectrumAddressTypeChange('da')}
-						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<span class="text-sm text-gray-700">Destination IPv4</span>
-				</label>
-			</div>
-		</div>
-	</div>
 </div>

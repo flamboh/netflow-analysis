@@ -45,11 +45,14 @@
 		granularity?: IpGranularity;
 		router?: string;
 		addressType?: 'sa' | 'da';
+		availableRouters?: string[];
 	}>();
 
 	const dispatch = createEventDispatcher<{
 		dateChange: { startDate: string; endDate: string };
 		groupByChange: { groupBy: GroupByOption };
+		routerChange: { router: string };
+		addressTypeChange: { addressType: 'sa' | 'da' };
 	}>();
 
 	const today = new Date();
@@ -186,6 +189,21 @@
 			startDate: formatDate(start),
 			endDate: formatDate(end)
 		});
+	}
+
+	function handleRouterChange(router: string) {
+		if (router === (props.router ?? '')) {
+			return;
+		}
+		dispatch('routerChange', { router });
+	}
+
+	function handleAddressTypeChange(nextAddressType: 'sa' | 'da') {
+		if (nextAddressType === addressType) {
+			return;
+		}
+		addressType = nextAddressType;
+		dispatch('addressTypeChange', { addressType: nextAddressType });
 	}
 
 	function getLabelFromIndex(index: number): string | null {
@@ -650,12 +668,15 @@
 
 <div class="rounded-lg border bg-white shadow-sm">
 	<div
-		class="relative border-b p-4 select-none cursor-grab active:cursor-grabbing"
+		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
 		<h3 class="text-lg font-semibold text-gray-900">Spectrum</h3>
-		<span class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400" aria-hidden="true">
+		<span
+			class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400"
+			aria-hidden="true"
+		>
 			<span class="grid grid-cols-3 grid-rows-2 gap-[2px]">
 				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
 				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
@@ -667,6 +688,49 @@
 		</span>
 	</div>
 	<div class="p-4">
+		<div class="mb-4 space-y-2">
+			<div class="flex min-h-6 flex-wrap items-center gap-4">
+				{#if (props.availableRouters ?? []).length === 0}
+					<span class="text-sm text-gray-500">No enabled routers selected.</span>
+				{:else}
+					{#each props.availableRouters ?? [] as routerName (routerName)}
+						<label class="flex cursor-pointer items-center gap-2">
+							<input
+								type="radio"
+								name="spectrum-router-local"
+								checked={props.router === routerName}
+								onchange={() => handleRouterChange(routerName)}
+								class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
+							<span class="text-sm text-gray-700">{routerName}</span>
+						</label>
+					{/each}
+				{/if}
+			</div>
+			<div class="flex flex-wrap items-center gap-4">
+				<label class="flex cursor-pointer items-center gap-2">
+					<input
+						type="radio"
+						name="spectrum-address-type-local"
+						checked={addressType === 'sa'}
+						onchange={() => handleAddressTypeChange('sa')}
+						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span class="text-sm text-gray-700">Source IPv4</span>
+				</label>
+				<label class="flex cursor-pointer items-center gap-2">
+					<input
+						type="radio"
+						name="spectrum-address-type-local"
+						checked={addressType === 'da'}
+						onchange={() => handleAddressTypeChange('da')}
+						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+					/>
+					<span class="text-sm text-gray-700">Destination IPv4</span>
+				</label>
+			</div>
+		</div>
+
 		<div
 			class="h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
 		>
