@@ -93,11 +93,6 @@
 			.sort();
 	}
 
-	function arraysEqual<T>(a: T[], b: T[]): boolean {
-		if (a.length !== b.length) return false;
-		return a.every((value, index) => value === b[index]);
-	}
-
 	const DEFAULT_METRICS: ProtocolMetricKey[] = ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'];
 
 	let activeMetrics = $state<ProtocolMetricKey[]>(props.activeMetrics ?? DEFAULT_METRICS);
@@ -528,6 +523,7 @@
 	};
 
 	let lastFiltersKey = '';
+	let lastIncomingMetricsKey = '';
 	let requestToken = 0;
 
 	async function loadData(filters: FilterInputs, token: number) {
@@ -571,6 +567,20 @@
 	});
 
 	$effect(() => {
+		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
+		const nextKey = JSON.stringify(incomingMetrics);
+		if (nextKey === lastIncomingMetricsKey) {
+			return;
+		}
+		lastIncomingMetricsKey = nextKey;
+		activeMetrics = [...incomingMetrics];
+		void (async () => {
+			await tick();
+			renderChart();
+		})();
+	});
+
+	$effect(() => {
 		const routerConfig = props.routers;
 		if (!routerConfig || Object.keys(routerConfig).length === 0) {
 			return;
@@ -582,15 +592,6 @@
 			granularity: getGranularity(),
 			routers: deriveSelectedRouters(routerConfig)
 		};
-
-		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
-		if (!arraysEqual(activeMetrics, incomingMetrics)) {
-			activeMetrics = [...incomingMetrics];
-			void (async () => {
-				await tick();
-				renderChart();
-			})();
-		}
 
 		currentGranularity = filters.granularity;
 
