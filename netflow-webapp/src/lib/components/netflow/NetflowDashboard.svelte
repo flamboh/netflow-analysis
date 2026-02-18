@@ -2,7 +2,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
-	import ChartControls from '$lib/components/charts/ChartControls.svelte';
+	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
 	import { dateStringToEpochPST } from '$lib/utils/timezone';
 	import type {
 		DataOption,
@@ -23,10 +23,8 @@
 	const dispatch = createEventDispatcher<{
 		dateChange: { startDate: string; endDate: string };
 		groupByChange: { groupBy: GroupByOption };
+		dataOptionsChange: { options: DataOption[] };
 	}>();
-
-	const DEFAULT_START_DATE = '2025-02-11';
-	const today = new Date().toJSON().slice(0, 10);
 
 	let chartType = $state<ChartTypeOption>('stacked');
 	let results = $state<NetflowDataPoint[]>([]);
@@ -100,20 +98,12 @@
 		goto(`/api/netflow/files/${slug}`);
 	}
 
-	function handleReset() {
-		dispatch('groupByChange', { groupBy: 'date' });
-		dispatch('dateChange', { startDate: DEFAULT_START_DATE, endDate: today });
-	}
-
-	function handleGroupByChange(newGroupBy: GroupByOption) {
-		if (newGroupBy === props.groupBy) {
-			return;
-		}
-		dispatch('groupByChange', { groupBy: newGroupBy });
-	}
-
 	function handleChartTypeChange(newChartType: ChartTypeOption) {
 		chartType = newChartType;
+	}
+
+	function handleDataOptionsChange(nextOptions: DataOption[]) {
+		dispatch('dataOptionsChange', { options: nextOptions });
 	}
 
 	$effect(() => {
@@ -164,12 +154,15 @@
 
 <div class="rounded-lg border bg-white shadow-sm">
 	<div
-		class="relative border-b p-4 select-none cursor-grab active:cursor-grabbing"
+		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
 		<h2 class="text-lg font-semibold text-gray-900">NetFlow Visualization</h2>
-		<span class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400" aria-hidden="true">
+		<span
+			class="pointer-events-none absolute inset-0 flex items-start justify-center pt-1 text-gray-400"
+			aria-hidden="true"
+		>
 			<span class="grid grid-cols-3 grid-rows-2 gap-[2px]">
 				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
 				<span class="h-[2px] w-[2px] rounded-full bg-current"></span>
@@ -182,13 +175,11 @@
 	</div>
 
 	<div class="space-y-4 p-4">
-		<ChartControls
-			groupBy={props.groupBy}
+		<MetricSelector
+			dataOptions={props.dataOptions}
+			onDataOptionsChange={handleDataOptionsChange}
 			{chartType}
-			onGroupByChange={handleGroupByChange}
 			onChartTypeChange={handleChartTypeChange}
-			onReset={handleReset}
-			showGroupBy={false}
 		/>
 
 		<div
