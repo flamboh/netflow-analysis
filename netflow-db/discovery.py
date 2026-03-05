@@ -8,7 +8,7 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
 from common import (
     NETFLOW_DATA_PATH,
@@ -133,7 +133,32 @@ def identify_gaps(
     return gaps
 
 
-def sync_processed_files_table(conn: sqlite3.Connection, include_gaps: bool = True) -> dict:
+def get_reprocess_cutoff_dt(reprocess_window_days: int = 30) -> Optional[datetime]:
+    """
+    Return the start-of-day cutoff for the active reprocessing window.
+
+    Args:
+        reprocess_window_days: Number of days to include. ``0`` means unlimited.
+
+    Returns:
+        Datetime at local midnight for the cutoff day, or None when unlimited.
+    """
+    if reprocess_window_days == 0:
+        return None
+    if reprocess_window_days < 0:
+        raise ValueError("reprocess_window_days must be >= 0")
+
+    return (
+        datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        - timedelta(days=reprocess_window_days)
+    )
+
+
+def sync_processed_files_table(
+    conn: sqlite3.Connection,
+    include_gaps: bool = True,
+    reprocess_window_days: int = 30
+) -> dict:
     """
     Synchronize the processed_files table with the filesystem.
     
@@ -145,6 +170,7 @@ def sync_processed_files_table(conn: sqlite3.Connection, include_gaps: bool = Tr
     Args:
         conn: Database connection
         include_gaps: If True, also insert gap placeholders (file_exists=0)
+        reprocess_window_days: Gap detection window in days. ``0`` means unlimited.
         
     Returns:
         Dictionary with counts: {'discovered': N, 'new_files': N, 'gaps': N}
@@ -185,6 +211,8 @@ def sync_processed_files_table(conn: sqlite3.Connection, include_gaps: bool = Tr
     data_horizon = compute_data_horizon(conn)
     print(f"Data horizon: {data_horizon}")
     
+    cutoff_dt = get_reprocess_cutoff_dt(reprocess_window_days)
+
     for router in AVAILABLE_ROUTERS:
         # Find the earliest timestamp for this router
         row = cursor.execute("""
@@ -197,7 +225,13 @@ def sync_processed_files_table(conn: sqlite3.Connection, include_gaps: bool = Tr
             continue
         
         router_start = datetime.fromtimestamp(row[0])
-        gaps = identify_gaps(conn, router, router_start, data_horizon)
+        gap_start = router_start if cutoff_dt is None else max(router_start, cutoff_dt)
+
+        if gap_start >= data_horizon:
+            print(f"  Router {router}: no gap scan needed within active window")
+            continue
+
+        gaps = identify_gaps(conn, router, gap_start, data_horizon)
         
         for gap_timestamp in gaps:
             # Construct the expected file path for this gap
@@ -220,31 +254,50 @@ def sync_processed_files_table(conn: sqlite3.Connection, include_gaps: bool = Tr
     return stats
 
 
-def get_pending_files(conn: sqlite3.Connection, limit: int = None) -> list[tuple[str, str, int, bool]]:
+def get_pending_files(
+    conn: sqlite3.Connection,
+    limit: int = None,
+    reprocess_window_days: int = 30
+) -> list[tuple[str, str, int, bool]]:
     """
     Get files that haven't been fully processed yet.
     
     Args:
         conn: Database connection
         limit: Optional limit on number of files to return
+        reprocess_window_days: Processing window in days. ``0`` means unlimited.
         
     Returns:
         List of tuples: (file_path, router, timestamp, file_exists)
     """
     cursor = conn.cursor()
-    
+
+    cutoff_dt = get_reprocess_cutoff_dt(reprocess_window_days)
+    cutoff_unix = None if cutoff_dt is None else timestamp_to_unix(cutoff_dt)
+
     query = """
         SELECT file_path, router, timestamp, file_exists
         FROM processed_files
         WHERE processed_at IS NULL
-        ORDER BY timestamp ASC
     """
-    
-    if limit:
-        query += f" LIMIT {limit}"
-    
-    rows = cursor.execute(query).fetchall()
-    return [(row[0], row[1], row[2], bool(row[3])) for row in rows]
+    params: list[int] = []
+
+    if cutoff_unix is not None:
+        # Real files stay eligible regardless of age; only synthetic gaps are windowed.
+        query += " AND (file_exists = 1 OR timestamp >= ?)"
+        params.append(cutoff_unix)
+
+    query += " ORDER BY timestamp ASC"
+
+    rows = cursor.execute(query, params).fetchall()
+
+    pending = []
+    for file_path, router, timestamp, file_exists in rows:
+        pending.append((file_path, router, timestamp, bool(file_exists)))
+        if limit and len(pending) >= limit:
+            break
+
+    return pending
 
 
 def get_complete_days(conn: sqlite3.Connection) -> set[tuple[str, int]]:
@@ -283,7 +336,8 @@ def get_files_needing_processing(
     conn: sqlite3.Connection, 
     table_name: str,
     limit: int = None,
-    complete_days_only: bool = True
+    complete_days_only: bool = True,
+    reprocess_window_days: int = 30
 ) -> list[tuple[str, str, int, bool]]:
     """
     Get files that need processing for a specific table.
@@ -294,6 +348,7 @@ def get_files_needing_processing(
                     'spectrum_stats', 'structure_stats'
         limit: Optional limit on number of files to return
         complete_days_only: If True (default), only return files from complete days
+        reprocess_window_days: Processing window in days. ``0`` means unlimited.
         
     Returns:
         List of tuples: (file_path, router, timestamp, file_exists)
@@ -304,36 +359,57 @@ def get_files_needing_processing(
     
     status_column = f"{table_name}_status"
     cursor = conn.cursor()
-    
+
+    cutoff_dt = get_reprocess_cutoff_dt(reprocess_window_days)
+    cutoff_unix = None if cutoff_dt is None else timestamp_to_unix(cutoff_dt)
+
     query = f"""
         SELECT file_path, router, timestamp, file_exists
         FROM processed_files
         WHERE {status_column} IS NULL
-        ORDER BY timestamp ASC
     """
-    
-    if limit:
-        query += f" LIMIT {limit}"
-    
-    rows = cursor.execute(query).fetchall()
-    
+    params: list[int] = []
+
+    if cutoff_unix is not None:
+        # Real files stay eligible regardless of age; only synthetic gaps are windowed.
+        query += " AND (file_exists = 1 OR timestamp >= ?)"
+        params.append(cutoff_unix)
+
+    query += " ORDER BY timestamp ASC"
+
     if not complete_days_only:
-        return [(row[0], row[1], row[2], bool(row[3])) for row in rows]
-    
+        if limit:
+            query += " LIMIT ?"
+            params = [*params, limit]
+        rows = cursor.execute(query, params).fetchall()
+        return [(file_path, router, timestamp, bool(file_exists)) for file_path, router, timestamp, file_exists in rows]
+
     # Filter to only complete days
     complete_days = get_complete_days(conn)
-    
+
+    batch_size = limit if limit else 1000
+    offset = 0
     result = []
-    for row in rows:
-        file_path, router, timestamp, file_exists = row
-        # Get the day start for this timestamp
-        dt = unix_to_timestamp(timestamp)
-        day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_start_unix = timestamp_to_unix(day_start)
-        
-        if (router, day_start_unix) in complete_days:
-            result.append((file_path, router, timestamp, bool(file_exists)))
-    
+
+    while True:
+        batch_query = f"{query} LIMIT ? OFFSET ?"
+        batch_params = [*params, batch_size, offset]
+        rows = cursor.execute(batch_query, batch_params).fetchall()
+        if not rows:
+            break
+
+        for file_path, router, timestamp, file_exists in rows:
+            dt = unix_to_timestamp(timestamp)
+            day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+            day_start_unix = timestamp_to_unix(day_start)
+
+            if (router, day_start_unix) in complete_days:
+                result.append((file_path, router, timestamp, bool(file_exists)))
+                if limit and len(result) >= limit:
+                    return result
+
+        offset += len(rows)
+
     return result
 
 
@@ -480,7 +556,8 @@ def reset_day_for_reprocessing(
 
 def handle_stale_days(
     conn: sqlite3.Connection,
-    table_name: str
+    table_name: str,
+    reprocess_window_days: int = 30
 ) -> dict:
     """
     Detect and reset all stale days for a table.
@@ -490,6 +567,7 @@ def handle_stale_days(
     Args:
         conn: Database connection
         table_name: The table being processed
+        reprocess_window_days: Reprocessing window in days. ``0`` means unlimited.
     
     Returns:
         Dict with summary:
@@ -503,12 +581,14 @@ def handle_stale_days(
     """
     stale_days = get_stale_days(conn, table_name)
 
-    # Never auto-reset stale days older than 30 days.
-    # This prevents long-range historical rewrites when discovery finds late files.
-    cutoff_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=30)
-    cutoff_unix = timestamp_to_unix(cutoff_dt)
+    cutoff_dt = get_reprocess_cutoff_dt(reprocess_window_days)
+    cutoff_unix = None if cutoff_dt is None else timestamp_to_unix(cutoff_dt)
 
-    stale_days_recent = {(router, day_start) for router, day_start in stale_days if day_start >= cutoff_unix}
+    stale_days_recent = {
+        (router, day_start)
+        for router, day_start in stale_days
+        if cutoff_unix is None or day_start >= cutoff_unix
+    }
     stale_days_skipped_old = len(stale_days) - len(stale_days_recent)
 
     summary = {
@@ -521,14 +601,16 @@ def handle_stale_days(
 
     if not stale_days_recent:
         if stale_days_skipped_old:
+            cutoff_label = cutoff_dt.strftime('%Y-%m-%d') if cutoff_dt else 'unlimited'
             print(f"[{table_name}] Found {stale_days_skipped_old} stale days older than cutoff "
-                  f"({cutoff_dt.strftime('%Y-%m-%d')}), skipping reset")
+                  f"({cutoff_label}), skipping reset")
         return summary
 
     print(f"[{table_name}] Found {len(stale_days_recent)} stale days needing reprocessing")
     if stale_days_skipped_old:
+        cutoff_label = cutoff_dt.strftime('%Y-%m-%d') if cutoff_dt else 'unlimited'
         print(f"[{table_name}] Skipping {stale_days_skipped_old} stale days older than cutoff "
-              f"({cutoff_dt.strftime('%Y-%m-%d')})")
+              f"({cutoff_label})")
 
     for router, day_start in stale_days_recent:
         day_dt = unix_to_timestamp(day_start)
