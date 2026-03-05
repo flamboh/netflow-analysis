@@ -9,10 +9,19 @@ It does two things:
 
 ## Normal run
 
-From the repo root:
+The repo-level `.env` is the single source of truth.
+
+The pipeline resolves that file relative to the script location, so you can run it either from the repo root or from `netflow-db/`.
 
 ```bash
 python netflow-db/pipeline.py
+```
+
+or
+
+```bash
+cd netflow-db
+python pipeline.py
 ```
 
 That uses the default reprocessing window of 30 days.
