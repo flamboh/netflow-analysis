@@ -21,12 +21,14 @@ from itertools import combinations
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
 
 def load_env_file(env_path: str) -> None:
     """Populate os.environ with key/value pairs from a dotenv-style file."""
-    env_file = Path(env_path)
+    env_file = Path(env_path).expanduser()
     if not env_file.exists():
-        print(f"ERROR: Environment file '{env_path}' not found.", file=sys.stderr)
+        print(f"ERROR: Environment file '{env_file}' not found.", file=sys.stderr)
         sys.exit(1)
 
     with env_file.open("r", encoding="utf-8") as handle:
@@ -294,8 +296,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--env-path",
-        default="../.env",
-        help="Path to the environment file (defaults to ../.env).",
+        default=str(DEFAULT_ENV_PATH),
+        help="Path to the environment file (defaults to the repo-level .env).",
     )
     parser.add_argument(
         "--timeout",
@@ -379,4 +381,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

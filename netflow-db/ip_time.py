@@ -5,19 +5,23 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from multiprocessing import Pool
 
+DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / '.env'
+
+
 # Load environment variables from .env file
-def load_env_file(env_path='../.env'):
+def load_env_file(env_path=None):
     """
     Load environment variables from a dotenv-style file into os.environ.
     
-    Reads the file at env_path (default '../.env'), ignoring empty lines and lines
-    starting with '#'. Each non-comment line containing '=' is split on the first
-    '=' and the left/right parts are stripped and set as KEY=VALUE in os.environ.
+    Reads the file at env_path (default repo-level '.env'), ignoring empty lines
+    and lines starting with '#'. Each non-comment line containing '=' is split
+    on the first '=' and the left/right parts are stripped and set as KEY=VALUE
+    in os.environ.
     
     If the file does not exist, prints an error message and exits the process with
     status code 1.
     """
-    env_file = Path(env_path)
+    env_file = DEFAULT_ENV_PATH if env_path is None else Path(env_path).expanduser()
     if env_file.exists():
         with open(env_file, 'r') as f:
             for line in f:
@@ -26,7 +30,7 @@ def load_env_file(env_path='../.env'):
                     key, value = line.split('=', 1)
                     os.environ[key.strip()] = value.strip()
     else:
-        print(f"ERROR: Environment file '{env_path}' not found!")
+        print(f"ERROR: Environment file '{env_file}' not found!")
         print("Please copy .env.example to .env and configure your settings.")
         sys.exit(1)
 
