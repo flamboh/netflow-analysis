@@ -294,7 +294,11 @@ def process_day_worker(day_info: tuple) -> dict:
     }
 
 
-def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
+def process_pending_files(
+    conn: sqlite3.Connection,
+    limit: int = None,
+    reprocess_window_days: int = 30
+) -> dict:
     """
     Process all pending files for the ip_stats table.
     Uses day-parallel processing where each worker handles a complete day.
@@ -302,9 +306,14 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     init_ip_stats_table(conn)
     
     # Handle stale days - reset days that have new files mixed with already-processed files
-    handle_stale_days(conn, 'ip_stats')
+    handle_stale_days(conn, 'ip_stats', reprocess_window_days)
     
-    pending = get_files_needing_processing(conn, 'ip_stats', limit)
+    pending = get_files_needing_processing(
+        conn,
+        'ip_stats',
+        limit,
+        reprocess_window_days=reprocess_window_days,
+    )
     stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}
     
     if not pending:

@@ -10,6 +10,7 @@ This is the main entry point for cron-based processing. It orchestrates:
 
 Usage:
     python pipeline.py [--discover-only] [--process-only] [--limit N] [--tables TABLE1,TABLE2]
+                       [--reprocess-window-days N]
     
 Options:
     --discover-only   Only run discovery phase, skip processing
@@ -17,6 +18,8 @@ Options:
     --limit N         Limit processing to N files per table
     --tables          Comma-separated list of tables to process (default: all)
                       Valid: flow_stats,ip_stats,protocol_stats,spectrum_stats,structure_stats
+    --reprocess-window-days N
+                      Reprocessing window in days (default: 30, 0 = unlimited)
 """
 
 import argparse
@@ -84,7 +87,7 @@ def setup_logging(log_dir: Path = None):
     return log_file
 
 
-def run_discovery(conn: sqlite3.Connection) -> dict:
+def run_discovery(conn: sqlite3.Connection, reprocess_window_days: int = 30) -> dict:
     """
     Run the file discovery phase.
     
@@ -92,6 +95,7 @@ def run_discovery(conn: sqlite3.Connection) -> dict:
     
     Args:
         conn: Database connection
+        reprocess_window_days: Reprocessing window in days. ``0`` means unlimited.
         
     Returns:
         Discovery statistics
@@ -100,13 +104,17 @@ def run_discovery(conn: sqlite3.Connection) -> dict:
     print("PHASE 1: FILE DISCOVERY")
     print("=" * 60)
     
-    stats = sync_processed_files_table(conn, include_gaps=True)
+    stats = sync_processed_files_table(
+        conn,
+        include_gaps=True,
+        reprocess_window_days=reprocess_window_days,
+    )
     
     horizon = compute_data_horizon(conn)
     print(f"\nData horizon: {horizon}")
     
     # Count pending files
-    pending = get_pending_files(conn)
+    pending = get_pending_files(conn, reprocess_window_days=reprocess_window_days)
     print(f"Total pending files: {len(pending)}")
     
     return stats
@@ -115,7 +123,8 @@ def run_discovery(conn: sqlite3.Connection) -> dict:
 def run_processing(
     conn: sqlite3.Connection,
     tables: list[str] = None,
-    limit: int = None
+    limit: int = None,
+    reprocess_window_days: int = 30
 ) -> dict:
     """
     Run the processing phase for specified tables.
@@ -124,6 +133,7 @@ def run_processing(
         conn: Database connection
         tables: List of table names to process (default: all)
         limit: Optional limit on files per table
+        reprocess_window_days: Reprocessing window in days. ``0`` means unlimited.
         
     Returns:
         Processing statistics per table
@@ -162,7 +172,7 @@ def run_processing(
             processor.init_structure_stats_table(conn)
         
         # Process pending files
-        stats = processor.process_pending_files(conn, limit)
+        stats = processor.process_pending_files(conn, limit, reprocess_window_days)
         all_stats[table_name] = stats
         
         print(f"{table_name}: {stats['processed']} processed, {stats['errors']} errors")
@@ -227,6 +237,12 @@ def main():
         action='store_true',
         help='Disable logging to file'
     )
+    parser.add_argument(
+        '--reprocess-window-days',
+        type=int,
+        default=30,
+        help='Reprocessing window in days (default: 30, 0 = unlimited)'
+    )
     
     args = parser.parse_args()
     
@@ -250,6 +266,10 @@ def main():
     
     if args.limit:
         print(f"Limit: {args.limit} files per table")
+    if args.reprocess_window_days == 0:
+        print("Reprocessing window: unlimited")
+    else:
+        print(f"Reprocessing window: last {args.reprocess_window_days} days")
     
     start_time = datetime.now()
     discovery_stats = {}
@@ -261,11 +281,11 @@ def main():
         
         # Phase 1: Discovery
         if not args.process_only:
-            discovery_stats = run_discovery(conn)
+            discovery_stats = run_discovery(conn, args.reprocess_window_days)
         
         # Phase 2: Processing
         if not args.discover_only:
-            processing_stats = run_processing(conn, tables, args.limit)
+            processing_stats = run_processing(conn, tables, args.limit, args.reprocess_window_days)
     
     # Print summary
     print_summary(discovery_stats, processing_stats)

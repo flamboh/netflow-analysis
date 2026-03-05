@@ -209,7 +209,11 @@ def batch_insert_results(conn: sqlite3.Connection, results: list[dict]) -> int:
     return inserted
 
 
-def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
+def process_pending_files(
+    conn: sqlite3.Connection,
+    limit: int = None,
+    reprocess_window_days: int = 30
+) -> dict:
     """
     Process all pending files for the netflow_stats table using parallel processing.
     
@@ -224,9 +228,14 @@ def process_pending_files(conn: sqlite3.Connection, limit: int = None) -> dict:
     
     # Handle stale days - reset days that have new files mixed with already-processed files
     # (flow_stats has no aggregates, but we reset for consistency)
-    handle_stale_days(conn, 'flow_stats')
+    handle_stale_days(conn, 'flow_stats', reprocess_window_days)
     
-    pending = get_files_needing_processing(conn, 'flow_stats', limit)
+    pending = get_files_needing_processing(
+        conn,
+        'flow_stats',
+        limit,
+        reprocess_window_days=reprocess_window_days,
+    )
     stats = {'processed': 0, 'errors': 0}
     
     if not pending:
