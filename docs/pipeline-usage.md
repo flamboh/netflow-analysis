@@ -7,6 +7,13 @@ It does two things:
 - discovers files and recent gaps
 - processes pending data into the stats tables
 
+There are two separate windows:
+
+- `--discovery-window-days`: how far back the filesystem scan looks for real files
+- `--reprocess-window-days`: how far back the pipeline is willing to act on discovered data in that run
+
+If you do not pass `--discovery-window-days`, it defaults to the same value as `--reprocess-window-days`.
+
 ## Normal run
 
 The repo-level `.env` is the single source of truth.
@@ -56,6 +63,12 @@ Limit how much work is done per table:
 
 ```bash
 python netflow-db/pipeline.py --limit 500
+```
+
+Use a separate discovery window:
+
+```bash
+python netflow-db/pipeline.py --discovery-window-days 30 --reprocess-window-days 14
 ```
 
 Disable log-file output:

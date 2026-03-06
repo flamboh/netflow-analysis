@@ -10,7 +10,7 @@ This is the main entry point for cron-based processing. It orchestrates:
 
 Usage:
     python pipeline.py [--discover-only] [--process-only] [--limit N] [--tables TABLE1,TABLE2]
-                       [--reprocess-window-days N]
+                       [--reprocess-window-days N] [--discovery-window-days N]
     
 Options:
     --discover-only   Only run discovery phase, skip processing
@@ -20,6 +20,9 @@ Options:
                       Valid: flow_stats,ip_stats,protocol_stats,spectrum_stats,structure_stats
     --reprocess-window-days N
                       Reprocessing window in days (default: 30, 0 = unlimited)
+    --discovery-window-days N
+                      Discovery scan window in days (default: matches reprocessing window,
+                      0 = unlimited)
 """
 
 import argparse
@@ -87,7 +90,11 @@ def setup_logging(log_dir: Path = None):
     return log_file
 
 
-def run_discovery(conn: sqlite3.Connection, reprocess_window_days: int = 30) -> dict:
+def run_discovery(
+    conn: sqlite3.Connection,
+    reprocess_window_days: int = 30,
+    discovery_window_days: int = 30
+) -> dict:
     """
     Run the file discovery phase.
     
@@ -96,6 +103,7 @@ def run_discovery(conn: sqlite3.Connection, reprocess_window_days: int = 30) -> 
     Args:
         conn: Database connection
         reprocess_window_days: Reprocessing window in days. ``0`` means unlimited.
+        discovery_window_days: Discovery scan window in days. ``0`` means unlimited.
         
     Returns:
         Discovery statistics
@@ -108,6 +116,7 @@ def run_discovery(conn: sqlite3.Connection, reprocess_window_days: int = 30) -> 
         conn,
         include_gaps=True,
         reprocess_window_days=reprocess_window_days,
+        discovery_window_days=discovery_window_days,
     )
     
     horizon = compute_data_horizon(conn)
@@ -243,8 +252,19 @@ def main():
         default=30,
         help='Reprocessing window in days (default: 30, 0 = unlimited)'
     )
+    parser.add_argument(
+        '--discovery-window-days',
+        type=int,
+        default=None,
+        help='Discovery scan window in days (default: matches reprocessing window, 0 = unlimited)'
+    )
     
     args = parser.parse_args()
+    discovery_window_days = (
+        args.reprocess_window_days
+        if args.discovery_window_days is None
+        else args.discovery_window_days
+    )
     
     # Setup logging
     if not args.no_log:
@@ -270,6 +290,10 @@ def main():
         print("Reprocessing window: unlimited")
     else:
         print(f"Reprocessing window: last {args.reprocess_window_days} days")
+    if discovery_window_days == 0:
+        print("Discovery window: unlimited")
+    else:
+        print(f"Discovery window: last {discovery_window_days} days")
     
     start_time = datetime.now()
     discovery_stats = {}
@@ -281,7 +305,11 @@ def main():
         
         # Phase 1: Discovery
         if not args.process_only:
-            discovery_stats = run_discovery(conn, args.reprocess_window_days)
+            discovery_stats = run_discovery(
+                conn,
+                args.reprocess_window_days,
+                discovery_window_days,
+            )
         
         # Phase 2: Processing
         if not args.discover_only:
