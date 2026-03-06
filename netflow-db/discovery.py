@@ -22,45 +22,53 @@ from common import (
 )
 
 
-def scan_filesystem() -> Iterator[tuple[str, str, datetime]]:
+def iter_scan_days(discovery_window_days: int = 0) -> Iterator[datetime]:
     """
-    Walk the NetFlow directory tree and yield all nfcapd files.
-    
+    Yield day-start datetimes to inspect during filesystem discovery.
+
+    Args:
+        discovery_window_days: Number of calendar days to inspect. ``0`` means
+            unlimited from ``DATA_START_DATE`` through today.
+    """
+    start_dt = get_discovery_start_dt(discovery_window_days)
+    end_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    current = start_dt
+
+    while current <= end_dt:
+        yield current
+        current += timedelta(days=1)
+
+
+def scan_filesystem(discovery_window_days: int = 0) -> Iterator[tuple[str, str, datetime]]:
+    """
+    Scan the filesystem within the configured discovery window and yield nfcapd files.
+
     Yields:
         Tuples of (file_path, router, timestamp) for each discovered file
     """
     base_path = Path(NETFLOW_DATA_PATH)
-    
+    scan_days = list(iter_scan_days(discovery_window_days))
+
     for router in AVAILABLE_ROUTERS:
         router_path = base_path / router
         if not router_path.exists():
             print(f"Warning: Router path does not exist: {router_path}")
             continue
-        
-        # Walk through year/month/day directories
-        for year_dir in sorted(router_path.iterdir()):
-            if not year_dir.is_dir() or not year_dir.name.isdigit():
+
+        for day_start in scan_days:
+            day_dir = router_path / day_start.strftime('%Y') / day_start.strftime('%m') / day_start.strftime('%d')
+            if not day_dir.is_dir():
                 continue
-                
-            for month_dir in sorted(year_dir.iterdir()):
-                if not month_dir.is_dir() or not month_dir.name.isdigit():
-                    continue
-                    
-                for day_dir in sorted(month_dir.iterdir()):
-                    if not day_dir.is_dir() or not day_dir.name.isdigit():
+
+            for file_path in sorted(day_dir.glob('nfcapd.*')):
+                try:
+                    router_parsed, timestamp = parse_file_path(str(file_path))
+                    if timestamp < DATA_START_DATE:
                         continue
-                    
-                    # Find all nfcapd files in this day directory
-                    for file_path in sorted(day_dir.glob('nfcapd.*')):
-                        try:
-                            router_parsed, timestamp = parse_file_path(str(file_path))
-                            # Skip files before DATA_START_DATE
-                            if timestamp < DATA_START_DATE:
-                                continue
-                            yield str(file_path), router_parsed, timestamp
-                        except ValueError as e:
-                            print(f"Warning: Could not parse file {file_path}: {e}")
-                            continue
+                    yield str(file_path), router_parsed, timestamp
+                except ValueError as e:
+                    print(f"Warning: Could not parse file {file_path}: {e}")
+                    continue
 
 
 def compute_data_horizon(conn: sqlite3.Connection) -> datetime:
@@ -154,10 +162,31 @@ def get_reprocess_cutoff_dt(reprocess_window_days: int = 30) -> Optional[datetim
     )
 
 
+def get_discovery_start_dt(discovery_window_days: int = 0) -> datetime:
+    """
+    Return the day-start lower bound for filesystem discovery.
+
+    Args:
+        discovery_window_days: Number of calendar days to inspect. ``0`` means
+            unlimited from ``DATA_START_DATE``.
+    """
+    if discovery_window_days == 0:
+        return DATA_START_DATE.replace(hour=0, minute=0, second=0, microsecond=0)
+    if discovery_window_days < 0:
+        raise ValueError("discovery_window_days must be >= 0")
+
+    cutoff_dt = (
+        datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        - timedelta(days=discovery_window_days)
+    )
+    return max(DATA_START_DATE.replace(hour=0, minute=0, second=0, microsecond=0), cutoff_dt)
+
+
 def sync_processed_files_table(
     conn: sqlite3.Connection,
     include_gaps: bool = True,
-    reprocess_window_days: int = 30
+    reprocess_window_days: int = 30,
+    discovery_window_days: int = 0
 ) -> dict:
     """
     Synchronize the processed_files table with the filesystem.
@@ -171,6 +200,8 @@ def sync_processed_files_table(
         conn: Database connection
         include_gaps: If True, also insert gap placeholders (file_exists=0)
         reprocess_window_days: Gap detection window in days. ``0`` means unlimited.
+        discovery_window_days: Filesystem discovery window in days. ``0`` means
+            unlimited from ``DATA_START_DATE``.
         
     Returns:
         Dictionary with counts: {'discovered': N, 'new_files': N, 'gaps': N}
@@ -182,7 +213,7 @@ def sync_processed_files_table(
     
     # Phase 1: Insert all discovered files
     print("Scanning filesystem for NetFlow files...")
-    for file_path, router, timestamp in scan_filesystem():
+    for file_path, router, timestamp in scan_filesystem(discovery_window_days):
         stats['discovered'] += 1
         
         # Insert or ignore if already exists
