@@ -2,25 +2,7 @@
 	import { onMount } from 'svelte';
 	import Chart from 'chart.js/auto';
 	import annotationPlugin from 'chartjs-plugin-annotation';
-
-	interface StructureFunctionPoint {
-		q: number;
-		tauTilde: number;
-		sd: number;
-	}
-
-	interface StructureFunctionData {
-		slug: string;
-		router: string;
-		filename: string;
-		structureFunction: StructureFunctionPoint[];
-		metadata: {
-			dataSource: string;
-			uniqueIPCount?: number;
-			pointCount: number;
-			qRange: { min: number; max: number };
-		};
-	}
+	import type { StructureFunctionData } from '$lib/types/types';
 
 	let { data }: { data: StructureFunctionData } = $props();
 	let chartCanvas: HTMLCanvasElement;
@@ -80,8 +62,8 @@
 				type: 'line',
 				xMin: point.q,
 				xMax: point.q,
-				yMin: point.tauTilde - point.sd,
-				yMax: point.tauTilde + point.sd,
+				yMin: point.tau - point.sd,
+				yMax: point.tau + point.sd,
 				borderColor: 'rgba(128, 128, 128, 0.7)',
 				borderWidth: 1.5
 			};
@@ -91,8 +73,8 @@
 				type: 'line',
 				xMin: point.q - capWidth,
 				xMax: point.q + capWidth,
-				yMin: point.tauTilde + point.sd,
-				yMax: point.tauTilde + point.sd,
+				yMin: point.tau + point.sd,
+				yMax: point.tau + point.sd,
 				borderColor: 'rgba(128, 128, 128, 0.7)',
 				borderWidth: 1.5
 			};
@@ -102,8 +84,8 @@
 				type: 'line',
 				xMin: point.q - capWidth,
 				xMax: point.q + capWidth,
-				yMin: point.tauTilde - point.sd,
-				yMax: point.tauTilde - point.sd,
+				yMin: point.tau - point.sd,
+				yMax: point.tau - point.sd,
 				borderColor: 'rgba(128, 128, 128, 0.7)',
 				borderWidth: 1.5
 			};
@@ -113,7 +95,7 @@
 			datasets: [
 				{
 					label: 'tau(q)',
-					data: points.map((p) => ({ x: p.q, y: p.tauTilde })),
+					data: points.map((p) => ({ x: p.q, y: p.tau })),
 					borderColor: 'rgb(59, 130, 246)',
 					backgroundColor: 'rgba(59, 130, 246, 0.1)',
 					borderWidth: 2,
