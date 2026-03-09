@@ -22,6 +22,55 @@ export interface NetflowStatsResult {
 	data: string;
 }
 
+export interface NetflowFileSummaryRecord {
+	router: string;
+	file_path: string;
+	flows: number;
+	flows_tcp: number;
+	flows_udp: number;
+	flows_icmp: number;
+	flows_other: number;
+	packets: number;
+	packets_tcp: number;
+	packets_udp: number;
+	packets_icmp: number;
+	packets_other: number;
+	bytes: number;
+	bytes_tcp: number;
+	bytes_udp: number;
+	bytes_icmp: number;
+	bytes_other: number;
+	first_timestamp: number;
+	last_timestamp: number;
+	msec_first: number;
+	msec_last: number;
+	sequence_failures: number;
+	processed_at: string;
+}
+
+export interface NetflowFileSummaryResponse {
+	summary: NetflowFileSummaryRecord[];
+}
+
+export interface FileIpCounts {
+	ipv4Count: number | null;
+	ipv6Count: number | null;
+}
+
+export interface NetflowFileDetailsRouter {
+	summary: NetflowFileSummaryRecord;
+	ipCountsSource: FileIpCounts | null;
+	ipCountsDestination: FileIpCounts | null;
+	structureSource: StructureFunctionData | null;
+	structureDestination: StructureFunctionData | null;
+	spectrumSource: SpectrumData | null;
+	spectrumDestination: SpectrumData | null;
+}
+
+export interface NetflowFileDetailsResponse {
+	routers: NetflowFileDetailsRouter[];
+}
+
 export const IP_GRANULARITIES = ['5m', '30m', '1h', '1d'] as const;
 
 export type IpGranularity = (typeof IP_GRANULARITIES)[number];
@@ -137,6 +186,20 @@ export interface StructureFunctionPoint {
 	q: number;
 	tau: number;
 	sd: number;
+}
+
+export interface StructureFunctionData {
+	slug: string;
+	router: string;
+	filename: string;
+	structureFunction: StructureFunctionPoint[];
+	metadata: {
+		dataSource: string;
+		uniqueIPCount?: number;
+		pointCount: number;
+		addressType: string;
+		qRange: { min: number; max: number };
+	};
 }
 
 export interface StructureStatsBucket {

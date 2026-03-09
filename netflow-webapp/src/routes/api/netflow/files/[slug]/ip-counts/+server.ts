@@ -1,34 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getDb } from '../utils';
-import { createDateFromPSTComponents } from '$lib/utils/timezone';
+import { getDb, slugToBucketStart } from '../utils';
 
 const FIVE_MINUTES = '5m';
-
-function slugToBucketStart(slug: string): number | null {
-	if (slug.length !== 12) {
-		return null;
-	}
-	const year = Number(slug.slice(0, 4));
-	const month = Number(slug.slice(4, 6)); // 1-12 for PST utilities
-	const day = Number(slug.slice(6, 8));
-	const hour = Number(slug.slice(8, 10));
-	const minute = Number(slug.slice(10, 12));
-
-	if (
-		Number.isNaN(year) ||
-		Number.isNaN(month) ||
-		Number.isNaN(day) ||
-		Number.isNaN(hour) ||
-		Number.isNaN(minute)
-	) {
-		return null;
-	}
-
-	// The slug represents a PST date/time, so convert using PST-aware function
-	const date = createDateFromPSTComponents(year, month, day, hour, minute);
-	return Math.floor(date.getTime() / 1000);
-}
 
 type IpCountRow = {
 	saIpv4Count: number;

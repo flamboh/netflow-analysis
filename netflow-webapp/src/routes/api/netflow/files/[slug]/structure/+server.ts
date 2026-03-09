@@ -1,13 +1,30 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import type { SpectrumData, SpectrumPoint } from '$lib/types/types';
+import type { StructureFunctionPoint } from '$lib/types/types';
 import { getDb, slugToBucketStart } from '../utils';
 
 const FIVE_MINUTES = '5m';
 
-type SpectrumRow = {
-	spectrumJsonSa: string;
-	spectrumJsonDa: string;
+type StructureRow = {
+	structureJsonSa: string;
+	structureJsonDa: string;
+};
+
+type StructureResponse = {
+	slug: string;
+	router: string;
+	filename: string;
+	structureFunction: StructureFunctionPoint[];
+	metadata: {
+		dataSource: string;
+		uniqueIPCount?: number;
+		pointCount: number;
+		addressType: string;
+		qRange: {
+			min: number;
+			max: number;
+		};
+	};
 };
 
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -42,60 +59,60 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		const row = db
 			.prepare(
 				`SELECT
-					spectrum_json_sa AS spectrumJsonSa,
-					spectrum_json_da AS spectrumJsonDa
-				FROM spectrum_stats
+					structure_json_sa AS structureJsonSa,
+					structure_json_da AS structureJsonDa
+				FROM structure_stats
 				WHERE router = ?
 					AND granularity = ?
 					AND bucket_start = ?
 					AND ip_version = 4
 				LIMIT 1`
 			)
-			.get(router, FIVE_MINUTES, bucketStart) as SpectrumRow | undefined;
+			.get(router, FIVE_MINUTES, bucketStart) as StructureRow | undefined;
 
 		if (!row) {
 			return json(
-				{ error: `Spectrum statistics not found for router ${router} at ${slug}` },
+				{ error: `Structure statistics not found for router ${router} at ${slug}` },
 				{ status: 404 }
 			);
 		}
 
-		const rawSpectrum = isSource ? row.spectrumJsonSa : row.spectrumJsonDa;
-		let data: SpectrumPoint[] = [];
+		const rawStructure = isSource ? row.structureJsonSa : row.structureJsonDa;
+		let data: StructureFunctionPoint[] = [];
 
 		try {
-			if (rawSpectrum) {
-				data = JSON.parse(rawSpectrum) as SpectrumPoint[];
+			if (rawStructure) {
+				data = JSON.parse(rawStructure) as StructureFunctionPoint[];
 			}
 		} catch (error) {
-			console.error('Failed to parse spectrum JSON from database:', error);
-			return json({ error: 'Failed to parse spectrum statistics' }, { status: 500 });
+			console.error('Failed to parse structure JSON from database:', error);
+			return json({ error: 'Failed to parse structure statistics' }, { status: 500 });
 		}
 
 		const addressType = isSource ? 'Source' : 'Destination';
-		const alphaValues = data.map((point) => point.alpha);
-		const alphaRange =
-			alphaValues.length > 0
-				? { min: Math.min(...alphaValues), max: Math.max(...alphaValues) }
+		const qValues = data.map((point) => point.q);
+		const qRange =
+			qValues.length > 0
+				? { min: Math.min(...qValues), max: Math.max(...qValues) }
 				: { min: 0, max: 0 };
 
-		const response: SpectrumData = {
+		const response: StructureResponse = {
 			slug,
 			router,
 			filename: `nfcapd.${slug}`,
-			spectrum: data,
+			structureFunction: data,
 			metadata: {
-				dataSource: `Database: spectrum_stats 5m bucket (${addressType} Addresses)`,
+				dataSource: `Database: structure_stats 5m bucket (${addressType} Addresses)`,
 				uniqueIPCount: -1,
 				pointCount: data.length,
 				addressType: addressType,
-				alphaRange
+				qRange
 			}
 		};
 
 		return json(response);
 	} catch (error) {
-		console.error('Failed to fetch spectrum statistics from database:', error);
-		return json({ error: 'Failed to get spectrum statistics' }, { status: 500 });
+		console.error('Failed to fetch structure statistics from database:', error);
+		return json({ error: 'Failed to get structure statistics' }, { status: 500 });
 	}
 };
