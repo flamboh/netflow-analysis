@@ -53,7 +53,7 @@ function buildStructureData(
 	addressType: 'Source' | 'Destination',
 	points: StructureFunctionPoint[] | null
 ): StructureFunctionData | null {
-	if (!points) return null;
+	if (!points || points.length === 0) return null;
 
 	const qValues = points.map((point) => point.q);
 	const qRange =
@@ -82,7 +82,7 @@ function buildSpectrumData(
 	addressType: 'Source' | 'Destination',
 	points: SpectrumPoint[] | null
 ): SpectrumData | null {
-	if (!points) return null;
+	if (!points || points.length === 0) return null;
 
 	const alphaValues = points.map((point) => point.alpha);
 	const alphaRange =

@@ -30,6 +30,10 @@
 	let spectrumDataDestination = $state(new Map<string, SpectrumData>());
 	let singularitiesDataSource = $state(new Map<string, SingularitiesData>());
 	let singularitiesDataDestination = $state(new Map<string, SingularitiesData>());
+	let loadingStructureSource = $state(new Map<string, boolean>());
+	let loadingStructureDestination = $state(new Map<string, boolean>());
+	let loadingSpectrumSource = $state(new Map<string, boolean>());
+	let loadingSpectrumDestination = $state(new Map<string, boolean>());
 	let loadingSingularitiesSource = $state(new Map<string, boolean>());
 	let loadingSingularitiesDestination = $state(new Map<string, boolean>());
 	let errorsSource = $state(new Map<string, string>());
@@ -78,6 +82,10 @@
 		spectrumDataDestination = new Map<string, SpectrumData>();
 		singularitiesDataSource = new Map<string, SingularitiesData>();
 		singularitiesDataDestination = new Map<string, SingularitiesData>();
+		loadingStructureSource = new Map<string, boolean>();
+		loadingStructureDestination = new Map<string, boolean>();
+		loadingSpectrumSource = new Map<string, boolean>();
+		loadingSpectrumDestination = new Map<string, boolean>();
 		loadingSingularitiesSource = new Map<string, boolean>();
 		loadingSingularitiesDestination = new Map<string, boolean>();
 		errorsSource = new Map<string, string>();
@@ -107,26 +115,18 @@
 
 			if (routerDetails.structureSource) {
 				nextStructureSource.set(router, routerDetails.structureSource);
-			} else {
-				nextErrorsSource.set(router, 'Structure statistics not found');
 			}
 
 			if (routerDetails.structureDestination) {
 				nextStructureDestination.set(router, routerDetails.structureDestination);
-			} else {
-				nextErrorsDestination.set(router, 'Structure statistics not found');
 			}
 
 			if (routerDetails.spectrumSource) {
 				nextSpectrumSource.set(router, routerDetails.spectrumSource);
-			} else {
-				nextErrorsSpectrumSource.set(router, 'Spectrum statistics not found');
 			}
 
 			if (routerDetails.spectrumDestination) {
 				nextSpectrumDestination.set(router, routerDetails.spectrumDestination);
-			} else {
-				nextErrorsSpectrumDestination.set(router, 'Spectrum statistics not found');
 			}
 
 			if (routerDetails.ipCountsSource) {
@@ -244,10 +244,6 @@
 			if (token !== loadToken) {
 				return;
 			}
-			console.log(
-				`Singularities data loaded for ${router} (${source ? 'source' : 'destination'}):`,
-				result
-			);
 
 			// Store the result in the appropriate data map
 			if (source) {
@@ -284,12 +280,166 @@
 		}
 	}
 
-	function reloadStructure(_router: string, _source: boolean) {
-		void loadSummary(data.slug);
+	async function loadStructureData(token: number, slug: string, router: string, source: boolean) {
+		const errorMap = source ? errorsSource : errorsDestination;
+		const dataMap = source ? structureFunctionDataSource : structureFunctionDataDestination;
+		const loadingMap = source ? loadingStructureSource : loadingStructureDestination;
+
+		errorMap.set(router, '');
+		loadingMap.set(router, true);
+		if (source) {
+			errorsSource = new Map(errorMap);
+			loadingStructureSource = new Map(loadingMap);
+		} else {
+			errorsDestination = new Map(errorMap);
+			loadingStructureDestination = new Map(loadingMap);
+		}
+
+		try {
+			const response = await fetch(
+				`/api/netflow/files/${slug}/structure?router=${encodeURIComponent(router)}&source=${source}`
+			);
+
+			if (token !== loadToken) {
+				return;
+			}
+
+			if (response.status === 404) {
+				dataMap.delete(router);
+				if (source) {
+					structureFunctionDataSource = new Map(dataMap);
+				} else {
+					structureFunctionDataDestination = new Map(dataMap);
+				}
+				return;
+			}
+
+			if (!response.ok) {
+				let message = `Failed to load structure data: ${response.statusText}`;
+				try {
+					const payload = await response.json();
+					if (payload?.error) {
+						message = payload.error;
+					}
+				} catch {
+					// Ignore JSON parse failures and keep the status text fallback.
+				}
+				throw new Error(message);
+			}
+
+			const result = (await response.json()) as StructureFunctionData;
+			dataMap.set(router, result);
+
+			if (source) {
+				structureFunctionDataSource = new Map(dataMap);
+			} else {
+				structureFunctionDataDestination = new Map(dataMap);
+			}
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+			dataMap.delete(router);
+			errorMap.set(router, errorMessage);
+
+			if (source) {
+				structureFunctionDataSource = new Map(dataMap);
+				errorsSource = new Map(errorMap);
+			} else {
+				structureFunctionDataDestination = new Map(dataMap);
+				errorsDestination = new Map(errorMap);
+			}
+		} finally {
+			loadingMap.set(router, false);
+			if (source) {
+				loadingStructureSource = new Map(loadingMap);
+			} else {
+				loadingStructureDestination = new Map(loadingMap);
+			}
+		}
 	}
 
-	function reloadSpectrum(_router: string, _source: boolean) {
-		void loadSummary(data.slug);
+	async function loadSpectrumData(token: number, slug: string, router: string, source: boolean) {
+		const errorMap = source ? errorsSpectrumSource : errorsSpectrumDestination;
+		const dataMap = source ? spectrumDataSource : spectrumDataDestination;
+		const loadingMap = source ? loadingSpectrumSource : loadingSpectrumDestination;
+
+		errorMap.set(router, '');
+		loadingMap.set(router, true);
+		if (source) {
+			errorsSpectrumSource = new Map(errorMap);
+			loadingSpectrumSource = new Map(loadingMap);
+		} else {
+			errorsSpectrumDestination = new Map(errorMap);
+			loadingSpectrumDestination = new Map(loadingMap);
+		}
+
+		try {
+			const response = await fetch(
+				`/api/netflow/files/${slug}/spectrum?router=${encodeURIComponent(router)}&source=${source}`
+			);
+
+			if (token !== loadToken) {
+				return;
+			}
+
+			if (response.status === 404) {
+				dataMap.delete(router);
+				if (source) {
+					spectrumDataSource = new Map(dataMap);
+				} else {
+					spectrumDataDestination = new Map(dataMap);
+				}
+				return;
+			}
+
+			if (!response.ok) {
+				let message = `Failed to load spectrum data: ${response.statusText}`;
+				try {
+					const payload = await response.json();
+					if (payload?.error) {
+						message = payload.error;
+					}
+				} catch {
+					// Ignore JSON parse failures and keep the status text fallback.
+				}
+				throw new Error(message);
+			}
+
+			const result = (await response.json()) as SpectrumData;
+			dataMap.set(router, result);
+
+			if (source) {
+				spectrumDataSource = new Map(dataMap);
+			} else {
+				spectrumDataDestination = new Map(dataMap);
+			}
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+			dataMap.delete(router);
+			errorMap.set(router, errorMessage);
+
+			if (source) {
+				spectrumDataSource = new Map(dataMap);
+				errorsSpectrumSource = new Map(errorMap);
+			} else {
+				spectrumDataDestination = new Map(dataMap);
+				errorsSpectrumDestination = new Map(errorMap);
+			}
+		} finally {
+			loadingMap.set(router, false);
+			if (source) {
+				loadingSpectrumSource = new Map(loadingMap);
+			} else {
+				loadingSpectrumDestination = new Map(loadingMap);
+			}
+		}
+	}
+
+	function reloadStructure(router: string, source: boolean) {
+		void loadStructureData(loadToken, data.slug, router, source);
+	}
+
+	function reloadSpectrum(router: string, source: boolean) {
+		void loadSpectrumData(loadToken, data.slug, router, source);
 	}
 
 	function reloadSingularities(router: string, source: boolean) {
@@ -485,176 +635,191 @@
 						</div>
 					</div>
 
-					<!-- MAAD Analysis for this Router -->
+					<!-- Analysis for this Router -->
 					<div class="rounded-b-lg p-4">
 						<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
-
-						<!-- Structure Function Analysis -->
-						<div class="mb-6">
-							<h5 class="text-md mb-3 font-medium text-gray-700">Structure Function tau(q)</h5>
-							<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-								<!-- Source Address Analysis -->
-								<div class="space-y-3">
-									<h6 class="text-sm font-medium text-blue-700">Source Address Analysis</h6>
-									{#if errorsSource.get(record.router)}
-										<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-											<p>Error loading source analysis: {errorsSource.get(record.router)}</p>
-											<button
-												class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-												onclick={() => reloadStructure(record.router, true)}
-											>
-												Retry Source
-											</button>
-										</div>
-									{:else if structureFunctionDataSource.get(record.router)}
-										<StructureFunctionChart
-											data={structureFunctionDataSource.get(record.router)!}
-										/>
-									{:else}
-										<div class="rounded border bg-gray-50 p-4 text-gray-600">
-											No source structure statistics available.
-										</div>
-									{/if}
-								</div>
-
-								<!-- Destination Address Analysis -->
-								<div class="space-y-3">
-									<h6 class="text-sm font-medium text-blue-700">Destination Address Analysis</h6>
-									{#if errorsDestination.get(record.router)}
-										<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-											<p>
-												Error loading destination analysis: {errorsDestination.get(record.router)}
-											</p>
-											<button
-												class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-												onclick={() => reloadStructure(record.router, false)}
-											>
-												Retry Destination
-											</button>
-										</div>
-									{:else if structureFunctionDataDestination.get(record.router)}
-										<StructureFunctionChart
-											data={structureFunctionDataDestination.get(record.router)!}
-										/>
-									{:else}
-										<div class="rounded border bg-gray-50 p-4 text-gray-600">
-											No destination structure statistics available.
-										</div>
-									{/if}
+						<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">
+								Source
+							</h5>
+							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">
+								Destination
+							</h5>
+						</div>
+						<div class="space-y-6">
+							<div class="space-y-3">
+								<h6 class="text-md font-medium text-gray-700">Structure</h6>
+								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+									<div>
+										{#if loadingStructureSource.get(record.router)}
+											<div class="flex items-center justify-center py-6">
+												<div class="text-gray-600">Loading source structure...</div>
+											</div>
+										{:else if errorsSource.get(record.router)}
+											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+												<p>Error loading source structure: {errorsSource.get(record.router)}</p>
+												<button
+													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													onclick={() => reloadStructure(record.router, true)}
+												>
+													Retry Source
+												</button>
+											</div>
+										{:else if structureFunctionDataSource.get(record.router)}
+											<StructureFunctionChart
+												data={structureFunctionDataSource.get(record.router)!}
+											/>
+										{:else}
+											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+												No source structure available.
+											</div>
+										{/if}
+									</div>
+									<div>
+										{#if loadingStructureDestination.get(record.router)}
+											<div class="flex items-center justify-center py-6">
+												<div class="text-gray-600">Loading destination structure...</div>
+											</div>
+										{:else if errorsDestination.get(record.router)}
+											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+												<p>
+													Error loading destination structure: {errorsDestination.get(
+														record.router
+													)}
+												</p>
+												<button
+													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													onclick={() => reloadStructure(record.router, false)}
+												>
+													Retry Destination
+												</button>
+											</div>
+										{:else if structureFunctionDataDestination.get(record.router)}
+											<StructureFunctionChart
+												data={structureFunctionDataDestination.get(record.router)!}
+											/>
+										{:else}
+											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+												No destination structure available.
+											</div>
+										{/if}
+									</div>
 								</div>
 							</div>
-						</div>
-
-						<!-- Multifractal Spectrum Analysis -->
-						<div class="mb-4">
-							<h5 class="text-md mb-3 font-medium text-gray-700">Spectrum f(alpha)</h5>
-							<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-								<!-- Source Address Spectrum -->
-								<div class="space-y-3">
-									<h6 class="text-sm font-medium text-blue-700">Source Address Spectrum</h6>
-									{#if errorsSpectrumSource.get(record.router)}
-										<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-											<p>
-												Error loading source spectrum: {errorsSpectrumSource.get(record.router)}
-											</p>
-											<button
-												class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-												onclick={() => reloadSpectrum(record.router, true)}
-											>
-												Retry Source
-											</button>
-										</div>
-									{:else if spectrumDataSource.get(record.router)}
-										<SpectrumChart data={spectrumDataSource.get(record.router)!} />
-									{:else}
-										<div class="rounded border bg-gray-50 p-4 text-gray-600">
-											No source spectrum statistics available.
-										</div>
-									{/if}
-								</div>
-
-								<!-- Destination Address Spectrum -->
-								<div class="space-y-3">
-									<h6 class="text-sm font-medium text-blue-700">Destination Address Spectrum</h6>
-									{#if errorsSpectrumDestination.get(record.router)}
-										<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-											<p>
-												Error loading destination spectrum: {errorsSpectrumDestination.get(
-													record.router
-												)}
-											</p>
-											<button
-												class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-												onclick={() => reloadSpectrum(record.router, false)}
-											>
-												Retry Destination
-											</button>
-										</div>
-									{:else if spectrumDataDestination.get(record.router)}
-										<SpectrumChart data={spectrumDataDestination.get(record.router)!} />
-									{:else}
-										<div class="rounded border bg-gray-50 p-4 text-gray-600">
-											No destination spectrum statistics available.
-										</div>
-									{/if}
+							<div class="space-y-3">
+								<h6 class="text-md font-medium text-gray-700">Spectrum</h6>
+								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+									<div>
+										{#if loadingSpectrumSource.get(record.router)}
+											<div class="flex items-center justify-center py-6">
+												<div class="text-gray-600">Loading source spectrum...</div>
+											</div>
+										{:else if errorsSpectrumSource.get(record.router)}
+											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+												<p>
+													Error loading source spectrum: {errorsSpectrumSource.get(record.router)}
+												</p>
+												<button
+													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													onclick={() => reloadSpectrum(record.router, true)}
+												>
+													Retry Source
+												</button>
+											</div>
+										{:else if spectrumDataSource.get(record.router)}
+											<SpectrumChart data={spectrumDataSource.get(record.router)!} />
+										{:else}
+											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+												No source spectrum available.
+											</div>
+										{/if}
+									</div>
+									<div>
+										{#if loadingSpectrumDestination.get(record.router)}
+											<div class="flex items-center justify-center py-6">
+												<div class="text-gray-600">Loading destination spectrum...</div>
+											</div>
+										{:else if errorsSpectrumDestination.get(record.router)}
+											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+												<p>
+													Error loading destination spectrum: {errorsSpectrumDestination.get(
+														record.router
+													)}
+												</p>
+												<button
+													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													onclick={() => reloadSpectrum(record.router, false)}
+												>
+													Retry Destination
+												</button>
+											</div>
+										{:else if spectrumDataDestination.get(record.router)}
+											<SpectrumChart data={spectrumDataDestination.get(record.router)!} />
+										{:else}
+											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+												No destination spectrum available.
+											</div>
+										{/if}
+									</div>
 								</div>
 							</div>
-						</div>
-						<!-- Singularities Analysis -->
-						<div class="space-y-4">
-							<h5 class="text-lg font-semibold">Singularities Analysis</h5>
-							<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-								<!-- Source Address Singularities -->
-								<div class="space-y-3">
-									<h6 class="text-sm font-medium text-blue-700">Source Address Singularities</h6>
-									{#if loadingSingularitiesSource.get(record.router)}
-										<div class="flex items-center justify-center py-6">
-											<div class="text-gray-600">Loading source singularities analysis...</div>
-										</div>
-									{:else if errorsSingularitiesSource.get(record.router)}
-										<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-											<p class="text-red-700">
-												Error loading source singularities: {errorsSingularitiesSource.get(
-													record.router
-												)}
-											</p>
-											<button
-												class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-												onclick={() => reloadSingularities(record.router, true)}
-											>
-												Retry Source
-											</button>
-										</div>
-									{:else if singularitiesDataSource.get(record.router)}
-										<SingularitiesList data={singularitiesDataSource.get(record.router)!} />
-									{/if}
-								</div>
-								<!-- Destination Address Singularities -->
-								<div class="space-y-3">
-									<h6 class="text-sm font-medium text-blue-700">
-										Destination Address Singularities
-									</h6>
-									{#if loadingSingularitiesDestination.get(record.router)}
-										<div class="flex items-center justify-center py-6">
-											<div class="text-gray-600">Loading destination singularities analysis...</div>
-										</div>
-									{:else if errorsSingularitiesDestination.get(record.router)}
-										<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-											<p class="text-red-700">
-												Error loading destination singularities: {errorsSingularitiesDestination.get(
-													record.router
-												)}
-											</p>
-											<button
-												class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
-												onclick={() => reloadSingularities(record.router, false)}
-											>
-												Retry Destination
-											</button>
-										</div>
-									{:else if singularitiesDataDestination.get(record.router)}
-										<SingularitiesList data={singularitiesDataDestination.get(record.router)!} />
-									{/if}
+							<div class="space-y-3">
+								<h6 class="text-md font-medium text-gray-700">Singularities</h6>
+								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+									<div>
+										{#if loadingSingularitiesSource.get(record.router)}
+											<div class="flex items-center justify-center py-6">
+												<div class="text-gray-600">Loading source singularities...</div>
+											</div>
+										{:else if errorsSingularitiesSource.get(record.router)}
+											<div class="rounded-lg border border-red-300 bg-red-50 p-4">
+												<p class="text-red-700">
+													Error loading source singularities: {errorsSingularitiesSource.get(
+														record.router
+													)}
+												</p>
+												<button
+													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													onclick={() => reloadSingularities(record.router, true)}
+												>
+													Retry Source
+												</button>
+											</div>
+										{:else if singularitiesDataSource.get(record.router)}
+											<SingularitiesList data={singularitiesDataSource.get(record.router)!} />
+										{:else}
+											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+												No source singularities available.
+											</div>
+										{/if}
+									</div>
+									<div>
+										{#if loadingSingularitiesDestination.get(record.router)}
+											<div class="flex items-center justify-center py-6">
+												<div class="text-gray-600">Loading destination singularities...</div>
+											</div>
+										{:else if errorsSingularitiesDestination.get(record.router)}
+											<div class="rounded-lg border border-red-300 bg-red-50 p-4">
+												<p class="text-red-700">
+													Error loading destination singularities: {errorsSingularitiesDestination.get(
+														record.router
+													)}
+												</p>
+												<button
+													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													onclick={() => reloadSingularities(record.router, false)}
+												>
+													Retry Destination
+												</button>
+											</div>
+										{:else if singularitiesDataDestination.get(record.router)}
+											<SingularitiesList data={singularitiesDataDestination.get(record.router)!} />
+										{:else}
+											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+												No destination singularities available.
+											</div>
+										{/if}
+									</div>
 								</div>
 							</div>
 						</div>

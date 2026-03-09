@@ -1,30 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import type { StructureFunctionPoint } from '$lib/types/types';
+import type { StructureFunctionData, StructureFunctionPoint } from '$lib/types/types';
 import { getDb, slugToBucketStart } from '../utils';
 
 const FIVE_MINUTES = '5m';
 
 type StructureRow = {
-	structureJsonSa: string;
-	structureJsonDa: string;
-};
-
-type StructureResponse = {
-	slug: string;
-	router: string;
-	filename: string;
-	structureFunction: StructureFunctionPoint[];
-	metadata: {
-		dataSource: string;
-		uniqueIPCount?: number;
-		pointCount: number;
-		addressType: string;
-		qRange: {
-			min: number;
-			max: number;
-		};
-	};
+	structureJsonSa: string | null;
+	structureJsonDa: string | null;
 };
 
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -78,15 +61,27 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		}
 
 		const rawStructure = isSource ? row.structureJsonSa : row.structureJsonDa;
+		if (!rawStructure) {
+			return json(
+				{ error: `Structure statistics not found for router ${router} at ${slug}` },
+				{ status: 404 }
+			);
+		}
+
 		let data: StructureFunctionPoint[] = [];
 
 		try {
-			if (rawStructure) {
-				data = JSON.parse(rawStructure) as StructureFunctionPoint[];
-			}
+			data = JSON.parse(rawStructure) as StructureFunctionPoint[];
 		} catch (error) {
 			console.error('Failed to parse structure JSON from database:', error);
 			return json({ error: 'Failed to parse structure statistics' }, { status: 500 });
+		}
+
+		if (data.length === 0) {
+			return json(
+				{ error: `Structure statistics not found for router ${router} at ${slug}` },
+				{ status: 404 }
+			);
 		}
 
 		const addressType = isSource ? 'Source' : 'Destination';
@@ -96,7 +91,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 				? { min: Math.min(...qValues), max: Math.max(...qValues) }
 				: { min: 0, max: 0 };
 
-		const response: StructureResponse = {
+		const response: StructureFunctionData = {
 			slug,
 			router,
 			filename: `nfcapd.${slug}`,

@@ -6,8 +6,8 @@ import { getDb, slugToBucketStart } from '../utils';
 const FIVE_MINUTES = '5m';
 
 type SpectrumRow = {
-	spectrumJsonSa: string;
-	spectrumJsonDa: string;
+	spectrumJsonSa: string | null;
+	spectrumJsonDa: string | null;
 };
 
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -61,15 +61,27 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		}
 
 		const rawSpectrum = isSource ? row.spectrumJsonSa : row.spectrumJsonDa;
+		if (!rawSpectrum) {
+			return json(
+				{ error: `Spectrum statistics not found for router ${router} at ${slug}` },
+				{ status: 404 }
+			);
+		}
+
 		let data: SpectrumPoint[] = [];
 
 		try {
-			if (rawSpectrum) {
-				data = JSON.parse(rawSpectrum) as SpectrumPoint[];
-			}
+			data = JSON.parse(rawSpectrum) as SpectrumPoint[];
 		} catch (error) {
 			console.error('Failed to parse spectrum JSON from database:', error);
 			return json({ error: 'Failed to parse spectrum statistics' }, { status: 500 });
+		}
+
+		if (data.length === 0) {
+			return json(
+				{ error: `Spectrum statistics not found for router ${router} at ${slug}` },
+				{ status: 404 }
+			);
 		}
 
 		const addressType = isSource ? 'Source' : 'Destination';

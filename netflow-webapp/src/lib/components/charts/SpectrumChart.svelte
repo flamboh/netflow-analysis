@@ -21,14 +21,6 @@
 
 	// Watch for data changes and create/update chart
 	$effect(() => {
-		console.log('SpectrumChart effect triggered', {
-			hasCanvas: !!chartCanvas,
-			hasData: !!data,
-			hasSpectrum: !!data?.spectrum,
-			dataLength: data?.spectrum?.length || 0,
-			router: data?.router
-		});
-
 		if (chartCanvas && data?.spectrum?.length > 0) {
 			if (chart) {
 				chart.destroy();
@@ -110,13 +102,6 @@
 					}
 				},
 				plugins: {
-					title: {
-						display: true,
-						text: `Spectrum - ${data.router} - ${data.filename}`,
-						font: {
-							size: 16
-						}
-					},
 					legend: {
 						display: true,
 						position: 'top' as const
@@ -152,11 +137,6 @@
 
 <div class="w-full">
 	<div class="mb-2 text-sm text-gray-600">
-		<p>
-			Data Source: {data.metadata.dataSource} | alpha Range: [{data.metadata.alphaRange.min.toFixed(
-				3
-			)}, {data.metadata.alphaRange.max.toFixed(3)}]
-		</p>
 		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
 			<p class="text-xs font-medium text-green-600">
 				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses

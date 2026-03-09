@@ -21,14 +21,6 @@
 
 	// Watch for data changes and create/update chart
 	$effect(() => {
-		console.log('StructureFunctionChart effect triggered', {
-			hasCanvas: !!chartCanvas,
-			hasData: !!data,
-			hasStructureFunction: !!data?.structureFunction,
-			dataLength: data?.structureFunction?.length || 0,
-			router: data?.router
-		});
-
 		if (chartCanvas && data?.structureFunction?.length > 0) {
 			if (chart) {
 				chart.destroy();
@@ -136,13 +128,6 @@
 					}
 				},
 				plugins: {
-					title: {
-						display: true,
-						text: `Structure Function - ${data.router} - ${data.filename}`,
-						font: {
-							size: 16
-						}
-					},
 					legend: {
 						display: true,
 						position: 'top' as const
@@ -185,20 +170,11 @@
 
 <div class="w-full">
 	<div class="mb-2 text-sm text-gray-600">
-		<p>
-			Data Source: {data.metadata.dataSource} | q Range: [{data.metadata.qRange.min.toFixed(1)}, {data.metadata.qRange.max.toFixed(
-				1
-			)}]
-		</p>
 		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
 			<p class="text-xs font-medium text-green-600">
 				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
 				analyzed
 			</p>
-			<!-- {:else if data.metadata.uniqueIPCount === -1}
-			<p class="text-xs font-medium text-green-600">
-				✓ Real NetFlow Data Analysis - IPv4 source addresses processed directly
-			</p> -->
 		{:else if data.metadata.uniqueIPCount !== -1}
 			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
 		{/if}
