@@ -11,7 +11,7 @@
 				<h1 class="text-3xl font-bold text-gray-900 hover:underline">
 					<a href="/">NetFlow Analysis</a>
 				</h1>
-				<p class="mt-1 text-sm text-gray-600">An Oregon Network Research Group Project</p>
+				<p class="mt-1 text-sm text-gray-600">An Oregon Networking Research Group Project</p>
 			</div>
 			<div class="flex items-center gap-4">
 				<a href="/" class="text-gray-500 hover:text-gray-900">Home</a>

@@ -314,12 +314,13 @@ def process_pending_files(
         limit,
         reprocess_window_days=reprocess_window_days,
     )
-    stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0}
+    stats = {'processed': 0, 'errors': 0, 'aggregates': 0, 'days': 0, 'attempted': 0}
     
     if not pending:
         print("[ip_stats] No pending files to process")
         return stats
     
+    stats['attempted'] = len(pending)
     # Group by day
     days = group_files_by_day(pending)
     print(f"[ip_stats] Processing {len(pending)} files across {len(days)} complete days...")
