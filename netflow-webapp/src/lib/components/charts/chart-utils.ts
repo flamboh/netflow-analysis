@@ -268,9 +268,7 @@ export function groupByBucketDurationMs(groupBy: GroupByOption): number {
  * Thresholds are calibrated from existing click drilldown windows:
  * 1 day -> 5min, 7 days -> 30min, 31 days -> hour.
  */
-export function chooseAdaptiveGranularity(
-	rangeMs: number
-): GroupByOption {
+export function chooseAdaptiveGranularity(rangeMs: number): GroupByOption {
 	const oneDay = 24 * 60 * 60 * 1000;
 	const sevenDays = 7 * oneDay;
 	const thirtyOneDays = 31 * oneDay;

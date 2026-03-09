@@ -34,6 +34,7 @@ from pathlib import Path
 from common import (
     DATABASE_PATH,
     AVAILABLE_ROUTERS,
+    MAX_WORKERS,
     get_db_connection,
     init_processed_files_table,
 )
@@ -90,6 +91,14 @@ def setup_logging(log_dir: Path = None):
     return log_file
 
 
+def format_elapsed(seconds: float) -> str:
+    """Format elapsed seconds as HH:MM:SS."""
+    total_seconds = int(round(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
 def run_discovery(
     conn: sqlite3.Connection,
     reprocess_window_days: int = 30,
@@ -112,12 +121,14 @@ def run_discovery(
     print("PHASE 1: FILE DISCOVERY")
     print("=" * 60)
     
+    phase_start = datetime.now()
     stats = sync_processed_files_table(
         conn,
         include_gaps=True,
         reprocess_window_days=reprocess_window_days,
         discovery_window_days=discovery_window_days,
     )
+    stats['elapsed_seconds'] = (datetime.now() - phase_start).total_seconds()
     
     horizon = compute_data_horizon(conn)
     print(f"\nData horizon: {horizon}")
@@ -181,7 +192,9 @@ def run_processing(
             processor.init_structure_stats_table(conn)
         
         # Process pending files
+        phase_start = datetime.now()
         stats = processor.process_pending_files(conn, limit, reprocess_window_days)
+        stats['elapsed_seconds'] = (datetime.now() - phase_start).total_seconds()
         all_stats[table_name] = stats
         
         print(f"{table_name}: {stats['processed']} processed, {stats['errors']} errors")
@@ -200,16 +213,41 @@ def print_summary(discovery_stats: dict, processing_stats: dict):
         print(f"  Files discovered: {discovery_stats.get('discovered', 0)}")
         print(f"  New files: {discovery_stats.get('new_files', 0)}")
         print(f"  Gaps identified: {discovery_stats.get('gaps', 0)}")
+        print(f"  Elapsed: {format_elapsed(discovery_stats.get('elapsed_seconds', 0.0))}")
     
     if processing_stats:
         print("\nProcessing:")
         total_processed = 0
         total_errors = 0
+        total_attempted = 0
+        total_elapsed_seconds = 0.0
         for table, stats in processing_stats.items():
-            print(f"  {table}: {stats['processed']} processed, {stats['errors']} errors")
+            attempted = stats.get('attempted', 0)
+            elapsed_seconds = stats.get('elapsed_seconds', 0.0)
+            avg_per_file = (
+                f"{elapsed_seconds / attempted:.2f}s/file with {MAX_WORKERS} workers"
+                if attempted
+                else f"n/a with {MAX_WORKERS} workers"
+            )
+            print(
+                f"  {table}: {format_elapsed(elapsed_seconds)} total, "
+                f"{attempted} attempted files, {avg_per_file}, "
+                f"{stats['processed']} processed, {stats['errors']} errors"
+            )
             total_processed += stats['processed']
             total_errors += stats['errors']
-        print(f"  TOTAL: {total_processed} processed, {total_errors} errors")
+            total_attempted += attempted
+            total_elapsed_seconds += elapsed_seconds
+        total_avg_per_file = (
+            f"{total_elapsed_seconds / total_attempted:.2f}s/file with {MAX_WORKERS} workers"
+            if total_attempted
+            else f"n/a with {MAX_WORKERS} workers"
+        )
+        print(
+            f"  TOTAL: {format_elapsed(total_elapsed_seconds)} total, "
+            f"{total_attempted} attempted files, {total_avg_per_file}, "
+            f"{total_processed} processed, {total_errors} errors"
+        )
 
 
 def main():

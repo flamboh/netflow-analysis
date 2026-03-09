@@ -222,7 +222,7 @@ def process_pending_files(
         limit: Optional limit on number of files to process
         
     Returns:
-        Dictionary with counts: {'processed': N, 'errors': N}
+        Dictionary with counts: {'processed': N, 'errors': N, 'attempted': N}
     """
     init_netflow_stats_table(conn)
     
@@ -236,12 +236,13 @@ def process_pending_files(
         limit,
         reprocess_window_days=reprocess_window_days,
     )
-    stats = {'processed': 0, 'errors': 0}
+    stats = {'processed': 0, 'errors': 0, 'attempted': 0}
     
     if not pending:
         print("[flow_stats] No pending files to process")
         return stats
     
+    stats['attempted'] = len(pending)
     print(f"[flow_stats] Processing {len(pending)} pending files with {MAX_WORKERS} workers...")
     
     # Process in batches
