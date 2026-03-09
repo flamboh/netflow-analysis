@@ -14,13 +14,6 @@
 
 {#if data}
 	<div class="w-full space-y-4">
-		<div class="mb-2 text-sm text-gray-600">
-			<p>
-				Data Source: {data.metadata.dataSource} | Address Type: {data.metadata.addressType}
-			</p>
-			<p>Point Count: {data.metadata.pointCount}</p>
-		</div>
-
 		{#if topSingularities.length > 0}
 			<div class="rounded-lg border bg-green-50 p-4">
 				<h4 class="mb-2 font-semibold">Top Singularities (Most Anomalous)</h4>
