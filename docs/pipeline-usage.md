@@ -24,6 +24,7 @@ With the multi-dataset setup:
 - `datasets.json` is the source of truth for dataset roots and per-dataset DB paths
 - `.env` holds runtime defaults such as `DEFAULT_DATASET`, worker counts, and tool paths
 - if you do not pass `--dataset`, the pipeline uses `DEFAULT_DATASET` from `.env`
+- each dataset writes to its own SQLite database, typically `./data/<dataset>/netflow.sqlite`
 
 ```bash
 python netflow-db/pipeline.py
