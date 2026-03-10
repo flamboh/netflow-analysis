@@ -639,6 +639,12 @@
 
 					<!-- Analysis for this Router -->
 					<div class="rounded-b-lg p-4">
+						{#if record.file_exists_on_disk === false}
+							<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
+								The original NetFlow file is missing on disk for this router. DB-backed stats can
+								still be shown, but on-demand MAAD analysis cannot run.
+							</div>
+						{/if}
 						<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
 						<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">

@@ -97,7 +97,7 @@
 					type="text"
 					bind:value={timestamp}
 					onkeydown={handleKeydown}
-					placeholder="202501011200"
+					placeholder="202601011200"
 					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 					maxlength="12"
 				/>

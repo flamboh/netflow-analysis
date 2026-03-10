@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import fs from 'fs';
 import type {
 	FileIpCounts,
 	NetflowFileDetailsResponse,
@@ -186,6 +187,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 				summary: {
 					router: row.router,
 					file_path: row.file_path,
+					file_exists_on_disk: fs.existsSync(row.file_path),
 					flows: row.flows,
 					flows_tcp: row.flows_tcp,
 					flows_udp: row.flows_udp,

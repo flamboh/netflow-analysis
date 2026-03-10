@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import fs from 'fs';
 import path from 'path';
 import { getDatasetFromRequest, getNetflowFilePath } from '../utils';
 
@@ -110,6 +111,15 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		if (!filePath) {
 			return json(
 				{ error: `NetFlow file not found for router ${router} and slug ${slug}` },
+				{ status: 404 }
+			);
+		}
+
+		if (!fs.existsSync(filePath)) {
+			return json(
+				{
+					error: `NetFlow file is recorded in the database but is missing on disk: ${filePath}`
+				},
 				{ status: 404 }
 			);
 		}

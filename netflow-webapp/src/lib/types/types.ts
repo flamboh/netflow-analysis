@@ -25,6 +25,7 @@ export interface NetflowStatsResult {
 export interface NetflowFileSummaryRecord {
 	router: string;
 	file_path: string;
+	file_exists_on_disk?: boolean;
 	flows: number;
 	flows_tcp: number;
 	flows_udp: number;
