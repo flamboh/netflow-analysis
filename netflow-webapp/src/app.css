@@ -8,3 +8,17 @@
 
 	--color-cisco-blue: #009edc;
 }
+
+html {
+	height: 100%;
+}
+
+body {
+	height: 100%;
+	margin: 0;
+	overflow: hidden;
+}
+
+.app-shell__main {
+	scrollbar-gutter: stable;
+}

@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import type { StructureFunctionData, StructureFunctionPoint } from '$lib/types/types';
-import { getDb, slugToBucketStart } from '../utils';
+import { getDatasetFromRequest, getDb, slugToBucketStart } from '../utils';
 
 const FIVE_MINUTES = '5m';
 
@@ -12,6 +12,7 @@ type StructureRow = {
 
 export const GET: RequestHandler = async ({ params, url }) => {
 	const { slug } = params;
+	const dataset = getDatasetFromRequest(url);
 	const router = url.searchParams.get('router');
 	const sourceParam = url.searchParams.get('source');
 
@@ -38,7 +39,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	}
 
 	try {
-		const db = getDb();
+		const db = getDb(dataset);
 		const row = db
 			.prepare(
 				`SELECT

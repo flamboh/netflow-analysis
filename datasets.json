@@ -1,0 +1,18 @@
+[
+  {
+    "dataset_id": "uoregon",
+    "label": "UOregon",
+    "root_path": "/research/obo/netflow_datasets/uoregon",
+    "db_path": "./data/uoregon/netflow.sqlite",
+    "source_mode": "subdirs",
+    "discovery_mode": "live"
+  },
+  {
+    "dataset_id": "ugr16",
+    "label": "UGR16",
+    "root_path": "/research/obo/netflow_datasets/ugr16",
+    "db_path": "./data/ugr16/netflow.sqlite",
+    "source_mode": "subdirs",
+    "discovery_mode": "static"
+  }
+]

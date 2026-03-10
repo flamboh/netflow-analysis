@@ -1,6 +1,4 @@
 import { json } from '@sveltejs/kit';
-import Database from 'better-sqlite3';
-import { DATABASE_PATH } from '$env/static/private';
 import type { RequestHandler } from './$types';
 import {
 	IP_GRANULARITIES,
@@ -8,6 +6,7 @@ import {
 	type ProtocolStatsBucket,
 	type ProtocolStatsResponse
 } from '$lib/types/types';
+import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
 
 const VALID_GRANULARITIES = new Set<string>(IP_GRANULARITIES);
 
@@ -34,6 +33,7 @@ function parseTimestamp(param: string | null): number | null {
 }
 
 export const GET: RequestHandler = async ({ url }) => {
+	const dataset = getRequestedDataset(url);
 	const routers = parseRouters(url.searchParams.get('routers'));
 	const granularity =
 		parseGranularity(url.searchParams.get('granularity')) ?? (IP_GRANULARITIES[2] as IpGranularity); // default 1h
@@ -53,7 +53,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const db = new Database(DATABASE_PATH, { readonly: true });
+		const db = getDatasetDb(dataset);
 		const placeholders = routers.map(() => '?').join(',');
 		const params = [granularity, ...routers, start, end];
 
@@ -77,8 +77,6 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const stmt = db.prepare(query);
 		const rows = stmt.all(...params) as ProtocolStatsBucket[];
-		db.close();
-
 		const response: ProtocolStatsResponse = {
 			buckets: rows.map((row) => ({
 				...row,

@@ -1,19 +1,23 @@
 """
 Shared utilities for NetFlow database processing modules.
 
-Centralizes environment loading, database helpers, and path utilities.
+Centralizes environment loading, dataset registry access, database helpers, and
+path utilities.
 """
 
+import json
 import os
 import sys
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from contextlib import contextmanager
 
 
-DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / '.env'
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_ENV_PATH = REPO_ROOT / '.env'
+DEFAULT_DATASETS_PATH = REPO_ROOT / 'datasets.json'
 
 
 def load_env_file(env_path: Optional[str] = None) -> None:
@@ -57,13 +61,171 @@ def get_optional_env(key: str, default: str = '') -> str:
     return os.environ.get(key, default)
 
 
+def resolve_repo_path(path_value: str) -> Path:
+    """Resolve a path relative to the repository root when needed."""
+    path = Path(path_value).expanduser()
+    if path.is_absolute():
+        return path
+    return (REPO_ROOT / path).resolve()
+
+
+def build_legacy_dataset_registry() -> list[dict[str, Any]]:
+    """Build a single-dataset registry from legacy env vars when no JSON exists."""
+    netflow_data_path = get_optional_env('NETFLOW_DATA_PATH')
+    available_routers = [
+        router.strip()
+        for router in get_optional_env('AVAILABLE_ROUTERS').split(',')
+        if router.strip()
+    ]
+
+    if not netflow_data_path:
+        return []
+
+    database_path = get_optional_env('DATABASE_PATH', './data/uoregon/netflow.sqlite')
+    dataset_id = get_optional_env('DEFAULT_DATASET', 'uoregon')
+
+    return [
+        {
+            'dataset_id': dataset_id,
+            'label': dataset_id.replace('_', ' ').title(),
+            'root_path': str(Path(netflow_data_path).expanduser()),
+            'db_path': str(resolve_repo_path(database_path)),
+            'source_mode': 'subdirs',
+            'discovery_mode': 'live',
+            'source_ids': available_routers,
+        }
+    ]
+
+
+def load_dataset_registry() -> list[dict[str, Any]]:
+    """Load and normalize the dataset registry."""
+    config_path = Path(
+        get_optional_env('DATASETS_CONFIG_PATH', str(DEFAULT_DATASETS_PATH))
+    ).expanduser()
+
+    if not config_path.exists():
+        legacy = build_legacy_dataset_registry()
+        if legacy:
+            return legacy
+        print(f"ERROR: Dataset registry '{config_path}' not found!")
+        print("Configure DATASETS_CONFIG_PATH or create datasets.json.")
+        sys.exit(1)
+
+    with open(config_path, 'r') as f:
+        raw = json.load(f)
+
+    entries = raw.get('datasets') if isinstance(raw, dict) else raw
+    if not isinstance(entries, list) or not entries:
+        print(f"ERROR: Dataset registry '{config_path}' is empty or invalid!")
+        sys.exit(1)
+
+    normalized: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            print(f"ERROR: Invalid dataset entry in '{config_path}': {entry!r}")
+            sys.exit(1)
+
+        dataset_id = str(entry.get('dataset_id', '')).strip()
+        root_path = str(entry.get('root_path', '')).strip()
+        db_path = str(entry.get('db_path', '')).strip()
+
+        if not dataset_id or not root_path or not db_path:
+            print(f"ERROR: Dataset entry missing required fields: {entry!r}")
+            sys.exit(1)
+        if dataset_id in seen_ids:
+            print(f"ERROR: Duplicate dataset_id '{dataset_id}' in '{config_path}'")
+            sys.exit(1)
+        seen_ids.add(dataset_id)
+
+        source_ids = entry.get('source_ids')
+        if source_ids is not None and not isinstance(source_ids, list):
+            print(f"ERROR: source_ids must be a list when provided for '{dataset_id}'")
+            sys.exit(1)
+
+        normalized.append(
+            {
+                'dataset_id': dataset_id,
+                'label': str(entry.get('label', dataset_id.replace('_', ' ').title())),
+                'root_path': str(Path(root_path).expanduser()),
+                'db_path': str(resolve_repo_path(db_path)),
+                'source_mode': str(entry.get('source_mode', 'subdirs')),
+                'discovery_mode': str(entry.get('discovery_mode', 'static')),
+                'source_ids': [str(source).strip() for source in (source_ids or []) if str(source).strip()],
+            }
+        )
+
+    return normalized
+
+
+def list_dataset_configs() -> list[dict[str, Any]]:
+    """Return all configured datasets."""
+    return DATASET_REGISTRY
+
+
+def get_default_dataset_id() -> str:
+    """Return the default dataset id."""
+    configured = get_optional_env('DEFAULT_DATASET')
+    if configured:
+        return configured
+    return DATASET_REGISTRY[0]['dataset_id']
+
+
+def get_dataset_config(dataset_id: Optional[str] = None) -> dict[str, Any]:
+    """Return the dataset config for the provided or active dataset id."""
+    selected = dataset_id or get_optional_env('NETFLOW_DATASET', DEFAULT_DATASET)
+    for config in DATASET_REGISTRY:
+        if config['dataset_id'] == selected:
+            return config
+
+    available = ', '.join(config['dataset_id'] for config in DATASET_REGISTRY)
+    print(f"ERROR: Unknown dataset '{selected}'. Available datasets: {available}")
+    sys.exit(1)
+
+
+def list_dataset_sources(dataset_id: Optional[str] = None) -> list[str]:
+    """Return the configured or discovered sources for a dataset."""
+    config = get_dataset_config(dataset_id)
+    configured_sources = config.get('source_ids') or []
+    if configured_sources:
+        return configured_sources
+
+    root_path = Path(config['root_path'])
+    if not root_path.exists():
+        return []
+
+    if config.get('source_mode', 'subdirs') != 'subdirs':
+        raise ValueError(f"Unsupported source_mode: {config.get('source_mode')}")
+
+    return sorted(
+        entry.name
+        for entry in root_path.iterdir()
+        if entry.is_dir()
+    )
+
+
+def get_dataset_root_path(dataset_id: Optional[str] = None) -> Path:
+    """Return the root path for a dataset."""
+    return Path(get_dataset_config(dataset_id)['root_path'])
+
+
+def get_dataset_db_path(dataset_id: Optional[str] = None) -> Path:
+    """Return the SQLite path for a dataset."""
+    return Path(get_dataset_config(dataset_id)['db_path'])
+
+
 # Initialize environment on module import
 load_env_file()
 
-# Configuration from environment variables
-NETFLOW_DATA_PATH = get_required_env('NETFLOW_DATA_PATH')
-AVAILABLE_ROUTERS = get_required_env('AVAILABLE_ROUTERS').split(',')
-DATABASE_PATH = get_required_env('DATABASE_PATH')
+DATASET_REGISTRY = load_dataset_registry()
+DEFAULT_DATASET = get_default_dataset_id()
+ACTIVE_DATASET = get_dataset_config()
+
+# Dataset-scoped configuration used by the existing processors.
+NETFLOW_DATA_PATH = str(get_dataset_root_path())
+AVAILABLE_ROUTERS = list_dataset_sources()
+DATABASE_PATH = str(get_dataset_db_path())
 MAX_WORKERS = int(get_optional_env('MAX_WORKERS', '8'))
 BATCH_SIZE = int(get_optional_env('BATCH_SIZE', '50'))
 
@@ -85,7 +247,9 @@ def get_db_connection(wal_mode: bool = True):
     """
     # Use autocommit mode so transaction boundaries are fully explicit.
     # Processor modules call BEGIN/COMMIT/ROLLBACK manually.
-    conn = sqlite3.connect(DATABASE_PATH, isolation_level=None)
+    db_path = Path(DATABASE_PATH)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, isolation_level=None)
     try:
         if wal_mode:
             conn.execute("PRAGMA journal_mode=WAL;")

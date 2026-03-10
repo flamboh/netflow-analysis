@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 
-export const load: PageLoad = async ({ params }) => {
+export const load: PageLoad = async ({ params, url }) => {
 	const { slug } = params;
+	const dataset = url.searchParams.get('dataset') || 'uoregon';
 
 	if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
 		throw error(400, `Invalid slug format. Expected 12 digits (YYYYMMDDHHmm) ${slug}`);
@@ -16,6 +17,7 @@ export const load: PageLoad = async ({ params }) => {
 	const filePattern = `nfcapd.${slug}`;
 
 	return {
+		dataset,
 		slug,
 		fileInfo: {
 			year,

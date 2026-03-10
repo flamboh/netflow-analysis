@@ -49,10 +49,10 @@
 			{#if page.status === 404}
 				<div class="mt-4 text-sm text-gray-600">
 					<p>
-						If you're looking for a specific NetFlow file, try using the timestamp search on the <a
-							href="/api/netflow/files"
-							class="text-blue-600 hover:underline">Files page</a
-						>.
+						Return to the <a href="/" class="text-blue-600 hover:underline">dataset index</a> or use
+						the
+						<a href="/api/netflow/files" class="text-blue-600 hover:underline">file lookup page</a>
+						if you know the exact timestamp slug.
 					</p>
 				</div>
 			{/if}

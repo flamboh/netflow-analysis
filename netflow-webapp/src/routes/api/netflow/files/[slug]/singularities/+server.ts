@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { getNetflowFilePath } from '../utils';
+import { getDatasetFromRequest, getNetflowFilePath } from '../utils';
 
 const execAsync = promisify(exec);
 
@@ -75,6 +75,7 @@ async function runSingularitiesAnalysis(
 
 export const GET: RequestHandler = async ({ params, url }) => {
 	const { slug } = params;
+	const dataset = getDatasetFromRequest(url);
 	const router = url.searchParams.get('router');
 	const sourceParam = url.searchParams.get('source');
 
@@ -105,7 +106,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		);
 
 		// Get the absolute file path for the NetFlow file from the database
-		const filePath = await getNetflowFilePath(slug, router);
+		const filePath = await getNetflowFilePath(dataset, slug, router);
 		if (!filePath) {
 			return json(
 				{ error: `NetFlow file not found for router ${router} and slug ${slug}` },

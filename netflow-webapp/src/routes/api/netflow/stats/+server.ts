@@ -1,10 +1,7 @@
 import { json } from '@sveltejs/kit';
-import { DATABASE_PATH } from '$env/static/private';
 import type { RequestHandler } from './$types';
 import type { NetflowStatsRow, NetflowStatsResult } from '$lib/types/types';
-import Database from 'better-sqlite3';
-
-const DB_PATH = DATABASE_PATH;
+import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
 const DATA_OPTIONS = [
 	{ label: 'Flows', value: 'flows' },
 	{ label: 'Flows TCP', value: 'flows_tcp' },
@@ -57,6 +54,7 @@ function getDataOptions(dataOptionsBinary: number) {
 }
 
 export const GET: RequestHandler = async ({ url }) => {
+	const dataset = getRequestedDataset(url);
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
 	// const fullDay = url.searchParams.get('fullDay') === 'true';
@@ -74,7 +72,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const db = new Database(DB_PATH, { readonly: true });
+		const db = getDatasetDb(dataset);
 		const bucketStartQuery = getBucketStartQuery(groupBy);
 		const dataOptions = getDataOptions(dataOptionsBinary);
 
@@ -95,8 +93,6 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const stmt = db.prepare(query);
 		const rows = stmt.all(...params) as (NetflowStatsRow & { bucket_start: number })[];
-
-		db.close();
 
 		// Format results - time is now an epoch timestamp (as string for compatibility)
 		// Frontend will format using PST utilities
