@@ -21,7 +21,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 
 
 def load_env_file(env_path: str) -> None:
