@@ -16,9 +16,14 @@ If you do not pass `--discovery-window-days`, it defaults to the same value as `
 
 ## Normal run
 
-The repo-level `.env` is the single source of truth.
+The pipeline resolves the repo-level `.env` relative to the script location, so
+you can run it either from the repo root or from `netflow-db/`.
 
-The pipeline resolves that file relative to the script location, so you can run it either from the repo root or from `netflow-db/`.
+With the multi-dataset setup:
+
+- `datasets.json` is the source of truth for dataset roots and per-dataset DB paths
+- `.env` holds runtime defaults such as `DEFAULT_DATASET`, worker counts, and tool paths
+- if you do not pass `--dataset`, the pipeline uses `DEFAULT_DATASET` from `.env`
 
 ```bash
 python netflow-db/pipeline.py
@@ -33,6 +38,13 @@ python pipeline.py
 
 That uses the default reprocessing window of 30 days.
 
+To target a specific dataset explicitly:
+
+```bash
+python netflow-db/pipeline.py --dataset uoregon
+python netflow-db/pipeline.py --dataset ugr16
+```
+
 In practice, that means:
 
 - recent missing data can still be discovered and filled in
@@ -45,12 +57,14 @@ Only do discovery:
 
 ```bash
 python netflow-db/pipeline.py --discover-only
+python netflow-db/pipeline.py --dataset ugr16 --discover-only
 ```
 
 Only do processing:
 
 ```bash
 python netflow-db/pipeline.py --process-only
+python netflow-db/pipeline.py --dataset uoregon --process-only
 ```
 
 Only run specific tables:
@@ -76,6 +90,17 @@ Disable log-file output:
 ```bash
 python netflow-db/pipeline.py --no-log
 ```
+
+## Legacy fallback mode
+
+If `datasets.json` is absent, the backend can still fall back to the older
+single-dataset env keys:
+
+- `NETFLOW_DATA_PATH`
+- `AVAILABLE_ROUTERS`
+- `DATABASE_PATH`
+
+That path is only kept for backward compatibility.
 
 ## Delayed uploads
 
