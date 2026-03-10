@@ -1,14 +1,29 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-
-	const defaultDatasetId = 'uoregon';
+	import {
+		getCachedDatasetSummaries,
+		loadDatasetSummaries,
+		type DatasetSummary
+	} from '$lib/datasets';
 
 	let timestamp = $state('');
-	let datasets = $state<Array<{ datasetId: string; label: string }>>([]);
+	let datasets = $state<DatasetSummary[]>(getCachedDatasetSummaries() ?? []);
 	let selectedDataset = $state('');
 	let error = $state('');
-	let loadingDatasets = $state(true);
+
+	function resolveSelectedDataset(availableDatasets: DatasetSummary[]): string {
+		const requestedDataset = new URL(window.location.href).searchParams.get('dataset')?.trim();
+		const fallbackDatasetId =
+			availableDatasets.find((dataset) => dataset.datasetId === 'uoregon')?.datasetId ??
+			availableDatasets[0]?.datasetId ??
+			'';
+
+		return requestedDataset &&
+			availableDatasets.some((dataset) => dataset.datasetId === requestedDataset)
+			? requestedDataset
+			: fallbackDatasetId;
+	}
 
 	function navigateToFile() {
 		// Clear previous error
@@ -42,30 +57,12 @@
 
 	onMount(async () => {
 		try {
-			const response = await fetch('/api/datasets');
-			if (!response.ok) {
-				throw new Error(`Failed to load datasets: ${response.statusText}`);
+			if (datasets.length === 0) {
+				datasets = await loadDatasetSummaries();
 			}
-
-			const result = (await response.json()) as Array<{
-				datasetId: string;
-				label: string;
-			}>;
-			datasets = result;
-
-			const fromUrl = new URL(window.location.href).searchParams.get('dataset');
-			const fallbackDatasetId =
-				result.find((dataset) => dataset.datasetId === defaultDatasetId)?.datasetId ??
-				result[0]?.datasetId ??
-				'';
-			selectedDataset =
-				fromUrl && result.some((dataset) => dataset.datasetId === fromUrl)
-					? fromUrl
-					: fallbackDatasetId;
+			selectedDataset = resolveSelectedDataset(datasets);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load datasets';
-		} finally {
-			loadingDatasets = false;
 		}
 	});
 </script>
@@ -82,7 +79,6 @@
 					id="dataset"
 					bind:value={selectedDataset}
 					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-					disabled={loadingDatasets}
 				>
 					{#if !selectedDataset}
 						<option value="">Select a dataset</option>

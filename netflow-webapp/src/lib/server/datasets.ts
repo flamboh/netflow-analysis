@@ -12,10 +12,22 @@ export interface DatasetConfig {
 	source_ids?: string[];
 }
 
+export interface DatasetSummary {
+	datasetId: string;
+	label: string;
+	discoveryMode: string;
+	sourceCount: number;
+}
+
 const repoRoot = path.resolve(process.cwd(), '..');
 const defaultRegistryPath = path.resolve(repoRoot, 'datasets.json');
 const datasetDbCache = new Map<string, Database.Database>();
 const preferredDefaultDataset = 'uoregon';
+let datasetRegistryCache: {
+	registryPath: string;
+	mtimeMs: number;
+	datasets: DatasetConfig[];
+} | null = null;
 
 function resolveRepoPath(value: string): string {
 	if (path.isAbsolute(value)) {
@@ -38,6 +50,15 @@ function readDatasetRegistry(): DatasetConfig[] {
 		throw new Error(`Dataset registry not found at ${registryPath}`);
 	}
 
+	const stat = fs.statSync(registryPath);
+	if (
+		datasetRegistryCache &&
+		datasetRegistryCache.registryPath === registryPath &&
+		datasetRegistryCache.mtimeMs === stat.mtimeMs
+	) {
+		return datasetRegistryCache.datasets;
+	}
+
 	const raw = JSON.parse(fs.readFileSync(registryPath, 'utf-8')) as
 		| DatasetConfig[]
 		| { datasets: DatasetConfig[] };
@@ -47,15 +68,32 @@ function readDatasetRegistry(): DatasetConfig[] {
 		throw new Error(`Dataset registry at ${registryPath} is empty or invalid`);
 	}
 
-	return datasets.map((dataset) => ({
+	const normalized = datasets.map((dataset) => ({
 		...dataset,
 		root_path: resolveRepoPath(dataset.root_path),
 		db_path: resolveRepoPath(dataset.db_path)
 	}));
+
+	datasetRegistryCache = {
+		registryPath,
+		mtimeMs: stat.mtimeMs,
+		datasets: normalized
+	};
+
+	return normalized;
 }
 
 export function listDatasets(): DatasetConfig[] {
 	return readDatasetRegistry();
+}
+
+export function listDatasetSummaries(): DatasetSummary[] {
+	return listDatasets().map((dataset) => ({
+		datasetId: dataset.dataset_id,
+		label: dataset.label,
+		discoveryMode: dataset.discovery_mode ?? 'static',
+		sourceCount: listDatasetSources(dataset.dataset_id).length
+	}));
 }
 
 export function getDefaultDatasetId(): string {

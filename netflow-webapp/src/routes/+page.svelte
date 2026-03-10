@@ -1,16 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import {
+		getCachedDatasetSummaries,
+		loadDatasetSummaries,
+		type DatasetSummary
+	} from '$lib/datasets';
 
-	type DatasetSummary = {
-		datasetId: string;
-		label: string;
-		discoveryMode: string;
-		sourceCount: number;
-	};
-
-	let datasets = $state<DatasetSummary[]>([]);
-	let loading = $state(true);
+	const initialDatasets = getCachedDatasetSummaries();
+	let datasets = $state<DatasetSummary[]>(initialDatasets ?? []);
+	let loading = $state(initialDatasets === null);
 	let error = $state('');
 
 	function openDataset(datasetId: string) {
@@ -18,12 +17,12 @@
 	}
 
 	onMount(async () => {
+		if (datasets.length > 0) {
+			return;
+		}
+
 		try {
-			const response = await fetch('/api/datasets');
-			if (!response.ok) {
-				throw new Error(`Failed to load datasets: ${response.statusText}`);
-			}
-			datasets = (await response.json()) as DatasetSummary[];
+			datasets = await loadDatasetSummaries();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load datasets';
 		} finally {
