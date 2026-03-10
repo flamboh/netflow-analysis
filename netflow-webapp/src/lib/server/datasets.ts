@@ -15,6 +15,7 @@ export interface DatasetConfig {
 const repoRoot = path.resolve(process.cwd(), '..');
 const defaultRegistryPath = path.resolve(repoRoot, 'datasets.json');
 const datasetDbCache = new Map<string, Database.Database>();
+const preferredDefaultDataset = 'uoregon';
 
 function resolveRepoPath(value: string): string {
 	if (path.isAbsolute(value)) {
@@ -55,6 +56,17 @@ function readDatasetRegistry(): DatasetConfig[] {
 
 export function listDatasets(): DatasetConfig[] {
 	return readDatasetRegistry();
+}
+
+export function getDefaultDatasetId(): string {
+	const configured = process.env.DEFAULT_DATASET?.trim();
+	if (configured) {
+		return configured;
+	}
+
+	const datasets = listDatasets();
+	const preferred = datasets.find((dataset) => dataset.dataset_id === preferredDefaultDataset);
+	return preferred?.dataset_id ?? datasets[0].dataset_id;
 }
 
 export function getDatasetConfig(datasetId: string): DatasetConfig {
@@ -115,10 +127,7 @@ export function getDatasetDb(datasetId: string): Database.Database {
 }
 
 export function getRequestedDataset(url: URL): string {
-	const dataset =
-		url.searchParams.get('dataset')?.trim() ||
-		process.env.DEFAULT_DATASET ||
-		listDatasets()[0].dataset_id;
+	const dataset = url.searchParams.get('dataset')?.trim() || getDefaultDatasetId();
 	getDatasetConfig(dataset);
 	return dataset;
 }

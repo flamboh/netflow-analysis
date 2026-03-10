@@ -9,8 +9,15 @@ This is the main entry point for cron-based processing. It orchestrates:
 4. Zero-fill - insert placeholder rows for gaps
 
 Usage:
-    python pipeline.py --dataset uoregon
-    python pipeline.py --dataset ugr16 --discover-only
+        python pipeline.py
+        python pipeline.py --discover-only
+        python pipeline.py --process-only
+        python pipeline.py --tables flow_stats,ip_stats
+        python pipeline.py --limit 500
+        python pipeline.py --discovery-window-days 30 --reprocess-window-days 14
+        python pipeline.py --no-log
+        python pipeline.py --dataset uoregon
+        python pipeline.py --dataset uoregon --discover-only
 """
 
 import argparse

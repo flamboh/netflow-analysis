@@ -55,7 +55,7 @@
 			{#each datasets as dataset (dataset.datasetId)}
 				<button
 					type="button"
-					class="rounded-lg border bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow"
+					class="cursor-pointer rounded-lg border bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow"
 					onclick={() => openDataset(dataset.datasetId)}
 				>
 					<h1 class="text-xl font-semibold text-gray-900">{dataset.label}</h1>

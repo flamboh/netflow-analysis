@@ -18,6 +18,7 @@ from contextlib import contextmanager
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ENV_PATH = REPO_ROOT / '.env'
 DEFAULT_DATASETS_PATH = REPO_ROOT / 'datasets.json'
+PREFERRED_DEFAULT_DATASET = 'uoregon'
 
 
 def load_env_file(env_path: Optional[str] = None) -> None:
@@ -169,6 +170,9 @@ def get_default_dataset_id() -> str:
     configured = get_optional_env('DEFAULT_DATASET')
     if configured:
         return configured
+    for dataset in DATASET_REGISTRY:
+        if dataset['dataset_id'] == PREFERRED_DEFAULT_DATASET:
+            return PREFERRED_DEFAULT_DATASET
     return DATASET_REGISTRY[0]['dataset_id']
 
 

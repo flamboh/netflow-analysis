@@ -47,7 +47,7 @@
 	},
 	"dependencies": {
 		"@lucide/svelte": "^0.511.0",
-		"better-sqlite3": "^12.1.0",
+		"better-sqlite3": "^12.6.2",
 		"chart.js": "^4.4.9",
 		"chartjs-plugin-annotation": "^3.1.0",
 		"moment": "^2.30.1",

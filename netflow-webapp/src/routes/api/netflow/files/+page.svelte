@@ -2,6 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
+	const defaultDatasetId = 'uoregon';
+
 	let timestamp = $state('');
 	let datasets = $state<Array<{ datasetId: string; label: string }>>([]);
 	let selectedDataset = $state('');
@@ -52,10 +54,14 @@
 			datasets = result;
 
 			const fromUrl = new URL(window.location.href).searchParams.get('dataset');
+			const fallbackDatasetId =
+				result.find((dataset) => dataset.datasetId === defaultDatasetId)?.datasetId ??
+				result[0]?.datasetId ??
+				'';
 			selectedDataset =
 				fromUrl && result.some((dataset) => dataset.datasetId === fromUrl)
 					? fromUrl
-					: (result[0]?.datasetId ?? '');
+					: fallbackDatasetId;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load datasets';
 		} finally {
