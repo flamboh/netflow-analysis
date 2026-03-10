@@ -7,6 +7,7 @@ export interface DatasetConfig {
 	label: string;
 	root_path: string;
 	db_path: string;
+	default_start_date?: string;
 	source_mode?: string;
 	discovery_mode?: string;
 	source_ids?: string[];
@@ -15,6 +16,7 @@ export interface DatasetConfig {
 export interface DatasetSummary {
 	datasetId: string;
 	label: string;
+	defaultStartDate: string;
 	discoveryMode: string;
 	sourceCount: number;
 }
@@ -22,12 +24,25 @@ export interface DatasetSummary {
 const repoRoot = path.resolve(process.cwd(), '..');
 const defaultRegistryPath = path.resolve(repoRoot, 'datasets.json');
 const datasetDbCache = new Map<string, Database.Database>();
+const datasetDefaultStartCache = new Map<
+	string,
+	{ dbPath: string; mtimeMs: number; value: string }
+>();
 const preferredDefaultDataset = 'uoregon';
+const legacyDefaultStartDate = '2025-02-11';
 let datasetRegistryCache: {
 	registryPath: string;
 	mtimeMs: number;
 	datasets: DatasetConfig[];
 } | null = null;
+
+function formatLocalDate(timestampSeconds: number): string {
+	const date = new Date(timestampSeconds * 1000);
+	const year = date.getFullYear();
+	const month = `${date.getMonth() + 1}`.padStart(2, '0');
+	const day = `${date.getDate()}`.padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
 
 function resolveRepoPath(value: string): string {
 	if (path.isAbsolute(value)) {
@@ -91,6 +106,7 @@ export function listDatasetSummaries(): DatasetSummary[] {
 	return listDatasets().map((dataset) => ({
 		datasetId: dataset.dataset_id,
 		label: dataset.label,
+		defaultStartDate: getDatasetDefaultStartDate(dataset.dataset_id),
 		discoveryMode: dataset.discovery_mode ?? 'static',
 		sourceCount: listDatasetSources(dataset.dataset_id).length
 	}));
@@ -121,6 +137,45 @@ export function getDatasetConfig(datasetId: string): DatasetConfig {
 export function getDatasetLabel(datasetId: string): string {
 	const dataset = getDatasetConfig(datasetId);
 	return dataset.label?.trim() || dataset.dataset_id;
+}
+
+export function getDatasetDefaultStartDate(datasetId: string): string {
+	const dataset = getDatasetConfig(datasetId);
+	const configuredDefaultStartDate = dataset.default_start_date?.trim();
+	if (configuredDefaultStartDate) {
+		return configuredDefaultStartDate;
+	}
+
+	if (datasetId === preferredDefaultDataset) {
+		return legacyDefaultStartDate;
+	}
+
+	const dbPath = getDatasetDbPath(datasetId);
+	if (!fs.existsSync(dbPath)) {
+		return legacyDefaultStartDate;
+	}
+
+	const stat = fs.statSync(dbPath);
+	const cached = datasetDefaultStartCache.get(datasetId);
+	if (cached && cached.dbPath === dbPath && cached.mtimeMs === stat.mtimeMs) {
+		return cached.value;
+	}
+
+	try {
+		const db = getDatasetDb(datasetId);
+		const row = db.prepare('SELECT MIN(timestamp) AS minTimestamp FROM netflow_stats').get() as
+			| { minTimestamp: number | null }
+			| undefined;
+		if (typeof row?.minTimestamp === 'number' && Number.isFinite(row.minTimestamp)) {
+			const value = formatLocalDate(row.minTimestamp);
+			datasetDefaultStartCache.set(datasetId, { dbPath, mtimeMs: stat.mtimeMs, value });
+			return value;
+		}
+	} catch (error) {
+		console.error(`Failed to derive default start date for dataset '${datasetId}':`, error);
+	}
+
+	return legacyDefaultStartDate;
 }
 
 export function listDatasetSources(datasetId: string): string[] {

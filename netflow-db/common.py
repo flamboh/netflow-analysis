@@ -151,6 +151,7 @@ def load_dataset_registry() -> list[dict[str, Any]]:
                 'label': str(entry.get('label', dataset_id.replace('_', ' ').title())),
                 'root_path': str(Path(root_path).expanduser()),
                 'db_path': str(resolve_repo_path(db_path)),
+                'default_start_date': str(entry.get('default_start_date', '')).strip(),
                 'source_mode': str(entry.get('source_mode', 'subdirs')),
                 'discovery_mode': str(entry.get('discovery_mode', 'static')),
                 'source_ids': [str(source).strip() for source in (source_ids or []) if str(source).strip()],

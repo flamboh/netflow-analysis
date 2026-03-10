@@ -1,6 +1,7 @@
 export type DatasetSummary = {
 	datasetId: string;
 	label: string;
+	defaultStartDate: string;
 	discoveryMode: string;
 	sourceCount: number;
 };

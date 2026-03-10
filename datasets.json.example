@@ -4,6 +4,7 @@
     "label": "UONet-in",
     "root_path": "/research/obo/netflow_datasets/uoregon",
     "db_path": "./data/uoregon/netflow.sqlite",
+    "default_start_date": "2025-02-11",
     "source_mode": "subdirs",
     "discovery_mode": "live"
   },
@@ -12,6 +13,7 @@
     "label": "UGR16",
     "root_path": "/research/obo/netflow_datasets/ugr16",
     "db_path": "./data/ugr16/netflow.sqlite",
+    "default_start_date": "2016-04-04",
     "source_mode": "subdirs",
     "discovery_mode": "static"
   }

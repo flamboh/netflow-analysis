@@ -17,7 +17,6 @@
 				<div class="flex items-center gap-4">
 					<a href="/" class="text-gray-500 hover:text-gray-900">Home</a>
 					<a href="/api/netflow/files" class="text-gray-500 hover:text-gray-900">Files</a>
-					<a href="/" class="text-gray-500 hover:text-gray-900">Datasets</a>
 				</div>
 			</div>
 		</div>

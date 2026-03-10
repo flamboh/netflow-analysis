@@ -21,6 +21,7 @@ The file is not meant to be committed with machine-specific paths. Start from
     "label": "UONet-in",
     "root_path": "/research/obo/netflow_datasets/uoregon",
     "db_path": "./data/uoregon/netflow.sqlite",
+    "default_start_date": "2025-02-11",
     "source_mode": "subdirs",
     "discovery_mode": "live"
   }
@@ -33,6 +34,7 @@ The file is not meant to be committed with machine-specific paths. Start from
 - `label`: human-readable display name for the web app
 - `root_path`: root directory containing the dataset's prepared NetFlow files
 - `db_path`: SQLite output path for that dataset
+- `default_start_date`: default dashboard start date in `YYYY-MM-DD`
 - `source_mode`: currently `subdirs`, meaning each top-level subdirectory is treated as a source/router
 - `discovery_mode`: descriptive only for now; use `live` for synced data and `static` for imported datasets
 

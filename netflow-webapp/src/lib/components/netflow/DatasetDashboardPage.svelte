@@ -15,14 +15,17 @@
 	} from '$lib/types/types';
 	import { watch } from 'runed';
 	import { useSearchParams } from 'runed/kit';
-	import { dateRangeSearchSchema } from '$lib/schemas';
+	import { createDateRangeSearchSchema } from '$lib/schemas';
 
 	const props = $props<{
 		dataset: string;
+		defaultStartDate: string;
 		title?: string;
 	}>();
 
-	const params = useSearchParams(dateRangeSearchSchema, { noScroll: true });
+	const params = useSearchParams(createDateRangeSearchSchema(props.defaultStartDate), {
+		noScroll: true
+	});
 	let startDate = $state(params.startDate);
 	let endDate = $state(params.endDate);
 	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);
@@ -287,10 +290,9 @@
 	}
 
 	function handleResetView() {
-		const defaultStartDate = '2025-02-11';
 		const today = new Date().toJSON().slice(0, 10);
 		selectedGroupBy = 'date';
-		startDate = defaultStartDate;
+		startDate = props.defaultStartDate;
 		endDate = today;
 		params.update({ groupBy: selectedGroupBy, startDate, endDate });
 	}
