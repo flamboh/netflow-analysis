@@ -96,7 +96,8 @@
 	let localHoverX = $state<number | null>(null);
 	let externalHoverX = $state<number | null>(null);
 	let activeCrosshairX = $derived(localHoverX ?? externalHoverX);
-	let activeTooltipLabel = $derived(localHoverLabel);
+	let showLocalTooltip = $state(false);
+	let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
 		const unsubscribe = rangeSelectionStore.subscribe((value) => {
@@ -232,10 +233,30 @@
 		externalHoverX = getPixelForLabel(externalHoverLabel);
 	}
 
+	function clearTooltipDelay() {
+		if (tooltipTimeout !== null) {
+			clearTimeout(tooltipTimeout);
+			tooltipTimeout = null;
+		}
+	}
+
+	function scheduleTooltip() {
+		clearTooltipDelay();
+		showLocalTooltip = false;
+		if (!localHoverLabel) {
+			return;
+		}
+		tooltipTimeout = setTimeout(() => {
+			showLocalTooltip = true;
+		}, 500);
+	}
+
 	function clearLocalHover() {
 		const hadLocalHover = localHoverLabel !== null || localHoverX !== null;
 		localHoverLabel = null;
 		localHoverX = null;
+		showLocalTooltip = false;
+		clearTooltipDelay();
 		if (hadLocalHover && crosshairStore.sourceChartId === CHART_ID) {
 			crosshairStore.clearHover();
 		}
@@ -280,6 +301,7 @@
 		localHoverLabel = nextLabel;
 		localHoverX = nextX;
 		if (labelChanged) {
+			scheduleTooltip();
 			crosshairStore.setHover(nextLabel, CHART_ID);
 		}
 	}
@@ -290,7 +312,7 @@
 		}
 		const area = chart.chartArea;
 		const snappedX = Math.round(x) + 0.5;
-		return `left:${snappedX}px; top:${area.top}px; height:${area.bottom - area.top}px;`;
+		return `left:${snappedX}px; top:${area.top}px; width:1px; height:${area.bottom - area.top}px; background-image:repeating-linear-gradient(to bottom, rgba(100,100,100,0.8) 0 3px, transparent 3px 6px);`;
 	}
 
 	function getCrosshairTooltipStyle(x: number | null): string | null {
@@ -302,8 +324,8 @@
 		const snappedX = Math.round(x) + 0.5;
 		const tooltipWidth = 120;
 		const left = Math.min(
-			Math.max(snappedX - tooltipWidth / 2, area.left + 6),
-			area.right - tooltipWidth - 6
+			Math.max(snappedX - tooltipWidth / 2, area.left + 5),
+			area.right - tooltipWidth - 5
 		);
 		const top = Math.max(6, area.top - 34);
 		return `left:${left}px; top:${top}px; width:${tooltipWidth}px;`;
@@ -327,8 +349,10 @@
 		if (crosshairStore.sourceChartId === CHART_ID) {
 			crosshairStore.clearHover();
 		}
+		clearTooltipDelay();
 		localHoverLabel = null;
 		localHoverX = null;
+		showLocalTooltip = false;
 		externalHoverX = null;
 	}
 
@@ -975,21 +999,21 @@
 				</div>
 			{:else}
 				<div class="h-full">
-					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
-					{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
-						<div
-							class="pointer-events-none absolute z-20 w-px bg-gray-600/80"
-							style={getCrosshairLineStyle(activeCrosshairX)}
-						></div>
-					{/if}
-					{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null && activeTooltipLabel}
-						<div
-							class="pointer-events-none absolute z-20 rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs text-white shadow-sm"
-							style={getCrosshairTooltipStyle(activeCrosshairX)}
-						>
-							{activeTooltipLabel}
-						</div>
-					{/if}
+						<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
+						{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
+							<div
+								class="pointer-events-none absolute z-20"
+								style={getCrosshairLineStyle(activeCrosshairX)}
+							></div>
+						{/if}
+						{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
+							<div
+								class="pointer-events-none absolute z-20 whitespace-nowrap rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs text-white shadow-sm"
+								style={getCrosshairTooltipStyle(localHoverX)}
+							>
+								{localHoverLabel}
+							</div>
+						{/if}
 					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 						<div
 							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"

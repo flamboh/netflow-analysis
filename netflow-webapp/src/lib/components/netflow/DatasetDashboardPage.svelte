@@ -30,6 +30,7 @@
 	let endDate = $state(params.endDate);
 	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);
 	let selectedRouters = $state<RouterConfig>({});
+	let routersLoaded = $state(false);
 	let selectedSpectrumRouter = $state('');
 	let selectedSpectrumAddressType = $state<'sa' | 'da'>('sa');
 	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
@@ -249,6 +250,8 @@
 			}
 		} catch (err) {
 			console.error(err);
+		} finally {
+			routersLoaded = true;
 		}
 	});
 
@@ -349,6 +352,7 @@
 						{endDate}
 						groupBy={selectedGroupBy}
 						routers={selectedRouters}
+						{routersLoaded}
 						{dataOptions}
 						on:dateChange={handleDateChange}
 						on:groupByChange={handleGroupByChange}
