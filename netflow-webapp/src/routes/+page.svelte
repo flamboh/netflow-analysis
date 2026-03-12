@@ -1,390 +1,72 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import PrimaryFilters from '$lib/components/filters/PrimaryFilters.svelte';
-	import NetflowDashboard from '$lib/components/netflow/NetflowDashboard.svelte';
-	import IPChart from '$lib/components/charts/IPChart.svelte';
-	import ProtocolChart from '$lib/components/charts/ProtocolChart.svelte';
-	import SpectrumStatsChart from '$lib/components/charts/SpectrumStatsChart.svelte';
-	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
-	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 	import {
-		IP_METRIC_OPTIONS,
-		type IpGranularity,
-		type IpMetricKey,
-		type ProtocolMetricKey
-	} from '$lib/types/types';
-	import { watch } from 'runed';
-	import { useSearchParams } from 'runed/kit';
-	import { dateRangeSearchSchema } from '$lib/schemas';
+		getCachedDatasetSummaries,
+		loadDatasetSummaries,
+		type DatasetSummary
+	} from '$lib/datasets';
 
-	const params = useSearchParams(dateRangeSearchSchema, { noScroll: true });
-	let startDate = $state(params.startDate);
-	let endDate = $state(params.endDate);
-	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);
-	let selectedRouters = $state<RouterConfig>({});
-	let selectedSpectrumRouter = $state('');
-	let selectedSpectrumAddressType = $state<'sa' | 'da'>('sa');
-	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
-	const defaultIpMetrics: IpMetricKey[] = IP_METRIC_OPTIONS.slice(0, 2).map((option) => option.key);
-	let ipMetrics = $state<IpMetricKey[]>([...defaultIpMetrics]);
-	let protocolMetrics = $state<ProtocolMetricKey[]>(['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6']);
-	type ChartCardId = 'dashboard' | 'ip' | 'protocol' | 'spectrum';
-	const DEFAULT_CHART_ORDER: ChartCardId[] = ['dashboard', 'ip', 'protocol', 'spectrum'];
-	const CHART_ORDER_STORAGE_KEY = 'netflow-main-chart-order-v1';
-	let chartOrder = $state<ChartCardId[]>([...DEFAULT_CHART_ORDER]);
-	let draggedChartId = $state<ChartCardId | null>(null);
-	let dropTargetChartId = $state<ChartCardId | null>(null);
-	let dragPreviewElement: HTMLElement | null = null;
+	const initialDatasets = getCachedDatasetSummaries();
+	let datasets = $state<DatasetSummary[]>(initialDatasets ?? []);
+	let loading = $state(initialDatasets === null);
+	let error = $state('');
 
-	const GROUP_BY_TO_IP: Record<GroupByOption, IpGranularity> = {
-		date: '1d',
-		hour: '1h',
-		'30min': '30m',
-		'5min': '5m'
-	};
-
-	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
-	const availableSpectrumRouters = $derived(getEnabledRouters(selectedRouters));
-
-	function isValidChartOrder(value: unknown): value is ChartCardId[] {
-		if (!Array.isArray(value)) {
-			return false;
-		}
-		if (value.length !== DEFAULT_CHART_ORDER.length) {
-			return false;
-		}
-		const order = new Set(value);
-		return DEFAULT_CHART_ORDER.every((id) => order.has(id));
+	function openDataset(datasetId: string) {
+		goto(`/datasets/${datasetId}`);
 	}
-
-	function loadChartOrder() {
-		try {
-			const raw = localStorage.getItem(CHART_ORDER_STORAGE_KEY);
-			if (!raw) {
-				return;
-			}
-			const parsed = JSON.parse(raw) as unknown;
-			if (isValidChartOrder(parsed)) {
-				chartOrder = parsed;
-			}
-		} catch (error) {
-			console.error('Failed to load chart order', error);
-		}
-	}
-
-	function persistChartOrder() {
-		try {
-			localStorage.setItem(CHART_ORDER_STORAGE_KEY, JSON.stringify(chartOrder));
-		} catch (error) {
-			console.error('Failed to save chart order', error);
-		}
-	}
-
-	function moveChartCard(draggedId: ChartCardId, targetId: ChartCardId) {
-		if (draggedId === targetId) {
-			return;
-		}
-		const draggedIndex = chartOrder.indexOf(draggedId);
-		const targetIndex = chartOrder.indexOf(targetId);
-		if (draggedIndex === -1 || targetIndex === -1) {
-			return;
-		}
-		const nextOrder = [...chartOrder];
-		nextOrder.splice(draggedIndex, 1);
-		nextOrder.splice(targetIndex, 0, draggedId);
-		chartOrder = nextOrder;
-	}
-
-	function clearDragPreview() {
-		if (dragPreviewElement) {
-			dragPreviewElement.remove();
-			dragPreviewElement = null;
-		}
-	}
-
-	function handleChartDragStart(event: DragEvent, chartId: ChartCardId) {
-		const target = event.target as HTMLElement | null;
-		if (!target?.closest('[data-drag-handle]')) {
-			event.preventDefault();
-			return;
-		}
-		clearDragPreview();
-		draggedChartId = chartId;
-		dropTargetChartId = chartId;
-		if (event.dataTransfer) {
-			event.dataTransfer.effectAllowed = 'move';
-			event.dataTransfer.setData('text/plain', chartId);
-
-			const card = target?.closest('[data-chart-card]') as HTMLElement | null;
-			if (card) {
-				const rect = card.getBoundingClientRect();
-				const clone = card.cloneNode(true) as HTMLElement;
-				clone.style.position = 'fixed';
-				clone.style.top = '-10000px';
-				clone.style.left = '-10000px';
-				clone.style.width = `${rect.width}px`;
-				clone.style.height = `${rect.height}px`;
-				clone.style.opacity = '1';
-				clone.style.pointerEvents = 'none';
-				clone.style.margin = '0';
-				document.body.appendChild(clone);
-				event.dataTransfer.setDragImage(
-					clone,
-					Math.max(0, event.clientX - rect.left),
-					Math.max(0, event.clientY - rect.top)
-				);
-				dragPreviewElement = clone;
-			}
-		}
-	}
-
-	function handleChartDragOver(event: DragEvent, targetId: ChartCardId) {
-		if (!draggedChartId || draggedChartId === targetId) {
-			return;
-		}
-		event.preventDefault();
-		dropTargetChartId = targetId;
-		if (event.dataTransfer) {
-			event.dataTransfer.dropEffect = 'move';
-		}
-	}
-
-	function handleChartDragLeave(event: DragEvent, chartId: ChartCardId) {
-		const currentTarget = event.currentTarget as HTMLElement | null;
-		const relatedTarget = event.relatedTarget as Node | null;
-		if (currentTarget && relatedTarget && currentTarget.contains(relatedTarget)) {
-			return;
-		}
-		if (dropTargetChartId === chartId) {
-			dropTargetChartId = null;
-		}
-	}
-
-	function handleChartDrop(event: DragEvent, targetId: ChartCardId) {
-		event.preventDefault();
-		if (draggedChartId && targetId !== draggedChartId) {
-			moveChartCard(draggedChartId, targetId);
-			persistChartOrder();
-		}
-		draggedChartId = null;
-		dropTargetChartId = null;
-		clearDragPreview();
-	}
-
-	function handleChartDragEnd() {
-		draggedChartId = null;
-		dropTargetChartId = null;
-		clearDragPreview();
-	}
-
-	function getEnabledRouters(routers: RouterConfig): string[] {
-		return Object.entries(routers)
-			.filter(([, enabled]) => enabled)
-			.map(([router]) => router)
-			.sort();
-	}
-
-	watch(
-		() => params.startDate,
-		(next) => {
-			if (next !== startDate) {
-				startDate = next;
-			}
-		}
-	);
-
-	watch(
-		() => params.endDate,
-		(next) => {
-			if (next !== endDate) {
-				endDate = next;
-			}
-		}
-	);
-
-	watch(
-		() => params.groupBy,
-		(next) => {
-			const value = next as GroupByOption;
-			if (value !== selectedGroupBy) {
-				selectedGroupBy = value;
-			}
-		}
-	);
 
 	onMount(async () => {
-		loadChartOrder();
-
-		try {
-			const response = await fetch('/api/routers');
-			if (!response.ok) {
-				throw new Error(`Failed to load routers: ${response.statusText}`);
-			}
-
-			const routerList = (await response.json()) as string[];
-			if (routerList.length === 0) {
-				return;
-			}
-
-			const routerConfig: RouterConfig = {};
-			routerList.forEach((router) => {
-				routerConfig[router] = true;
-			});
-			selectedRouters = routerConfig;
-			const enabledRouters = getEnabledRouters(routerConfig);
-			if (!selectedSpectrumRouter || !enabledRouters.includes(selectedSpectrumRouter)) {
-				selectedSpectrumRouter = enabledRouters[0] ?? '';
-			}
-		} catch (err) {
-			console.error(err);
-		}
-	});
-
-	function handleStartDateChange(event: CustomEvent<{ startDate: string }>) {
-		startDate = event.detail.startDate;
-		params.startDate = startDate;
-	}
-
-	function handleEndDateChange(event: CustomEvent<{ endDate: string }>) {
-		endDate = event.detail.endDate;
-		params.endDate = endDate;
-	}
-
-	function handleDateChange(event: CustomEvent<{ startDate: string; endDate: string }>) {
-		startDate = event.detail.startDate;
-		endDate = event.detail.endDate;
-		params.update({ startDate, endDate });
-	}
-
-	function handleGroupByChange(event: CustomEvent<{ groupBy: GroupByOption }>) {
-		if (event.detail.groupBy === params.groupBy) {
+		if (datasets.length > 0) {
 			return;
 		}
-		selectedGroupBy = event.detail.groupBy;
-		params.groupBy = selectedGroupBy;
-	}
 
-	function handleRoutersChange(event: CustomEvent<{ routers: RouterConfig }>) {
-		const nextRouters = event.detail.routers;
-		selectedRouters = nextRouters;
-		const enabledRouters = getEnabledRouters(nextRouters);
-		if (!enabledRouters.includes(selectedSpectrumRouter)) {
-			selectedSpectrumRouter = enabledRouters[0] ?? '';
+		try {
+			datasets = await loadDatasetSummaries();
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load datasets';
+		} finally {
+			loading = false;
 		}
-	}
-
-	function handleDataOptionsChange(event: CustomEvent<{ options: DataOption[] }>) {
-		dataOptions = event.detail.options;
-	}
-
-	function handleIpMetricsChange(event: CustomEvent<{ metrics: IpMetricKey[] }>) {
-		ipMetrics = event.detail.metrics;
-	}
-
-	function handleResetView() {
-		const defaultStartDate = '2025-02-11';
-		const today = new Date().toJSON().slice(0, 10);
-		selectedGroupBy = 'date';
-		startDate = defaultStartDate;
-		endDate = today;
-		params.update({ groupBy: selectedGroupBy, startDate, endDate });
-	}
+	});
 </script>
 
 <svelte:head>
-	<title>NetFlow Analysis</title>
-	<meta name="description" content="NetFlow analysis and visualization tool" />
+	<title>NetFlow Datasets</title>
+	<meta name="description" content="Select a NetFlow dataset dashboard" />
 </svelte:head>
 
-<div class="min-h-screen bg-gray-100">
-	<main class="mx-auto flex max-w-[90vw] flex-col gap-2 px-4 py-8 sm:px-2 lg:px-4">
-		<PrimaryFilters
-			{startDate}
-			{endDate}
-			groupBy={selectedGroupBy}
-			routers={selectedRouters}
-			on:startDateChange={handleStartDateChange}
-			on:endDateChange={handleEndDateChange}
-			on:groupByChange={handleGroupByChange}
-			on:routersChange={handleRoutersChange}
-			on:resetView={handleResetView}
-		/>
-
-		<div role="list" aria-label="Reorderable charts" class="flex flex-col gap-2">
-			{#each chartOrder as chartId (chartId)}
-				<section
-					role="listitem"
-					data-chart-card
-					class={`rounded-lg ${dropTargetChartId === chartId && draggedChartId && draggedChartId !== chartId ? 'ring-2 ring-blue-400 ring-offset-2' : ''}`}
-					ondragstart={(event) => {
-						handleChartDragStart(event, chartId);
-					}}
-					ondragend={handleChartDragEnd}
-					ondragover={(event) => {
-						handleChartDragOver(event, chartId);
-					}}
-					ondragleave={(event) => {
-						handleChartDragLeave(event, chartId);
-					}}
-					ondrop={(event) => {
-						handleChartDrop(event, chartId);
-					}}
+<main class="mx-auto flex max-w-[90vw] flex-col gap-4 px-4 py-8 sm:px-2 lg:px-4">
+	{#if loading}
+		<section class="rounded-lg border bg-white p-6 text-gray-500 shadow-sm">
+			Loading datasets...
+		</section>
+	{:else if error}
+		<section class="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700 shadow-sm">
+			{error}
+		</section>
+	{:else if datasets.length === 0}
+		<section class="rounded-lg border bg-white p-6 text-gray-500 shadow-sm">
+			No datasets are configured.
+		</section>
+	{:else}
+		<div class="grid gap-4 md:grid-cols-2">
+			{#each datasets as dataset (dataset.datasetId)}
+				<button
+					type="button"
+					class="cursor-pointer rounded-lg border bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow"
+					onclick={() => openDataset(dataset.datasetId)}
 				>
-					{#if chartId === 'dashboard'}
-						<NetflowDashboard
-							{startDate}
-							{endDate}
-							groupBy={selectedGroupBy}
-							routers={selectedRouters}
-							{dataOptions}
-							on:dateChange={handleDateChange}
-							on:groupByChange={handleGroupByChange}
-							on:dataOptionsChange={handleDataOptionsChange}
-						/>
-					{:else if chartId === 'ip'}
-						<IPChart
-							{startDate}
-							{endDate}
-							granularity={ipGranularity}
-							routers={selectedRouters}
-							activeMetrics={ipMetrics}
-							on:dateChange={handleDateChange}
-							on:groupByChange={handleGroupByChange}
-							on:metricsChange={handleIpMetricsChange}
-						/>
-					{:else if chartId === 'protocol'}
-						<ProtocolChart
-							{startDate}
-							{endDate}
-							granularity={ipGranularity}
-							routers={selectedRouters}
-							activeMetrics={protocolMetrics}
-							on:dateChange={handleDateChange}
-							on:groupByChange={handleGroupByChange}
-							on:metricsChange={(event) => {
-								protocolMetrics = event.detail.metrics;
-							}}
-						/>
-					{:else}
-						<SpectrumStatsChart
-							{startDate}
-							{endDate}
-							granularity={ipGranularity}
-							router={selectedSpectrumRouter}
-							addressType={selectedSpectrumAddressType}
-							availableRouters={availableSpectrumRouters}
-							on:dateChange={handleDateChange}
-							on:groupByChange={handleGroupByChange}
-							on:routerChange={(event) => {
-								selectedSpectrumRouter = event.detail.router;
-							}}
-							on:addressTypeChange={(event) => {
-								selectedSpectrumAddressType = event.detail.addressType;
-							}}
-						/>
-					{/if}
-				</section>
+					<h1 class="text-xl font-semibold text-gray-900">{dataset.label}</h1>
+					<p class="mt-3 text-sm text-gray-600">
+						<span class="font-mono text-gray-500">{dataset.datasetId}</span>
+						·
+						{dataset.sourceCount} source{dataset.sourceCount === 1 ? '' : 's'}
+						·
+						{dataset.discoveryMode}
+					</p>
+				</button>
 			{/each}
 		</div>
-	</main>
-</div>
+	{/if}
+</main>

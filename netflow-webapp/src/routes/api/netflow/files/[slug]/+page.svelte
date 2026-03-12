@@ -159,7 +159,9 @@
 		resetDataStores();
 
 		try {
-			const response = await fetch(`/api/netflow/files/${slug}/details`);
+			const response = await fetch(
+				`/api/netflow/files/${slug}/details?dataset=${encodeURIComponent(data.dataset)}`
+			);
 			if (!response.ok) {
 				let message = `Failed to load file summary: ${response.statusText}`;
 				try {
@@ -235,7 +237,7 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${slug}/singularities?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/singularities?dataset=${encodeURIComponent(data.dataset)}&router=${encodeURIComponent(router)}&source=${source}`
 			);
 			if (!response.ok) {
 				throw new Error(`Failed to load singularities data: ${response.statusText}`);
@@ -297,7 +299,7 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${slug}/structure?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/structure?dataset=${encodeURIComponent(data.dataset)}&router=${encodeURIComponent(router)}&source=${source}`
 			);
 
 			if (token !== loadToken) {
@@ -374,7 +376,7 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${slug}/spectrum?router=${encodeURIComponent(router)}&source=${source}`
+				`/api/netflow/files/${slug}/spectrum?dataset=${encodeURIComponent(data.dataset)}&router=${encodeURIComponent(router)}&source=${source}`
 			);
 
 			if (token !== loadToken) {
@@ -452,7 +454,7 @@
 		NetFlow File: {data.fileInfo.filename}
 		<a
 			class="w-24 rounded bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700"
-			href={`/api/netflow/files/${nextSlug}`}
+			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
 		>
 			Next File
 		</a>
@@ -637,6 +639,12 @@
 
 					<!-- Analysis for this Router -->
 					<div class="rounded-b-lg p-4">
+						{#if record.file_exists_on_disk === false}
+							<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
+								The original NetFlow file is missing on disk for this router. DB-backed stats can
+								still be shown, but on-demand MAAD analysis cannot run.
+							</div>
+						{/if}
 						<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
 						<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">

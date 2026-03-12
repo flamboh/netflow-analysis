@@ -340,7 +340,7 @@
 			if (onNavigateToFile) {
 				onNavigateToFile(slug);
 			} else {
-				goto(`/api/netflow/files/${slug}`);
+				goto(`/netflow/files/${slug}`);
 			}
 		}
 

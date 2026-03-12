@@ -25,8 +25,10 @@ vite.config.ts.timestamp-*
 
 # Database ## Untracked due to size
 *.db*
+data/**/*.sqlite*
 *.log
 exploration/
 
 **/local-notes
 **/tmp
+datasets.json

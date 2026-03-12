@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from multiprocessing import Pool
 
-DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent / '.env'
+DEFAULT_ENV_PATH = Path(__file__).resolve().parent.parent.parent / '.env'
 
 
 # Load environment variables from .env file

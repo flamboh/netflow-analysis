@@ -14,6 +14,7 @@
 	} from './types.ts';
 
 	const props = $props<{
+		dataset: string;
 		startDate: string;
 		endDate: string;
 		groupBy: GroupByOption;
@@ -52,6 +53,7 @@
 		error = null;
 
 		const params = new URLSearchParams({
+			dataset: props.dataset,
 			startDate: dateStringToEpochPST(filters.startDate).toString(),
 			endDate: dateStringToEpochPST(filters.endDate, true).toString(),
 			routers: activeRouters.join(','),
@@ -96,7 +98,7 @@
 	}
 
 	function handleNavigateToFile(slug: string) {
-		goto(`/api/netflow/files/${slug}`);
+		goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset)}`);
 	}
 
 	function handleChartTypeChange(newChartType: ChartTypeOption) {
@@ -136,6 +138,7 @@
 		}));
 
 		const nextKey = JSON.stringify({
+			dataset: props.dataset,
 			startDate: filters.startDate,
 			endDate: filters.endDate,
 			groupBy: filters.groupBy,

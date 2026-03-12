@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import fs from 'fs';
 import type {
 	FileIpCounts,
 	NetflowFileDetailsResponse,
@@ -10,7 +11,7 @@ import type {
 	StructureFunctionData,
 	StructureFunctionPoint
 } from '$lib/types/types';
-import { getDb, slugToBucketStart } from '../utils';
+import { getDatasetFromRequest, getDb, slugToBucketStart } from '../utils';
 
 const FIVE_MINUTES = '5m';
 
@@ -116,8 +117,9 @@ function buildIpCounts(ipv4Count: number | null, ipv6Count: number | null): File
 	};
 }
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async ({ params, url }) => {
 	const { slug } = params;
+	const dataset = getDatasetFromRequest(url);
 
 	if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
 		return json({ error: 'Invalid slug format' }, { status: 400 });
@@ -129,7 +131,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	try {
-		const db = getDb();
+		const db = getDb(dataset);
 		const filePattern = `nfcapd.${slug}`;
 		const rows = db
 			.prepare(
@@ -185,6 +187,7 @@ export const GET: RequestHandler = async ({ params }) => {
 				summary: {
 					router: row.router,
 					file_path: row.file_path,
+					file_exists_on_disk: fs.existsSync(row.file_path),
 					flows: row.flows,
 					flows_tcp: row.flows_tcp,
 					flows_udp: row.flows_udp,

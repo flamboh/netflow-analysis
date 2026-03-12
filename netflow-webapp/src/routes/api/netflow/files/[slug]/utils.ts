@@ -1,20 +1,13 @@
-import { DATABASE_PATH } from '$env/static/private';
-import Database from 'better-sqlite3';
 import { createDateFromPSTComponents } from '$lib/utils/timezone';
+import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
 
 export interface NetflowRecord {
 	router: string;
 	file_path: string;
 }
 
-const DB_PATH = DATABASE_PATH;
-let db: Database.Database | null = null;
-
-export function getDb() {
-	if (!db) {
-		db = new Database(DB_PATH, { readonly: true });
-	}
-	return db;
+export function getDb(dataset: string) {
+	return getDatasetDb(dataset);
 }
 
 export function slugToBucketStart(slug: string): number | null {
@@ -42,7 +35,11 @@ export function slugToBucketStart(slug: string): number | null {
 	return Math.floor(date.getTime() / 1000);
 }
 
-export async function getNetflowFilePath(slug: string, router: string): Promise<string | null> {
+export async function getNetflowFilePath(
+	dataset: string,
+	slug: string,
+	router: string
+): Promise<string | null> {
 	const filePattern = `nfcapd.${slug}`;
 	const query = `
 		SELECT file_path FROM netflow_stats
@@ -50,8 +47,12 @@ export async function getNetflowFilePath(slug: string, router: string): Promise<
 		LIMIT 1
 	`;
 
-	const database = getDb();
+	const database = getDb(dataset);
 	const result = database.prepare(query).get(filePattern, router) as NetflowRecord | undefined;
 
 	return result?.file_path || null;
+}
+
+export function getDatasetFromRequest(url: URL): string {
+	return getRequestedDataset(url);
 }

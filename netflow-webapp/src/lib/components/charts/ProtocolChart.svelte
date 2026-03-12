@@ -69,6 +69,7 @@
 	}>();
 
 	const props = $props<{
+		dataset?: string;
 		startDate?: string;
 		endDate?: string;
 		granularity?: IpGranularity;
@@ -325,7 +326,9 @@
 		if (groupBy === '5min') {
 			const labelForSlug = activeLabel ?? label;
 			const slug = generateSlugFromLabel(labelForSlug, '5min');
-			if (slug) goto(`/api/netflow/files/${slug}`);
+			if (slug) {
+				goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`);
+			}
 			return;
 		}
 
@@ -532,6 +535,7 @@
 		destroyChart();
 
 		const params = new URLSearchParams({
+			dataset: props.dataset ?? '',
 			startDate: toEpochSeconds(filters.startDate).toString(),
 			endDate: toEpochSeconds(filters.endDate, true).toString(),
 			granularity: filters.granularity,

@@ -1,3 +1,17 @@
+export interface DatasetSummary {
+	datasetId: string;
+	label: string;
+	defaultStartDate: string;
+	discoveryMode: string;
+	sourceCount: number;
+	isDefault: boolean;
+}
+
+export interface DatasetSummariesResponse {
+	data: DatasetSummary[] | null;
+	error: string | null;
+}
+
 export interface NetflowStatsRow {
 	date: string;
 	flows?: number;
@@ -25,6 +39,7 @@ export interface NetflowStatsResult {
 export interface NetflowFileSummaryRecord {
 	router: string;
 	file_path: string;
+	file_exists_on_disk?: boolean;
 	flows: number;
 	flows_tcp: number;
 	flows_udp: number;
