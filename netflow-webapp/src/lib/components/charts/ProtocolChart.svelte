@@ -89,16 +89,6 @@
 	const getEndDate = () => props.endDate ?? formatDate(today);
 	const getGranularity = () => props.granularity ?? '1h';
 
-	function deriveKnownRouters(config: RouterConfig | undefined): string[] {
-		if (!config) {
-			return [];
-		}
-		return Object.keys(config)
-			.map((name) => name.trim())
-			.filter((name) => name.length > 0)
-			.sort();
-	}
-
 	function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
 		if (!config) {
 			return [];
@@ -644,13 +634,12 @@
 		}
 
 		const selectedRouters = deriveSelectedRouters(routerConfig);
-		const knownRouters = deriveKnownRouters(routerConfig);
 
 		const filters: FilterInputs = {
 			startDate: getStartDate(),
 			endDate: getEndDate(),
 			granularity: getGranularity(),
-			routers: knownRouters
+			routers: selectedRouters
 		};
 
 		currentGranularity = filters.granularity;
