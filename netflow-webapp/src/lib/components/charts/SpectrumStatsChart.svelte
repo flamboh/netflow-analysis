@@ -35,6 +35,12 @@
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
+	import {
+		ensureCachedWindow,
+		getMissingWindowRanges,
+		readCachedWindow,
+		type TimeRange
+	} from '$lib/utils/window-cache';
 
 	const CHART_ID = 'spectrum';
 
@@ -666,30 +672,66 @@
 	let lastFiltersKey = '';
 	let requestToken = 0;
 
+	function getRequestedRange(filters: FilterInputs): TimeRange {
+		return {
+			start: toEpochSeconds(filters.startDate),
+			end: toEpochSeconds(filters.endDate, true)
+		};
+	}
+
+	function getCacheKey(filters: FilterInputs): string {
+		return JSON.stringify({
+			chart: CHART_ID,
+			dataset: props.dataset ?? '',
+			granularity: filters.granularity,
+			routers: filters.routers
+		});
+	}
+
 	async function loadData(filters: FilterInputs, token: number) {
-		loading = true;
+		const requestedRange = getRequestedRange(filters);
+		const cacheKey = getCacheKey(filters);
+		loading = getMissingWindowRanges(cacheKey, requestedRange).length > 0;
 		error = null;
-		destroyChart();
+		if (loading) {
+			destroyChart();
+		}
 
 		const params = new URLSearchParams({
 			dataset: props.dataset ?? '',
-			startDate: toEpochSeconds(filters.startDate).toString(),
-			endDate: toEpochSeconds(filters.endDate, true).toString(),
 			granularity: filters.granularity,
 			routers: filters.routers.join(',')
 		});
 
 		try {
-			const response = await fetch(`/api/netflow/spectrum-stats?${params.toString()}`);
-			if (!response.ok) {
-				const message = await response.text();
-				throw new Error(message || 'Failed to load spectrum statistics');
-			}
-			const data = (await response.json()) as SpectrumStatsResponse;
+			await ensureCachedWindow<SpectrumStatsBucket>({
+				key: cacheKey,
+				requestedRange,
+				fetchRange: async (range) => {
+					const response = await fetch(
+						`/api/netflow/spectrum-stats?${new URLSearchParams({
+							...Object.fromEntries(params.entries()),
+							startDate: range.start.toString(),
+							endDate: range.end.toString()
+						}).toString()}`
+					);
+					if (!response.ok) {
+						const message = await response.text();
+						throw new Error(message || 'Failed to load spectrum statistics');
+					}
+					const data = (await response.json()) as SpectrumStatsResponse;
+					return data.buckets;
+				},
+				getRecordKey: (record) => `${record.router}-${record.bucketStart}`,
+				compareRecords: (left, right) =>
+					left.bucketStart - right.bucketStart || left.router.localeCompare(right.router)
+			});
 			if (token !== requestToken) {
 				return;
 			}
-			buckets = data.buckets;
+			buckets = readCachedWindow<SpectrumStatsBucket>(cacheKey, requestedRange, (record, range) => {
+				return record.bucketStart >= range.start && record.bucketStart < range.end;
+			});
 			loading = false;
 			await tick();
 			renderChart();

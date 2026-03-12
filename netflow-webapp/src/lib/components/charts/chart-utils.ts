@@ -155,12 +155,11 @@ export function buildMirroredSelectionStyle(
 
 /**
  * Format labels from NetFlow data points using PST timezone.
- * item.time is now an epoch timestamp (as string) from the API.
+ * item.bucketStart is epoch seconds from the API.
  */
 export function formatLabels(results: NetflowDataPoint[], groupBy: GroupByOption): string[] {
 	return results.map((item) => {
-		// Parse epoch timestamp (item.time is a string containing epoch seconds)
-		const epoch = parseInt(item.time, 10);
+		const epoch = item.bucketStart;
 		if (!Number.isFinite(epoch)) {
 			return '';
 		}

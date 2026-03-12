@@ -1,25 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import type { NetflowStatsRow, NetflowStatsResult } from '$lib/types/types';
+import type { NetflowStatsResult } from '$lib/types/types';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
-const DATA_OPTIONS = [
-	{ label: 'Flows', value: 'flows' },
-	{ label: 'Flows TCP', value: 'flows_tcp' },
-	{ label: 'Flows UDP', value: 'flows_udp' },
-	{ label: 'Flows ICMP', value: 'flows_icmp' },
-	{ label: 'Flows Other', value: 'flows_other' },
-	{ label: 'Packets', value: 'packets' },
-	{ label: 'Packets TCP', value: 'packets_tcp' },
-	{ label: 'Packets UDP', value: 'packets_udp' },
-	{ label: 'Packets ICMP', value: 'packets_icmp' },
-	{ label: 'Packets Other', value: 'packets_other' },
-	{ label: 'Bytes', value: 'bytes' },
-	{ label: 'Bytes TCP', value: 'bytes_tcp' },
-	{ label: 'Bytes UDP', value: 'bytes_udp' },
-	{ label: 'Bytes ICMP', value: 'bytes_icmp' },
-	{ label: 'Bytes Other', value: 'bytes_other' }
-	// { label: 'Sequence Failures', value: 'sequence_failures' }
-];
 
 // Bucket sizes in seconds
 const BUCKET_SIZES: Record<string, number> = {
@@ -38,17 +20,6 @@ function getBucketStartQuery(groupBy: string): string {
 	return `(CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime')) AS integer) / ${bucketSize}) * ${bucketSize}`;
 }
 
-function getDataOptions(dataOptionsBinary: number) {
-	const result: string[] = [];
-	for (let i = 0; i < DATA_OPTIONS.length; i++) {
-		if ((dataOptionsBinary & (1 << i)) !== 0) {
-			const option = DATA_OPTIONS[i];
-			result.push(`SUM(${option.value}) as ${option.value}`);
-		}
-	}
-	return result;
-}
-
 export const GET: RequestHandler = async ({ url }) => {
 	const dataset = getRequestedDataset(url);
 	const startDate = url.searchParams.get('startDate') || '';
@@ -57,7 +28,6 @@ export const GET: RequestHandler = async ({ url }) => {
 	// const time = url.searchParams.get('time') || '1200';
 	// const endTime = url.searchParams.get('endTime') || '0100';
 	const routersParam = url.searchParams.get('routers') || '';
-	const dataOptionsBinary = parseInt(url.searchParams.get('dataOptions') || '0');
 	const groupBy = url.searchParams.get('groupBy') || 'date';
 
 	// Parse routers
@@ -70,60 +40,57 @@ export const GET: RequestHandler = async ({ url }) => {
 	try {
 		const db = getDatasetDb(dataset);
 		const bucketStartQuery = getBucketStartQuery(groupBy);
-		const dataOptions = getDataOptions(dataOptionsBinary);
-		if (dataOptions.length === 0) {
-			return json({ error: 'At least one data option is required' }, { status: 400 });
-		}
 
-		// Build query using epoch-based bucket calculation
 		const query = `
 			SELECT 
-				${bucketStartQuery} as bucket_start,
-				${dataOptions.join(', ')}
+				router,
+				${bucketStartQuery} as bucketStart,
+				SUM(flows) AS flows,
+				SUM(flows_tcp) AS flowsTcp,
+				SUM(flows_udp) AS flowsUdp,
+				SUM(flows_icmp) AS flowsIcmp,
+				SUM(flows_other) AS flowsOther,
+				SUM(packets) AS packets,
+				SUM(packets_tcp) AS packetsTcp,
+				SUM(packets_udp) AS packetsUdp,
+				SUM(packets_icmp) AS packetsIcmp,
+				SUM(packets_other) AS packetsOther,
+				SUM(bytes) AS bytes,
+				SUM(bytes_tcp) AS bytesTcp,
+				SUM(bytes_udp) AS bytesUdp,
+				SUM(bytes_icmp) AS bytesIcmp,
+				SUM(bytes_other) AS bytesOther
 			FROM netflow_stats 
 			WHERE router IN (${routers.map(() => '?').join(',')})
 			AND timestamp >= ? 
 			AND timestamp < ?
-			GROUP BY bucket_start
-			ORDER BY bucket_start
+			GROUP BY router, bucketStart
+			ORDER BY bucketStart, router
 		`;
 
 		const params = [...routers, startDate, endDate];
 
 		const stmt = db.prepare(query);
-		const rows = stmt.all(...params) as (NetflowStatsRow & { bucket_start: number })[];
-
-		// Format results - time is now an epoch timestamp (as string for compatibility)
-		// Frontend will format using PST utilities
-		const result: NetflowStatsResult[] = rows.map((row) => {
-			// Use epoch timestamp as the time field (stored as string for backward compatibility)
-			const bucketStart = row.bucket_start;
-
-			// Build data string in the expected format (matching nfdump -I output)
-			const dataLines = [
-				`Date: ${bucketStart}`,
-				`Flows: ${row.flows ?? 0}`,
-				`Flows_tcp: ${row.flows_tcp ?? 0}`,
-				`Flows_udp: ${row.flows_udp ?? 0}`,
-				`Flows_icmp: ${row.flows_icmp ?? 0}`,
-				`Flows_other: ${row.flows_other ?? 0}`,
-				`Packets: ${row.packets ?? 0}`,
-				`Packets_tcp: ${row.packets_tcp ?? 0}`,
-				`Packets_udp: ${row.packets_udp ?? 0}`,
-				`Packets_icmp: ${row.packets_icmp ?? 0}`,
-				`Packets_other: ${row.packets_other ?? 0}`,
-				`Bytes: ${row.bytes ?? 0}`,
-				`Bytes_tcp: ${row.bytes_tcp ?? 0}`,
-				`Bytes_udp: ${row.bytes_udp ?? 0}`,
-				`Bytes_icmp: ${row.bytes_icmp ?? 0}`,
-				`Bytes_other: ${row.bytes_other ?? 0}`
-			];
-
-			return {
-				time: String(bucketStart),
-				data: dataLines.join('\n')
-			};
-		});
+		const rows = stmt.all(...params) as NetflowStatsResult[];
+		const result: NetflowStatsResult[] = rows.map((row) => ({
+			router: row.router,
+			bucketStart: row.bucketStart,
+			flows: row.flows ?? 0,
+			flowsTcp: row.flowsTcp ?? 0,
+			flowsUdp: row.flowsUdp ?? 0,
+			flowsIcmp: row.flowsIcmp ?? 0,
+			flowsOther: row.flowsOther ?? 0,
+			packets: row.packets ?? 0,
+			packetsTcp: row.packetsTcp ?? 0,
+			packetsUdp: row.packetsUdp ?? 0,
+			packetsIcmp: row.packetsIcmp ?? 0,
+			packetsOther: row.packetsOther ?? 0,
+			bytes: row.bytes ?? 0,
+			bytesTcp: row.bytesTcp ?? 0,
+			bytesUdp: row.bytesUdp ?? 0,
+			bytesIcmp: row.bytesIcmp ?? 0,
+			bytesOther: row.bytesOther ?? 0
+		}));
 		return json({ result });
 	} catch (error) {
 		console.error('Database error:', error);

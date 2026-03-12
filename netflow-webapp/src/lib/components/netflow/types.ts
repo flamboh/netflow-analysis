@@ -1,6 +1,7 @@
-export interface NetflowDataPoint {
-	time: string;
-	data: string;
+import type { NetflowMetricTotals } from '$lib/types/types';
+
+export interface NetflowDataPoint extends NetflowMetricTotals {
+	bucketStart: number;
 }
 
 export interface DataOption {

@@ -6,6 +6,7 @@
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
+	import { NETFLOW_DATA_OPTION_FIELDS } from '$lib/components/netflow/constants';
 	import {
 		formatLabels,
 		getXAxisTitle,
@@ -399,10 +400,11 @@
 
 		for (const option of dataOptions) {
 			if (option.checked) {
-				// Original parsing: split by newline, get line at option.index + 1, split by space, get element [1]
-				const data = results.map((item) =>
-					parseInt(item.data.split('\n')[option.index + 1].split(' ')[1])
-				);
+				const field = NETFLOW_DATA_OPTION_FIELDS[option.index];
+				if (!field) {
+					continue;
+				}
+				const data = results.map((item) => item[field]);
 				const color = predefinedColors[colorIndex % predefinedColors.length];
 				colorIndex++;
 
