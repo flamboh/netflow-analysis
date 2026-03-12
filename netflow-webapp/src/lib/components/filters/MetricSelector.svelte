@@ -10,6 +10,18 @@
 
 	let { dataOptions, onDataOptionsChange, chartType, onChartTypeChange }: Props = $props();
 
+	function getMetricFamily(label: string): 'flows' | 'packets' | 'bytes' | null {
+		const normalized = label.toLowerCase();
+		if (normalized.includes('flow')) return 'flows';
+		if (normalized.includes('packet')) return 'packets';
+		if (normalized.includes('byte')) return 'bytes';
+		return null;
+	}
+
+	function isTotalMetric(label: string): boolean {
+		return label.toLowerCase().startsWith('total ');
+	}
+
 	function handleMetricToggle(index: number) {
 		const newDataOptions = dataOptions.map((option, i) =>
 			i === index ? { ...option, checked: !option.checked } : option
@@ -19,12 +31,7 @@
 
 	function handleQuickSelect(type: 'flows' | 'packets' | 'bytes') {
 		const newDataOptions = dataOptions.map((option) => {
-			const isSelected =
-				type === 'flows'
-					? option.label.toLowerCase().includes('flow')
-					: type === 'packets'
-						? option.label.toLowerCase().includes('packet')
-						: option.label.toLowerCase().includes('byte');
+			const isSelected = getMetricFamily(option.label) === type && !isTotalMetric(option.label);
 			return { ...option, checked: isSelected };
 		});
 		onDataOptionsChange?.(newDataOptions);
@@ -58,21 +65,21 @@
 				onclick={() => handleQuickSelect('flows')}
 				class="rounded-md bg-green-100 px-3 py-1 text-xs text-green-800 hover:bg-green-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
 			>
-				All Flows
+				Flows
 			</button>
 			<button
 				type="button"
 				onclick={() => handleQuickSelect('packets')}
 				class="rounded-md bg-blue-100 px-3 py-1 text-xs text-blue-800 hover:bg-blue-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 			>
-				All Packets
+				Packets
 			</button>
 			<button
 				type="button"
 				onclick={() => handleQuickSelect('bytes')}
 				class="rounded-md bg-purple-100 px-3 py-1 text-xs text-purple-800 hover:bg-purple-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
 			>
-				All Bytes
+				Bytes
 			</button>
 			<button
 				type="button"
@@ -108,9 +115,11 @@
 		{/if}
 	</div>
 
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+	<div class="grid grid-cols-4 gap-2">
 		{#each dataOptions as option, index (index)}
-			<label class="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50">
+			<label
+				class="flex min-h-14 cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50"
+			>
 				<input
 					type="checkbox"
 					checked={option.checked}

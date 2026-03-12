@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { Chart } from 'chart.js/auto';
+	import type { TooltipItem } from 'chart.js';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import { goto } from '$app/navigation';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
@@ -60,6 +61,8 @@
 	let selectionLeft = $derived(Math.min(rangeDrag.dragStartX, rangeDrag.dragCurrentX));
 	let selectionWidth = $derived(Math.abs(rangeDrag.dragCurrentX - rangeDrag.dragStartX));
 	let mirroredRange = $state<RangeSelectionState | null>(null);
+
+	type MetricFamily = 'flows' | 'packets' | 'bytes';
 
 	$effect(() => {
 		const unsubscribe = rangeSelectionStore.subscribe((value) => {
@@ -209,6 +212,60 @@
 			};
 		}
 		return null;
+	}
+
+	function getMetricFamily(label: string): MetricFamily | null {
+		const normalized = label.toLowerCase();
+		if (normalized.includes('flow')) return 'flows';
+		if (normalized.includes('packet')) return 'packets';
+		if (normalized.includes('byte')) return 'bytes';
+		return null;
+	}
+
+	function formatMetricValue(value: number, family: MetricFamily): string {
+		if (family === 'bytes') {
+			if (value >= 1024 ** 5) return `${(value / 1024 ** 5).toFixed(1)} PB`;
+			if (value >= 1024 ** 4) return `${(value / 1024 ** 4).toFixed(1)} TB`;
+			if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1)} GB`;
+			if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+			if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
+			return `${value.toLocaleString()} bytes`;
+		}
+
+		return value.toLocaleString();
+	}
+
+	function getTooltipTotalLines(items: TooltipItem<'line'>[]): string[] {
+		const dataIndex = items[0]?.dataIndex;
+		if (dataIndex == null) {
+			return [];
+		}
+
+		const bucket = results[dataIndex];
+		if (!bucket) {
+			return [];
+		}
+
+		const visibleFamilies = new Set<MetricFamily>();
+		for (const item of items) {
+			const family = getMetricFamily(item.dataset.label ?? '');
+			if (family) {
+				visibleFamilies.add(family);
+			}
+		}
+
+		const lines: string[] = [];
+		if (visibleFamilies.has('flows')) {
+			lines.push(`Total Flows: ${formatMetricValue(bucket.flows, 'flows')}`);
+		}
+		if (visibleFamilies.has('packets')) {
+			lines.push(`Total Packets: ${formatMetricValue(bucket.packets, 'packets')}`);
+		}
+		if (visibleFamilies.has('bytes')) {
+			lines.push(`Total Bytes: ${formatMetricValue(bucket.bytes, 'bytes')}`);
+		}
+
+		return lines;
 	}
 
 	function handleChartClick(
@@ -536,7 +593,15 @@
 					},
 					tooltip: {
 						mode: 'index',
-						intersect: false
+						intersect: false,
+						callbacks: {
+							label: (context: TooltipItem<'line'>) => {
+								const family = getMetricFamily(context.dataset.label ?? '') ?? 'flows';
+								const value = Number(context.parsed.y ?? 0);
+								return `${context.dataset.label}: ${formatMetricValue(value, family)}`;
+							},
+							footer: (items: TooltipItem<'line'>[]) => getTooltipTotalLines(items)
+						}
 					},
 					verticalCrosshair: {
 						enabled: true,
