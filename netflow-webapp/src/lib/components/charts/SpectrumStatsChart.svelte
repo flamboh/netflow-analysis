@@ -2,9 +2,9 @@
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Chart, registerables } from 'chart.js/auto';
+	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
-	import type { ActiveElement, ChartEvent, TooltipItem } from 'chart.js';
+	import type { ActiveElement, ChartEvent } from 'chart.js';
 	import type { GroupByOption } from '$lib/components/netflow/types.ts';
 	import type {
 		IpGranularity,
@@ -32,7 +32,6 @@
 		formatDateAsPSTDateString,
 		getWeekdayName
 	} from '$lib/utils/timezone';
-	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
 	import {
@@ -43,8 +42,6 @@
 	} from '$lib/utils/window-cache';
 
 	const CHART_ID = 'spectrum';
-
-	Chart.register(...registerables, verticalCrosshairPlugin);
 
 	const IP_TO_GROUP_BY: Record<IpGranularity, GroupByOption> = {
 		'1d': 'date',
@@ -94,10 +91,30 @@
 	let selectionLeft = $derived(Math.min(rangeDrag.dragStartX, rangeDrag.dragCurrentX));
 	let selectionWidth = $derived(Math.abs(rangeDrag.dragStartX - rangeDrag.dragCurrentX));
 	let mirroredRange = $state<RangeSelectionState | null>(null);
+	let localHoverLabel = $state<string | null>(null);
+	let externalHoverLabel = $state<string | null>(null);
+	let localHoverX = $state<number | null>(null);
+	let externalHoverX = $state<number | null>(null);
+	let activeCrosshairX = $derived(localHoverX ?? externalHoverX);
+	let showLocalTooltip = $state(false);
+	let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
 		const unsubscribe = rangeSelectionStore.subscribe((value) => {
 			mirroredRange = value;
+		});
+		return unsubscribe;
+	});
+
+	$effect(() => {
+		const unsubscribe = crosshairStore.subscribe(({ label, sourceChartId }) => {
+			if (sourceChartId === CHART_ID) {
+				externalHoverLabel = null;
+				externalHoverX = null;
+				return;
+			}
+			externalHoverLabel = label;
+			externalHoverX = getPixelForLabel(label);
 		});
 		return unsubscribe;
 	});
@@ -199,6 +216,121 @@
 		return bucketStarts[roundedIndex] ?? null;
 	}
 
+	function getPixelForLabel(label: string | null): number | null {
+		if (!chart || !label || !chart.data.labels) {
+			return null;
+		}
+		const labels = chart.data.labels as string[];
+		const index = labels.indexOf(label);
+		if (index === -1) {
+			return null;
+		}
+		return chart.scales.x.getPixelForValue(index);
+	}
+
+	function syncCrosshairPositions() {
+		localHoverX = getPixelForLabel(localHoverLabel);
+		externalHoverX = getPixelForLabel(externalHoverLabel);
+	}
+
+	function clearTooltipDelay() {
+		if (tooltipTimeout !== null) {
+			clearTimeout(tooltipTimeout);
+			tooltipTimeout = null;
+		}
+	}
+
+	function scheduleTooltip() {
+		clearTooltipDelay();
+		showLocalTooltip = false;
+		if (!localHoverLabel) {
+			return;
+		}
+		tooltipTimeout = setTimeout(() => {
+			showLocalTooltip = true;
+		}, 500);
+	}
+
+	function clearLocalHover() {
+		const hadLocalHover = localHoverLabel !== null || localHoverX !== null;
+		localHoverLabel = null;
+		localHoverX = null;
+		showLocalTooltip = false;
+		clearTooltipDelay();
+		if (hadLocalHover && crosshairStore.sourceChartId === CHART_ID) {
+			crosshairStore.clearHover();
+		}
+	}
+
+	function hideCrosshairOverlay() {
+		clearLocalHover();
+		externalHoverX = getPixelForLabel(externalHoverLabel);
+	}
+
+	function updateLocalCrosshair(event: MouseEvent) {
+		if (!chart || !chartCanvas || rangeDrag.isDraggingRange) {
+			return;
+		}
+
+		const rect = chartCanvas.getBoundingClientRect();
+		const x = event.clientX - rect.left;
+		const y = event.clientY - rect.top;
+		const area = chart.chartArea;
+		const isInChartArea = x >= area.left && x <= area.right && y >= area.top && y <= area.bottom;
+
+		if (!isInChartArea) {
+			clearLocalHover();
+			return;
+		}
+
+		const rawIndex = chart.scales.x.getValueForPixel(x);
+		if (typeof rawIndex !== 'number' || !Number.isFinite(rawIndex) || bucketStarts.length === 0) {
+			clearLocalHover();
+			return;
+		}
+
+		const nextIndex = Math.max(0, Math.min(bucketStarts.length - 1, Math.round(rawIndex)));
+		const nextLabel = getLabelFromIndex(nextIndex);
+		if (!nextLabel) {
+			clearLocalHover();
+			return;
+		}
+
+		const nextX = chart.scales.x.getPixelForValue(nextIndex);
+		const labelChanged = nextLabel !== localHoverLabel;
+		localHoverLabel = nextLabel;
+		localHoverX = nextX;
+		if (labelChanged) {
+			scheduleTooltip();
+			crosshairStore.setHover(nextLabel, CHART_ID);
+		}
+	}
+
+	function getCrosshairLineStyle(x: number | null): string | null {
+		if (x === null || !chart) {
+			return null;
+		}
+		const area = chart.chartArea;
+		const snappedX = Math.round(x) + 0.5;
+		return `left:${snappedX}px; top:${area.top}px; width:1px; height:${area.bottom - area.top}px; background-image:repeating-linear-gradient(to bottom, rgba(100,100,100,0.8) 0 3px, transparent 3px 6px);`;
+	}
+
+	function getCrosshairTooltipStyle(x: number | null): string | null {
+		if (x === null || !chart) {
+			return null;
+		}
+
+		const area = chart.chartArea;
+		const snappedX = Math.round(x) + 0.5;
+		const tooltipWidth = 120;
+		const left = Math.min(
+			Math.max(snappedX - tooltipWidth / 2, area.left + 5),
+			area.right - tooltipWidth - 5
+		);
+		const top = Math.max(6, area.top - 34);
+		return `left:${left}px; top:${top}px; width:${tooltipWidth}px;`;
+	}
+
 	// Color gradient function based on f value
 	// Purple (low f) -> Blue -> Cyan -> Green -> Yellow (high f)
 	function getColorForF(f: number, minF: number, maxF: number): string {
@@ -211,10 +343,17 @@
 
 	function destroyChart() {
 		if (chart) {
-			crosshairStore.unregister(CHART_ID);
 			chart.destroy();
 			chart = null;
 		}
+		if (crosshairStore.sourceChartId === CHART_ID) {
+			crosshairStore.clearHover();
+		}
+		clearTooltipDelay();
+		localHoverLabel = null;
+		localHoverX = null;
+		showLocalTooltip = false;
+		externalHoverX = null;
 	}
 
 	function emitDrilldown(nextGroupBy: GroupByOption, start: Date, end: Date) {
@@ -271,17 +410,25 @@
 	}
 
 	function handleRangeMouseDown(event: MouseEvent) {
+		clearLocalHover();
 		beginRangeDrag(rangeDrag, event, chartCanvas, chart, publishRangeSelection);
 	}
 
 	function handleRangeMouseMove(event: MouseEvent) {
 		updateRangeDrag(rangeDrag, event, chartCanvas, chart, publishRangeSelection);
+		updateLocalCrosshair(event);
 	}
 
 	function finishRangeSelection() {
 		endRangeDrag(rangeDrag, chart, applyRangeDrilldown);
 		rangeSelectionStore.set(null);
 	}
+
+	function handlePointerLeave() {
+		finishRangeSelection();
+		hideCrosshairOverlay();
+	}
+
 	let mirroredSelectionStyle = $derived(
 		buildMirroredSelectionStyle(chart, mirroredRange, CHART_ID)
 	);
@@ -461,6 +608,7 @@
 				chart.data.datasets = [];
 				chart.update('none');
 			}
+			syncCrosshairPositions();
 			return;
 		}
 
@@ -471,6 +619,7 @@
 				chart.data.datasets = [];
 				chart.update('none');
 			}
+			syncCrosshairPositions();
 			return;
 		}
 
@@ -504,6 +653,7 @@
 					animation: false,
 					responsive: true,
 					maintainAspectRatio: false,
+					events: ['click'],
 					interaction: {
 						mode: 'nearest',
 						intersect: true
@@ -513,45 +663,7 @@
 							display: false
 						},
 						tooltip: {
-							enabled: true,
-							callbacks: {
-								title: (items: TooltipItem<'scatter'>[]) => {
-									const item = items[0];
-									if (!item) return '';
-									const dataIndex = item.dataIndex;
-									return data[dataIndex]?.timeLabel ?? '';
-								},
-								label: (context: TooltipItem<'scatter'>) => {
-									const dataIndex = context.dataIndex;
-									const point = data[dataIndex];
-									if (!point) return '';
-									return [`alpha = ${point.y.toFixed(6)}`, `f = ${point.f.toFixed(6)}`];
-								}
-							}
-						},
-						verticalCrosshair: {
-							enabled: true,
-							line: {
-								color: 'rgba(100, 100, 100, 0.8)',
-								width: 1,
-								dash: [3, 3]
-							},
-							tooltip: {
-								enabled: true,
-								delay: 500,
-								backgroundColor: 'rgba(0, 0, 0, 0.85)',
-								textColor: 'white',
-								borderColor: 'rgba(100, 100, 100, 0.8)',
-								borderWidth: 1,
-								borderRadius: 4,
-								padding: 8,
-								fontSize: 12,
-								fontFamily: 'system-ui, sans-serif'
-							},
-							sync: {
-								onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
-								getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
-							}
+							enabled: false
 						}
 					} as Record<string, unknown>,
 					scales: {
@@ -604,8 +716,6 @@
 					}
 				}
 			});
-			// Register chart with crosshair store for synchronized crosshairs
-			crosshairStore.register(CHART_ID, chart);
 		} else {
 			chart.data.labels = labels;
 			chart.data.datasets = [
@@ -660,6 +770,7 @@
 			chart.options.onClick = handleChartClick;
 			chart.update('none');
 		}
+		syncCrosshairPositions();
 	}
 
 	type FilterInputs = {
@@ -872,7 +983,7 @@
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
 			onmouseup={finishRangeSelection}
-			onmouseleave={finishRangeSelection}
+			onmouseleave={handlePointerLeave}
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
@@ -888,7 +999,21 @@
 				</div>
 			{:else}
 				<div class="h-full">
-					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
+						<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
+						{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
+							<div
+								class="pointer-events-none absolute z-20"
+								style={getCrosshairLineStyle(activeCrosshairX)}
+							></div>
+						{/if}
+						{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
+							<div
+								class="pointer-events-none absolute z-20 whitespace-nowrap rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs text-white shadow-sm"
+								style={getCrosshairTooltipStyle(localHoverX)}
+							>
+								{localHoverLabel}
+							</div>
+						{/if}
 					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 						<div
 							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"

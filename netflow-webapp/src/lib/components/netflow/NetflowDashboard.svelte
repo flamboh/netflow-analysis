@@ -26,6 +26,7 @@
 		endDate: string;
 		groupBy: GroupByOption;
 		routers: RouterConfig;
+		routersLoaded: boolean;
 		dataOptions: DataOption[];
 	}>();
 
@@ -172,6 +173,13 @@
 
 		const selectedRouters = deriveSelectedRouters(filters.routers);
 
+		if (!props.routersLoaded) {
+			error = null;
+			results = [];
+			loading = true;
+			return;
+		}
+
 		if (selectedRouters.length === 0) {
 			error = 'Select at least one router to view NetFlow statistics';
 			results = [];
@@ -221,7 +229,13 @@
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading data...</div>
+					<div class="flex items-center gap-3 text-gray-500">
+						<div
+							class="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500"
+							aria-hidden="true"
+						></div>
+						<div>Loading data...</div>
+					</div>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">

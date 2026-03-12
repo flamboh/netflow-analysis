@@ -130,6 +130,10 @@ function drawTooltip(
 	ctx.restore();
 }
 
+function snapCrosshairX(x: number): number {
+	return Math.round(x) + 0.5;
+}
+
 export const verticalCrosshairPlugin: Plugin<'line' | 'bar' | 'scatter'> = {
 	id: 'verticalCrosshair',
 
@@ -211,6 +215,7 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar' | 'scatter'> = {
 				if (options.tooltip.enabled && state.hoveredDate) {
 					state.tooltipTimeout = setTimeout(() => {
 						state.showTooltip = true;
+						state.tooltipTimeout = null;
 						chart.draw(); // Trigger redraw to show tooltip
 					}, options.tooltip.delay);
 				}
@@ -290,6 +295,8 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar' | 'scatter'> = {
 			return;
 		}
 
+		const snappedCrosshairX = snapCrosshairX(crosshairX);
+
 		// Save the current canvas state
 		ctx.save();
 
@@ -306,8 +313,8 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar' | 'scatter'> = {
 
 		// Draw vertical line
 		ctx.beginPath();
-		ctx.moveTo(crosshairX, chartArea.top);
-		ctx.lineTo(crosshairX, chartArea.bottom);
+		ctx.moveTo(snappedCrosshairX, chartArea.top);
+		ctx.lineTo(snappedCrosshairX, chartArea.bottom);
 		ctx.stroke();
 
 		// Restore the canvas state
@@ -315,7 +322,7 @@ export const verticalCrosshairPlugin: Plugin<'line' | 'bar' | 'scatter'> = {
 
 		// Draw tooltip only for local hover (not external)
 		if (isLocalHover && options.tooltip.enabled && state.showTooltip && crosshairLabel) {
-			drawTooltip(ctx, crosshairX, crosshairLabel, chartArea, options.tooltip);
+			drawTooltip(ctx, snappedCrosshairX, crosshairLabel, chartArea, options.tooltip);
 		}
 	},
 

@@ -70,6 +70,6 @@ export interface ChartConfig {
 		maintainAspectRatio?: boolean;
 		scales?: Record<string, object>;
 		plugins?: Record<string, object>;
-		interaction?: Record<string, object>;
+		interaction?: Record<string, unknown>;
 	};
 }

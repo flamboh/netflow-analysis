@@ -524,11 +524,19 @@
 				onClick: handleChartClick,
 				responsive: true,
 				maintainAspectRatio: false,
+				interaction: {
+					mode: 'index',
+					intersect: false
+				},
 				scales: scales,
 				plugins: {
 					legend: {
 						display: true,
 						position: 'top' as const
+					},
+					tooltip: {
+						mode: 'index',
+						intersect: false
 					},
 					verticalCrosshair: {
 						enabled: true,
@@ -574,6 +582,10 @@
 				onClick: handleChartClick,
 				responsive: true,
 				maintainAspectRatio: false,
+				interaction: {
+					mode: 'index',
+					intersect: false
+				},
 				scales: {
 					x: {
 						title: {
@@ -620,6 +632,10 @@
 					}
 				},
 				plugins: {
+					tooltip: {
+						mode: 'index',
+						intersect: false
+					},
 					verticalCrosshair: {
 						enabled: true,
 						line: {
