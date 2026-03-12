@@ -310,9 +310,7 @@
 	<meta name="description" content="NetFlow analysis and visualization tool" />
 </svelte:head>
 
-<main class="mx-auto flex max-w-[90vw] flex-col gap-2 px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="text-text-primary px-1 text-2xl font-semibold">{props.title ?? props.dataset}</h1>
-
+<main class="mx-auto flex max-w-[90vw] flex-col gap-2 px-4 py-4 sm:px-2 lg:px-4">
 	<PrimaryFilters
 		{startDate}
 		{endDate}

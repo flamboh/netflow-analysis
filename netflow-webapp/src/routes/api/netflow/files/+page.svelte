@@ -8,46 +8,37 @@
 		type DatasetSummary
 	} from '$lib/datasets';
 
-	let timestamp = $state('');
+	let fileDate = $state('');
+	let fileTime = $state('00:00');
 	let datasets = $state<DatasetSummary[]>(getCachedDatasetSummaries() ?? []);
 	let selectedDataset = $state('');
 	let error = $state('');
 
-	function resolveSelectedDataset(availableDatasets: DatasetSummary[]): string {
-		const requestedDataset = new URL(window.location.href).searchParams.get('dataset')?.trim();
-		const fallbackDatasetId = resolveDefaultDatasetId(availableDatasets);
-
-		return requestedDataset &&
-			availableDatasets.some((dataset) => dataset.datasetId === requestedDataset)
-			? requestedDataset
-			: fallbackDatasetId;
-	}
+	const timeOptions = $derived(
+		Array.from({ length: 288 }, (_, i) => {
+			const h = Math.floor(i / 12);
+			const m = (i % 12) * 5;
+			return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+		})
+	);
 
 	function navigateToFile() {
 		error = '';
-
-		if (!timestamp) {
-			error = 'Please enter a timestamp';
+		if (!fileDate) {
+			error = 'Select a date';
 			return;
 		}
-
-		if (timestamp.length !== 12 || !/^\d{12}$/.test(timestamp)) {
-			error = 'Invalid format. Expected 12 digits (YYYYMMDDHHmm)';
-			return;
-		}
-
 		if (!selectedDataset) {
-			error = 'Please choose a dataset';
+			error = 'Select a dataset';
 			return;
 		}
-
-		goto(`/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`);
+		const [h, m] = fileTime.split(':');
+		const slug = fileDate.replace(/-/g, '') + h.padStart(2, '0') + m.padStart(2, '0');
+		goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(selectedDataset)}`);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Enter') {
-			navigateToFile();
-		}
+		if (event.key === 'Enter') navigateToFile();
 	}
 
 	onMount(async () => {
@@ -55,29 +46,33 @@
 			if (datasets.length === 0) {
 				datasets = await loadDatasetSummaries();
 			}
-			selectedDataset = resolveSelectedDataset(datasets);
+			const requestedDataset = new URL(window.location.href).searchParams.get('dataset')?.trim();
+			const fallback = resolveDefaultDatasetId(datasets);
+			selectedDataset =
+				requestedDataset && datasets.some((d) => d.datasetId === requestedDataset)
+					? requestedDataset
+					: fallback;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load datasets';
 		}
 	});
 </script>
 
-<div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="text-text-primary mb-4 text-2xl font-semibold">NetFlow Files</h1>
+<div class="mx-auto max-w-xl px-4 py-12 sm:px-6">
+	<h1 class="text-text-primary text-2xl font-bold">File Lookup</h1>
+	<p class="text-text-secondary mt-2 text-sm">
+		Jump to a specific 5-minute capture window to view MAAD analysis, spectrum, and singularities
+		for that interval.
+	</p>
 
-	<div
-		class="border-cisco-blue/30 bg-cisco-blue/5 dark:border-cisco-blue/20 dark:bg-cisco-blue/10 mb-6 rounded-xl border p-4"
-	>
-		<h2 class="text-text-primary mb-3 text-lg font-semibold">Navigate to File by Timestamp</h2>
-		<div class="flex items-end space-x-3">
-			<div class="w-56">
-				<label for="dataset" class="text-text-secondary mb-1 block text-sm font-medium"
-					>Dataset</label
-				>
+	<div class="border-border bg-surface mt-6 rounded-xl border p-5 shadow-sm">
+		<div class="grid gap-4">
+			<div>
+				<label for="dataset" class="text-text-muted mb-1 block text-xs font-medium">Dataset</label>
 				<select
 					id="dataset"
 					bind:value={selectedDataset}
-					class="border-border bg-surface text-text-primary focus:border-cisco-blue focus:ring-cisco-blue w-full rounded-lg border px-3 py-2 focus:ring-1 focus:outline-none"
+					class="border-border bg-surface-alt text-text-primary focus:border-cisco-blue focus:ring-cisco-blue dark:bg-surface-hover w-full rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
 				>
 					{#if !selectedDataset}
 						<option value="">Select a dataset</option>
@@ -87,33 +82,44 @@
 					{/each}
 				</select>
 			</div>
-			<div class="flex-1">
-				<label for="timestamp" class="text-text-secondary mb-1 block text-sm font-medium">
-					File Timestamp (YYYYMMDDHHmm)
-				</label>
-				<input
-					id="timestamp"
-					type="text"
-					bind:value={timestamp}
-					onkeydown={handleKeydown}
-					placeholder="202601011200"
-					class="border-border bg-surface text-text-primary focus:border-cisco-blue focus:ring-cisco-blue w-full rounded-lg border px-3 py-2 focus:ring-1 focus:outline-none"
-					maxlength="12"
-				/>
-				{#if error}
-					<div class="mt-1 text-sm text-red-600 dark:text-red-400">{error}</div>
-				{/if}
+
+			<div class="grid grid-cols-2 gap-3">
+				<div>
+					<label for="file-date" class="text-text-muted mb-1 block text-xs font-medium">Date</label>
+					<input
+						id="file-date"
+						type="date"
+						bind:value={fileDate}
+						onkeydown={handleKeydown}
+						class="border-border bg-surface-alt text-text-primary focus:border-cisco-blue focus:ring-cisco-blue dark:bg-surface-hover w-full rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+					/>
+				</div>
+				<div>
+					<label for="file-time" class="text-text-muted mb-1 block text-xs font-medium"
+						>Time (5-min interval)</label
+					>
+					<select
+						id="file-time"
+						bind:value={fileTime}
+						class="border-border bg-surface-alt text-text-primary focus:border-cisco-blue focus:ring-cisco-blue dark:bg-surface-hover w-full rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:outline-none"
+					>
+						{#each timeOptions as t (t)}
+							<option value={t}>{t}</option>
+						{/each}
+					</select>
+				</div>
 			</div>
+
+			{#if error}
+				<p class="text-sm text-red-600 dark:text-red-400">{error}</p>
+			{/if}
+
 			<button
 				onclick={navigateToFile}
-				class="bg-cisco-blue hover:bg-cisco-blue-dark focus:ring-cisco-blue rounded-lg px-4 py-2 font-medium text-white transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
+				class="bg-cisco-blue hover:bg-cisco-blue-dark focus:ring-cisco-blue w-full rounded-lg py-2 text-sm font-medium text-white transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
 			>
 				Go to File
 			</button>
 		</div>
-		<p class="text-text-muted mt-2 text-sm">
-			Choose a dataset, then enter the exact 12-digit timestamp from NetFlow filenames (e.g.,
-			`nfcapd.202501011200`).
-		</p>
 	</div>
 </div>

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import DateRangeFilter from '$lib/components/filters/DateRangeFilter.svelte';
 	import RouterFilter from '$lib/components/filters/RouterFilter.svelte';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
 
@@ -12,8 +11,8 @@
 	const DEFAULT_GROUP_BY_OPTIONS: GroupBySelectOption[] = [
 		{ value: 'date', label: 'Day' },
 		{ value: 'hour', label: 'Hour' },
-		{ value: '30min', label: '30 Minutes' },
-		{ value: '5min', label: '5 Minutes' }
+		{ value: '30min', label: '30 min' },
+		{ value: '5min', label: '5 min' }
 	];
 
 	const props = $props<{
@@ -32,21 +31,12 @@
 		resetView: Record<string, never>;
 	}>();
 
-	function handleStartDateChange(date: string) {
-		dispatch('startDateChange', { startDate: date });
+	function handleStartDateChange(event: Event) {
+		dispatch('startDateChange', { startDate: (event.target as HTMLInputElement).value });
 	}
 
-	function handleEndDateChange(date: string) {
-		dispatch('endDateChange', { endDate: date });
-	}
-
-	function handleGroupBySelect(event: Event) {
-		const select = event.currentTarget as HTMLSelectElement;
-		const next = select.value as GroupByOption;
-		if (next === props.groupBy) {
-			return;
-		}
-		dispatch('groupByChange', { groupBy: next });
+	function handleEndDateChange(event: Event) {
+		dispatch('endDateChange', { endDate: (event.target as HTMLInputElement).value });
 	}
 
 	function handleRoutersChange(nextRouters: RouterConfig) {
@@ -58,47 +48,56 @@
 	}
 </script>
 
-<div class="border-border bg-surface space-y-4 rounded-xl border p-4 shadow-sm">
-	<div class="flex items-center justify-between">
-		<h2 class="text-text-primary text-lg font-semibold">Global Controls</h2>
-		<div class="flex items-center gap-4">
-			<label class="text-text-secondary text-sm">
-				Granularity
-				<select
-					class="border-border bg-surface text-text-primary focus:border-cisco-blue focus:ring-cisco-blue ml-2 rounded-lg border px-2 py-1 text-sm focus:ring-1 focus:outline-none"
-					value={props.groupBy}
-					onchange={handleGroupBySelect}
-					aria-label="Select aggregation granularity"
-				>
-					{#each props.groupByOptions ?? DEFAULT_GROUP_BY_OPTIONS as option (option.value)}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</label>
-
-			<button
-				type="button"
-				onclick={handleResetView}
-				class="bg-cisco-blue hover:bg-cisco-blue-dark focus:ring-cisco-blue rounded-lg px-4 py-1 text-sm font-medium text-white transition-colors focus:ring-2 focus:outline-none"
-			>
-				Reset View
-			</button>
-		</div>
-	</div>
-
-	<div class="text-text-secondary text-sm">
-		<span class="font-medium">Navigation:</span>
-		<span class="ml-1"
-			>Click chart to drill down. Drag across chart to drill into a date range.</span
-		>
-	</div>
-
-	<DateRangeFilter
-		startDate={props.startDate}
-		endDate={props.endDate}
-		onStartDateChange={handleStartDateChange}
-		onEndDateChange={handleEndDateChange}
+<div
+	class="border-border bg-surface flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-4 py-3 shadow-sm"
+>
+	<input
+		type="date"
+		value={props.startDate}
+		onchange={handleStartDateChange}
+		aria-label="Start date"
+		class="border-border bg-surface-alt text-text-primary focus:border-cisco-blue focus:ring-cisco-blue dark:bg-surface-hover h-8 rounded-lg border px-2 text-sm focus:ring-1 focus:outline-none"
+	/>
+	<span class="text-text-muted text-xs">to</span>
+	<input
+		type="date"
+		value={props.endDate}
+		onchange={handleEndDateChange}
+		aria-label="End date"
+		class="border-border bg-surface-alt text-text-primary focus:border-cisco-blue focus:ring-cisco-blue dark:bg-surface-hover h-8 rounded-lg border px-2 text-sm focus:ring-1 focus:outline-none"
 	/>
 
+	<span class="bg-border h-5 w-px" aria-hidden="true"></span>
+
+	<div class="flex items-center gap-1.5">
+		{#each props.groupByOptions ?? DEFAULT_GROUP_BY_OPTIONS as option (option.value)}
+			<button
+				type="button"
+				onclick={() => {
+					if (option.value !== props.groupBy) dispatch('groupByChange', { groupBy: option.value });
+				}}
+				class={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+					option.value === props.groupBy
+						? 'bg-cisco-blue text-white'
+						: 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+				}`}
+			>
+				{option.label}
+			</button>
+		{/each}
+	</div>
+
+	<span class="bg-border h-5 w-px" aria-hidden="true"></span>
+
 	<RouterFilter routers={props.routers} onRouterChange={handleRoutersChange} />
+
+	<div class="ml-auto">
+		<button
+			type="button"
+			onclick={handleResetView}
+			class="text-text-muted hover:bg-surface-hover hover:text-text-primary rounded-lg px-3 py-1 text-xs font-medium transition-colors"
+		>
+			Reset
+		</button>
+	</div>
 </div>
