@@ -1,5 +1,10 @@
 import type { Chart } from 'chart.js';
 
+export interface CrosshairSnapshot {
+	label: string | null;
+	sourceChartId: string | null;
+}
+
 /**
  * Centralized crosshair store that manages synchronized crosshairs across multiple charts.
  * When one chart is hovered, this store triggers redraws on all other registered charts
@@ -9,6 +14,17 @@ class CrosshairStore {
 	private charts = new Map<string, Chart>();
 	private _hoveredLabel: string | null = null;
 	private _sourceChartId: string | null = null;
+	private listeners = new Set<(snapshot: CrosshairSnapshot) => void>();
+
+	private notify(): void {
+		const snapshot: CrosshairSnapshot = {
+			label: this._hoveredLabel,
+			sourceChartId: this._sourceChartId
+		};
+		this.listeners.forEach((listener) => {
+			listener(snapshot);
+		});
+	}
 
 	/**
 	 * Register a chart instance with the store.
@@ -26,13 +42,28 @@ class CrosshairStore {
 		this.charts.delete(id);
 	}
 
+	subscribe(listener: (snapshot: CrosshairSnapshot) => void): () => void {
+		this.listeners.add(listener);
+		listener({
+			label: this._hoveredLabel,
+			sourceChartId: this._sourceChartId
+		});
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
+
 	/**
 	 * Update the hover state and trigger redraws on all other charts.
 	 * Called by the crosshair plugin when mouse moves over a chart.
 	 */
 	setHover(label: string | null, sourceId: string): void {
+		if (this._hoveredLabel === label && this._sourceChartId === sourceId) {
+			return;
+		}
 		this._hoveredLabel = label;
 		this._sourceChartId = sourceId;
+		this.notify();
 
 		// Directly redraw all OTHER charts - no reactive overhead
 		this.charts.forEach((chart, id) => {
@@ -47,8 +78,12 @@ class CrosshairStore {
 	 * Called when mouse leaves a chart entirely.
 	 */
 	clearHover(): void {
+		if (this._hoveredLabel === null && this._sourceChartId === null) {
+			return;
+		}
 		this._hoveredLabel = null;
 		this._sourceChartId = null;
+		this.notify();
 
 		// Redraw all charts to clear crosshairs
 		this.charts.forEach((chart) => {
