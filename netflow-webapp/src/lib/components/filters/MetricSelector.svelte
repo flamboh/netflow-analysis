@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { ChartTypeOption, DataOption } from '$lib/components/netflow/types.ts';
 
+	type QuickSelectOption = 'flows' | 'packets' | 'bytes' | 'all' | 'none';
+
 	interface Props {
 		dataOptions: DataOption[];
 		onDataOptionsChange?: (dataOptions: DataOption[]) => void;
@@ -9,6 +11,13 @@
 	}
 
 	let { dataOptions, onDataOptionsChange, chartType, onChartTypeChange }: Props = $props();
+	const QUICK_SELECT_OPTIONS: Array<{ value: QuickSelectOption; label: string }> = [
+		{ value: 'flows', label: 'Flows' },
+		{ value: 'packets', label: 'Packets' },
+		{ value: 'bytes', label: 'Bytes' },
+		{ value: 'all', label: 'Select All' },
+		{ value: 'none', label: 'Select None' }
+	];
 
 	function getMetricFamily(label: string): 'flows' | 'packets' | 'bytes' | null {
 		const normalized = label.toLowerCase();
@@ -18,8 +27,10 @@
 		return null;
 	}
 
-	function isTotalMetric(label: string): boolean {
-		return label.toLowerCase().startsWith('total ');
+	function matchesQuickSelect(option: DataOption, selection: QuickSelectOption): boolean {
+		if (selection === 'all') return true;
+		if (selection === 'none') return false;
+		return getMetricFamily(option.label) === selection;
 	}
 
 	function handleMetricToggle(index: number) {
@@ -29,21 +40,10 @@
 		onDataOptionsChange?.(newDataOptions);
 	}
 
-	function handleQuickSelect(type: 'flows' | 'packets' | 'bytes') {
+	function handleQuickSelect(selection: QuickSelectOption) {
 		const newDataOptions = dataOptions.map((option) => {
-			const isSelected = getMetricFamily(option.label) === type && !isTotalMetric(option.label);
-			return { ...option, checked: isSelected };
+			return { ...option, checked: matchesQuickSelect(option, selection) };
 		});
-		onDataOptionsChange?.(newDataOptions);
-	}
-
-	function handleSelectAll() {
-		const newDataOptions = dataOptions.map((option) => ({ ...option, checked: true }));
-		onDataOptionsChange?.(newDataOptions);
-	}
-
-	function handleSelectNone() {
-		const newDataOptions = dataOptions.map((option) => ({ ...option, checked: false }));
 		onDataOptionsChange?.(newDataOptions);
 	}
 
@@ -54,63 +54,62 @@
 		const target = event.currentTarget as HTMLSelectElement;
 		onChartTypeChange(target.value as ChartTypeOption);
 	}
+
+	const selectedQuickSelectIndex = $derived.by(() => {
+		for (const [index, option] of QUICK_SELECT_OPTIONS.entries()) {
+			const matches = dataOptions.every(
+				(metricOption) => metricOption.checked === matchesQuickSelect(metricOption, option.value)
+			);
+			if (matches) {
+				return index;
+			}
+		}
+
+		return null;
+	});
 </script>
 
 <div class="metric-selector">
 	<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-		<div class="flex flex-wrap items-center gap-2">
-			<span class="text-sm font-medium text-gray-700">Quick Select:</span>
-			<button
-				type="button"
-				onclick={() => handleQuickSelect('flows')}
-				class="rounded-md bg-green-100 px-3 py-1 text-xs text-green-800 hover:bg-green-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
-			>
-				Flows
-			</button>
-			<button
-				type="button"
-				onclick={() => handleQuickSelect('packets')}
-				class="rounded-md bg-blue-100 px-3 py-1 text-xs text-blue-800 hover:bg-blue-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-			>
-				Packets
-			</button>
-			<button
-				type="button"
-				onclick={() => handleQuickSelect('bytes')}
-				class="rounded-md bg-purple-100 px-3 py-1 text-xs text-purple-800 hover:bg-purple-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-			>
-				Bytes
-			</button>
-			<button
-				type="button"
-				onclick={handleSelectAll}
-				class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:outline-none"
-			>
-				Select All
-			</button>
-			<button
-				type="button"
-				onclick={handleSelectNone}
-				class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:outline-none"
-			>
-				Select None
-			</button>
+		<div
+			class="relative inline-grid min-w-[24rem] grid-cols-5 rounded-md border border-gray-200 bg-gray-50 p-1"
+		>
+			<div
+				class={`pointer-events-none absolute top-1 bottom-1 rounded bg-blue-600 shadow-sm transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none ${
+					selectedQuickSelectIndex === null ? 'opacity-0' : 'opacity-100'
+				}`}
+				style={`left: 0.25rem; width: calc((100% - 0.5rem) / 5); transform: translateX(${(selectedQuickSelectIndex ?? 0) * 100}%);`}
+				aria-hidden="true"
+			></div>
+			{#each QUICK_SELECT_OPTIONS as option (option.value)}
+				<button
+					type="button"
+					onclick={() => handleQuickSelect(option.value)}
+					class={`relative z-10 flex items-center justify-center rounded px-3 py-1 text-center text-xs transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+						selectedQuickSelectIndex !== null &&
+						QUICK_SELECT_OPTIONS[selectedQuickSelectIndex]?.value === option.value
+							? 'text-white'
+							: 'text-gray-700 hover:text-gray-900'
+					}`}
+					aria-pressed={selectedQuickSelectIndex !== null &&
+						QUICK_SELECT_OPTIONS[selectedQuickSelectIndex]?.value === option.value}
+				>
+					{option.label}
+				</button>
+			{/each}
 		</div>
 
 		{#if chartType}
 			<div class="flex items-center">
-				<label class="text-sm text-gray-600">
-					Chart type
-					<select
-						value={chartType}
-						onchange={handleChartTypeChange}
-						class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-						aria-label="Select NetFlow chart type"
-					>
-						<option value="stacked">Stacked Area</option>
-						<option value="line">Line Chart</option>
-					</select>
-				</label>
+				<select
+					value={chartType}
+					onchange={handleChartTypeChange}
+					class="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					aria-label="Select NetFlow chart type"
+				>
+					<option value="stacked">Stacked Area</option>
+					<option value="line">Line Chart</option>
+				</select>
 			</div>
 		{/if}
 	</div>
