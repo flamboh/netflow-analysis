@@ -1,6 +1,6 @@
 // schemas.ts
 import { z } from 'zod';
-// Version 3.24.0+
+// Requires Zod 4+
 
 export function createDateRangeSearchSchema(defaultStartDate: string) {
 	return z.object({

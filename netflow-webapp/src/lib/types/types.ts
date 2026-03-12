@@ -1,3 +1,17 @@
+export interface DatasetSummary {
+	datasetId: string;
+	label: string;
+	defaultStartDate: string;
+	discoveryMode: string;
+	sourceCount: number;
+	isDefault: boolean;
+}
+
+export interface DatasetSummariesResponse {
+	data: DatasetSummary[] | null;
+	error: string | null;
+}
+
 export interface NetflowStatsRow {
 	date: string;
 	flows?: number;

@@ -229,8 +229,12 @@
 				throw new Error(`Failed to load routers: ${response.statusText}`);
 			}
 
-			const routerList = (await response.json()) as string[];
-			if (routerList.length === 0) {
+			const routerList = await response.json();
+			if (
+				!Array.isArray(routerList) ||
+				!routerList.every((router): router is string => typeof router === 'string') ||
+				routerList.length === 0
+			) {
 				return;
 			}
 

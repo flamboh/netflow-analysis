@@ -1,16 +1,35 @@
-export type DatasetSummary = {
-	datasetId: string;
-	label: string;
-	defaultStartDate: string;
-	discoveryMode: string;
-	sourceCount: number;
-};
+import { z } from 'zod';
+import type { DatasetSummariesResponse, DatasetSummary } from '$lib/types/types';
+
+export type { DatasetSummariesResponse, DatasetSummary } from '$lib/types/types';
+
+const datasetSummarySchema = z.object({
+	datasetId: z.string().min(1),
+	label: z.string().min(1),
+	defaultStartDate: z.iso.date(),
+	discoveryMode: z.string().min(1),
+	sourceCount: z.number().int().nonnegative(),
+	isDefault: z.boolean()
+});
+
+const datasetSummariesResponseSchema = z.object({
+	data: z.array(datasetSummarySchema).nullable(),
+	error: z.string().nullable()
+});
 
 let cachedDatasetSummaries: DatasetSummary[] | null = null;
 let pendingDatasetSummariesRequest: Promise<DatasetSummary[]> | null = null;
 
 export function getCachedDatasetSummaries(): DatasetSummary[] | null {
 	return cachedDatasetSummaries;
+}
+
+export function parseDatasetSummariesResponse(payload: unknown): DatasetSummariesResponse {
+	return datasetSummariesResponseSchema.parse(payload);
+}
+
+export function resolveDefaultDatasetId(datasets: DatasetSummary[]): string {
+	return datasets.find((dataset) => dataset.isDefault)?.datasetId ?? datasets[0]?.datasetId ?? '';
 }
 
 export async function loadDatasetSummaries(): Promise<DatasetSummary[]> {
@@ -24,10 +43,11 @@ export async function loadDatasetSummaries(): Promise<DatasetSummary[]> {
 
 	pendingDatasetSummariesRequest = fetch('/api/datasets')
 		.then(async (response) => {
-			if (!response.ok) {
-				throw new Error(`Failed to load datasets: ${response.statusText}`);
+			const payload = parseDatasetSummariesResponse(await response.json());
+			if (!response.ok || payload.error || payload.data === null) {
+				throw new Error(payload.error || `Failed to load datasets: ${response.statusText}`);
 			}
-			return (await response.json()) as DatasetSummary[];
+			return payload.data;
 		})
 		.then((datasets) => {
 			cachedDatasetSummaries = datasets;

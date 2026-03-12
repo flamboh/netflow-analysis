@@ -98,7 +98,7 @@
 	}
 
 	function handleNavigateToFile(slug: string) {
-		goto(`/api/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset)}`);
+		goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset)}`);
 	}
 
 	function handleChartTypeChange(newChartType: ChartTypeOption) {
@@ -138,6 +138,7 @@
 		}));
 
 		const nextKey = JSON.stringify({
+			dataset: props.dataset,
 			startDate: filters.startDate,
 			endDate: filters.endDate,
 			groupBy: filters.groupBy,

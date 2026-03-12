@@ -2,7 +2,7 @@
   {
     "dataset_id": "uoregon",
     "label": "UONet-in",
-    "root_path": "/research/obo/netflow_datasets/uoregon",
+    "root_path": "/path/to/netflow_datasets/uoregon",
     "db_path": "./data/uoregon/netflow.sqlite",
     "default_start_date": "2025-02-11",
     "source_mode": "subdirs",
@@ -11,7 +11,7 @@
   {
     "dataset_id": "ugr16",
     "label": "UGR16",
-    "root_path": "/research/obo/netflow_datasets/ugr16",
+    "root_path": "/path/to/netflow_datasets/ugr16",
     "db_path": "./data/ugr16/netflow.sqlite",
     "default_start_date": "2016-04-04",
     "source_mode": "subdirs",

@@ -19,7 +19,7 @@ The file is not meant to be committed with machine-specific paths. Start from
   {
     "dataset_id": "uoregon",
     "label": "UONet-in",
-    "root_path": "/research/obo/netflow_datasets/uoregon",
+    "root_path": "/path/to/netflow_datasets/uoregon",
     "db_path": "./data/uoregon/netflow.sqlite",
     "default_start_date": "2025-02-11",
     "source_mode": "subdirs",

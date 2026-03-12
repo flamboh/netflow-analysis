@@ -4,6 +4,7 @@
 	import {
 		getCachedDatasetSummaries,
 		loadDatasetSummaries,
+		resolveDefaultDatasetId,
 		type DatasetSummary
 	} from '$lib/datasets';
 
@@ -14,10 +15,7 @@
 
 	function resolveSelectedDataset(availableDatasets: DatasetSummary[]): string {
 		const requestedDataset = new URL(window.location.href).searchParams.get('dataset')?.trim();
-		const fallbackDatasetId =
-			availableDatasets.find((dataset) => dataset.datasetId === 'uoregon')?.datasetId ??
-			availableDatasets[0]?.datasetId ??
-			'';
+		const fallbackDatasetId = resolveDefaultDatasetId(availableDatasets);
 
 		return requestedDataset &&
 			availableDatasets.some((dataset) => dataset.datasetId === requestedDataset)
@@ -46,7 +44,7 @@
 		}
 
 		// Navigate to the file page
-		goto(`/api/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`);
+		goto(`/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {

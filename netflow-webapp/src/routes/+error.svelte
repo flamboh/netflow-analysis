@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { t } from '$lib/i18n';
 
 	function getErrorTitle(status: number): string {
 		switch (status) {
@@ -49,10 +50,13 @@
 			{#if page.status === 404}
 				<div class="mt-4 text-sm text-gray-600">
 					<p>
-						Return to the <a href="/" class="text-blue-600 hover:underline">dataset index</a> or use
-						the
-						<a href="/api/netflow/files" class="text-blue-600 hover:underline">file lookup page</a>
-						if you know the exact timestamp slug.
+						{t('error.404.return_to_prefix')}
+						<a href="/" class="text-blue-600 hover:underline">{t('error.404.dataset_index')}</a>
+						{t('error.404.or_use_prefix')}
+						<a href="/netflow/files" class="text-blue-600 hover:underline">
+							{t('error.404.file_lookup')}
+						</a>
+						{t('error.404.timestamp_hint')}
 					</p>
 				</div>
 			{/if}

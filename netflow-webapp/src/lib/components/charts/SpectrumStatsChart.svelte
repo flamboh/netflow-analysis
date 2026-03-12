@@ -344,7 +344,7 @@
 			const labelForSlug = activeLabel ?? label;
 			const slug = generateSlugFromLabel(labelForSlug, '5min');
 			if (slug) {
-				goto(`/api/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`);
+				goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`);
 			}
 			return;
 		}

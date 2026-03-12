@@ -6,7 +6,7 @@
 </script>
 
 <DatasetDashboardPage
-	dataset={data.dataset}
+	dataset={data.datasetId}
 	title={data.title}
 	defaultStartDate={data.defaultStartDate}
 />

@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+import atexit
 import os
 import sys
 from datetime import datetime
@@ -50,7 +51,12 @@ def setup_logging(log_dir: Path | None = None):
             self.terminal.flush()
             self.log.flush()
 
-    sys.stdout = Logger(log_file)
+        def close(self):
+            self.log.close()
+
+    logger = Logger(log_file)
+    atexit.register(logger.close)
+    sys.stdout = logger
     print(f"Logging to {log_file}")
     return log_file
 

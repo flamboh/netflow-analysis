@@ -1,5 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
+import { parseDatasetSummariesResponse } from '$lib/datasets';
+import type { DatasetSummary } from '$lib/types/types';
 
 export const load: PageLoad = async ({ params, fetch }) => {
 	const { dataset } = params;
@@ -9,22 +11,19 @@ export const load: PageLoad = async ({ params, fetch }) => {
 	}
 
 	const response = await fetch('/api/datasets');
-	if (!response.ok) {
-		throw error(response.status, 'Failed to load dataset metadata');
+	const payload = parseDatasetSummariesResponse(await response.json());
+	if (!response.ok || payload.error || payload.data === null) {
+		throw error(response.status, payload.error || 'Failed to load dataset metadata');
 	}
 
-	const datasets = (await response.json()) as Array<{
-		datasetId: string;
-		label: string;
-		defaultStartDate: string;
-	}>;
+	const datasets = payload.data as DatasetSummary[];
 	const selectedDataset = datasets.find((entry) => entry.datasetId === dataset);
 	if (!selectedDataset) {
 		throw error(404, `Unknown dataset '${dataset}'`);
 	}
 
 	return {
-		dataset,
+		datasetId: selectedDataset.datasetId,
 		title: selectedDataset.label,
 		defaultStartDate: selectedDataset.defaultStartDate
 	};

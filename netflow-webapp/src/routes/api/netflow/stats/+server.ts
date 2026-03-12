@@ -39,13 +39,9 @@ function getBucketStartQuery(groupBy: string): string {
 }
 
 function getDataOptions(dataOptionsBinary: number) {
-	const dataOptionsArray: boolean[] = [];
 	const result: string[] = [];
-	for (let i = 0; i < 16; i++) {
-		dataOptionsArray.push(dataOptionsBinary & (1 << i) ? true : false);
-	}
-	for (let i = 0; i < 16; i++) {
-		if (dataOptionsArray[i]) {
+	for (let i = 0; i < DATA_OPTIONS.length; i++) {
+		if ((dataOptionsBinary & (1 << i)) !== 0) {
 			const option = DATA_OPTIONS[i];
 			result.push(`SUM(${option.value}) as ${option.value}`);
 		}
@@ -75,6 +71,9 @@ export const GET: RequestHandler = async ({ url }) => {
 		const db = getDatasetDb(dataset);
 		const bucketStartQuery = getBucketStartQuery(groupBy);
 		const dataOptions = getDataOptions(dataOptionsBinary);
+		if (dataOptions.length === 0) {
+			return json({ error: 'At least one data option is required' }, { status: 400 });
+		}
 
 		// Build query using epoch-based bucket calculation
 		const query = `

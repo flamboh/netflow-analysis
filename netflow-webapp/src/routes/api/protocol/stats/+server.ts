@@ -33,7 +33,6 @@ function parseTimestamp(param: string | null): number | null {
 }
 
 export const GET: RequestHandler = async ({ url }) => {
-	const dataset = getRequestedDataset(url);
 	const routers = parseRouters(url.searchParams.get('routers'));
 	const granularity =
 		parseGranularity(url.searchParams.get('granularity')) ?? (IP_GRANULARITIES[2] as IpGranularity); // default 1h
@@ -53,6 +52,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
+		const dataset = getRequestedDataset(url);
 		const db = getDatasetDb(dataset);
 		const placeholders = routers.map(() => '?').join(',');
 		const params = [granularity, ...routers, start, end];
@@ -89,6 +89,8 @@ export const GET: RequestHandler = async ({ url }) => {
 		return json(response);
 	} catch (error) {
 		console.error('Failed to query protocol_stats:', error);
-		return json({ error: 'Database query failed' }, { status: 500 });
+		const message = error instanceof Error ? error.message : 'Database query failed';
+		const status = message.startsWith('Unknown dataset') ? 400 : 500;
+		return json({ error: message }, { status });
 	}
 };

@@ -10,7 +10,8 @@ export const GET: RequestHandler = async ({ url }) => {
 			return json({ error: `No routers available for dataset '${dataset}'` }, { status: 404 });
 		}
 		return json(routers);
-	} catch (_error) {
+	} catch (error) {
+		console.error('Failed to list routers:', error);
 		return json({ error: 'No routers available' }, { status: 500 });
 	}
 };

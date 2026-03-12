@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE_URL="https://nesg.ugr.es/nesg-ugr16/"
-DEST_DIR="/research/obo/raw_datasets"
+DEST_DIR="${RAW_DATASETS_PATH:-/research/obo/raw_datasets}"
 URL_LIST_NAME="ugr16-nfcapd-urls.txt"
 URLS_ONLY=0
 DOWNLOADER=""
@@ -15,7 +15,7 @@ Download only the UGR16 weekly nfcapd archives from the NESG dataset site.
 
 Options:
   --dest DIR          Destination directory for archives and URL manifest.
-                      Default: /research/obo/raw_datasets
+                      Default: \$RAW_DATASETS_PATH or /research/obo/raw_datasets
   --urls-only         Only generate the URL manifest; do not download files.
   --downloader NAME   Force a downloader: aria2c, wget, or curl.
   -h, --help          Show this help text.

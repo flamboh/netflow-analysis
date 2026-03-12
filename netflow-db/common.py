@@ -7,7 +7,6 @@ path utilities.
 
 import json
 import os
-import sys
 import sqlite3
 from pathlib import Path
 from datetime import datetime
@@ -18,7 +17,11 @@ from contextlib import contextmanager
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ENV_PATH = REPO_ROOT / '.env'
 DEFAULT_DATASETS_PATH = REPO_ROOT / 'datasets.json'
-PREFERRED_DEFAULT_DATASET = 'uoregon'
+DEFAULT_DATA_START_DATE = datetime(2025, 2, 1)
+
+
+class ConfigurationError(RuntimeError):
+    """Raised when required runtime configuration is missing or invalid."""
 
 
 def load_env_file(env_path: Optional[str] = None) -> None:
@@ -42,18 +45,18 @@ def load_env_file(env_path: Optional[str] = None) -> None:
                     key, value = line.split('=', 1)
                     os.environ[key.strip()] = value.strip()
     else:
-        print(f"ERROR: Environment file '{env_file}' not found!")
-        print("Please copy .env.example to .env and configure your settings.")
-        sys.exit(1)
+        raise ConfigurationError(
+            f"Environment file '{env_file}' not found. Please copy .env.example to .env and configure your settings."
+        )
 
 
 def get_required_env(key: str) -> str:
     """Get required environment variable or exit with error."""
     value = os.environ.get(key)
     if not value:
-        print(f"ERROR: Required environment variable '{key}' is not set!")
-        print("Please check your .env file configuration.")
-        sys.exit(1)
+        raise ConfigurationError(
+            f"Required environment variable '{key}' is not set. Please check your .env file configuration."
+        )
     return value
 
 
@@ -91,6 +94,7 @@ def build_legacy_dataset_registry() -> list[dict[str, Any]]:
             'label': dataset_id.replace('_', ' ').title(),
             'root_path': str(Path(netflow_data_path).expanduser()),
             'db_path': str(resolve_repo_path(database_path)),
+            'default_start_date': '2025-02-11' if dataset_id == 'uoregon' else '',
             'source_mode': 'subdirs',
             'discovery_mode': 'live',
             'source_ids': available_routers,
@@ -108,42 +112,37 @@ def load_dataset_registry() -> list[dict[str, Any]]:
         legacy = build_legacy_dataset_registry()
         if legacy:
             return legacy
-        print(f"ERROR: Dataset registry '{config_path}' not found!")
-        print("Configure DATASETS_CONFIG_PATH or create datasets.json.")
-        sys.exit(1)
+        raise ConfigurationError(
+            f"Dataset registry '{config_path}' not found. Configure DATASETS_CONFIG_PATH or create datasets.json."
+        )
 
     with open(config_path, 'r') as f:
         raw = json.load(f)
 
     entries = raw.get('datasets') if isinstance(raw, dict) else raw
     if not isinstance(entries, list) or not entries:
-        print(f"ERROR: Dataset registry '{config_path}' is empty or invalid!")
-        sys.exit(1)
+        raise ConfigurationError(f"Dataset registry '{config_path}' is empty or invalid.")
 
     normalized: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
 
     for entry in entries:
         if not isinstance(entry, dict):
-            print(f"ERROR: Invalid dataset entry in '{config_path}': {entry!r}")
-            sys.exit(1)
+            raise ConfigurationError(f"Invalid dataset entry in '{config_path}': {entry!r}")
 
         dataset_id = str(entry.get('dataset_id', '')).strip()
         root_path = str(entry.get('root_path', '')).strip()
         db_path = str(entry.get('db_path', '')).strip()
 
         if not dataset_id or not root_path or not db_path:
-            print(f"ERROR: Dataset entry missing required fields: {entry!r}")
-            sys.exit(1)
+            raise ConfigurationError(f"Dataset entry missing required fields: {entry!r}")
         if dataset_id in seen_ids:
-            print(f"ERROR: Duplicate dataset_id '{dataset_id}' in '{config_path}'")
-            sys.exit(1)
+            raise ConfigurationError(f"Duplicate dataset_id '{dataset_id}' in '{config_path}'")
         seen_ids.add(dataset_id)
 
         source_ids = entry.get('source_ids')
         if source_ids is not None and not isinstance(source_ids, list):
-            print(f"ERROR: source_ids must be a list when provided for '{dataset_id}'")
-            sys.exit(1)
+            raise ConfigurationError(f"source_ids must be a list when provided for '{dataset_id}'")
 
         normalized.append(
             {
@@ -171,9 +170,6 @@ def get_default_dataset_id() -> str:
     configured = get_optional_env('DEFAULT_DATASET')
     if configured:
         return configured
-    for dataset in DATASET_REGISTRY:
-        if dataset['dataset_id'] == PREFERRED_DEFAULT_DATASET:
-            return PREFERRED_DEFAULT_DATASET
     return DATASET_REGISTRY[0]['dataset_id']
 
 
@@ -185,8 +181,7 @@ def get_dataset_config(dataset_id: Optional[str] = None) -> dict[str, Any]:
             return config
 
     available = ', '.join(config['dataset_id'] for config in DATASET_REGISTRY)
-    print(f"ERROR: Unknown dataset '{selected}'. Available datasets: {available}")
-    sys.exit(1)
+    raise ConfigurationError(f"Unknown dataset '{selected}'. Available datasets: {available}")
 
 
 def list_dataset_sources(dataset_id: Optional[str] = None) -> list[str]:
@@ -220,6 +215,21 @@ def get_dataset_db_path(dataset_id: Optional[str] = None) -> Path:
     return Path(get_dataset_config(dataset_id)['db_path'])
 
 
+def get_dataset_start_date(dataset_id: Optional[str] = None) -> datetime:
+    """Return the processing start date for a dataset."""
+    config = get_dataset_config(dataset_id)
+    raw_value = str(config.get('default_start_date', '')).strip()
+    if not raw_value:
+        return DEFAULT_DATA_START_DATE
+
+    try:
+        return datetime.strptime(raw_value, '%Y-%m-%d')
+    except ValueError as error:
+        raise ConfigurationError(
+            f"Invalid default_start_date '{raw_value}' for dataset '{config['dataset_id']}'. Expected YYYY-MM-DD."
+        ) from error
+
+
 # Initialize environment on module import
 load_env_file()
 
@@ -234,27 +244,28 @@ DATABASE_PATH = str(get_dataset_db_path())
 MAX_WORKERS = int(get_optional_env('MAX_WORKERS', '8'))
 BATCH_SIZE = int(get_optional_env('BATCH_SIZE', '50'))
 
-# Data before Feb 2025 is corrupt/unusable - only process from this date forward
-DATA_START_DATE = datetime(2025, 2, 1)
+# Data before this date is ignored for the active dataset.
+DATA_START_DATE = get_dataset_start_date()
 
 
 @contextmanager
-def get_db_connection(wal_mode: bool = True):
+def get_db_connection(wal_mode: bool = True, db_path: Optional[str | Path] = None):
     """
     Context manager for database connections with optional WAL mode.
     
     Args:
         wal_mode: If True, enables WAL journal mode and sets busy timeout.
                   Recommended for concurrent access.
+        db_path: Optional path to the SQLite database. Defaults to DATABASE_PATH.
     
     Yields:
         sqlite3.Connection object
     """
     # Use autocommit mode so transaction boundaries are fully explicit.
     # Processor modules call BEGIN/COMMIT/ROLLBACK manually.
-    db_path = Path(DATABASE_PATH)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, isolation_level=None)
+    db_file = Path(db_path) if db_path is not None else Path(DATABASE_PATH)
+    db_file.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_file, isolation_level=None)
     try:
         if wal_mode:
             conn.execute("PRAGMA journal_mode=WAL;")

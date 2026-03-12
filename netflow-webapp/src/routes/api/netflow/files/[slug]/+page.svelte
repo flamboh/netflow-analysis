@@ -454,7 +454,7 @@
 		NetFlow File: {data.fileInfo.filename}
 		<a
 			class="w-24 rounded bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700"
-			href={`/api/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
+			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
 		>
 			Next File
 		</a>

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
+import type { DatasetSummary } from '$lib/types/types';
 
 export interface DatasetConfig {
 	dataset_id: string;
@@ -13,23 +14,16 @@ export interface DatasetConfig {
 	source_ids?: string[];
 }
 
-export interface DatasetSummary {
-	datasetId: string;
-	label: string;
-	defaultStartDate: string;
-	discoveryMode: string;
-	sourceCount: number;
-}
-
 const repoRoot = path.resolve(process.cwd(), '..');
 const defaultRegistryPath = path.resolve(repoRoot, 'datasets.json');
-const datasetDbCache = new Map<string, Database.Database>();
+const datasetDbCache = new Map<
+	string,
+	{ db: Database.Database; dbPath: string; mtimeMs: number }
+>();
 const datasetDefaultStartCache = new Map<
 	string,
 	{ dbPath: string; mtimeMs: number; value: string }
 >();
-const preferredDefaultDataset = 'uoregon';
-const legacyDefaultStartDate = '2025-02-11';
 let datasetRegistryCache: {
 	registryPath: string;
 	mtimeMs: number;
@@ -42,6 +36,12 @@ function formatLocalDate(timestampSeconds: number): string {
 	const month = `${date.getMonth() + 1}`.padStart(2, '0');
 	const day = `${date.getDate()}`.padStart(2, '0');
 	return `${year}-${month}-${day}`;
+}
+
+function getFallbackStartDate(): string {
+	const fallback = new Date();
+	fallback.setDate(fallback.getDate() - 30);
+	return fallback.toISOString().slice(0, 10);
 }
 
 function resolveRepoPath(value: string): string {
@@ -103,12 +103,14 @@ export function listDatasets(): DatasetConfig[] {
 }
 
 export function listDatasetSummaries(): DatasetSummary[] {
+	const defaultDatasetId = getDefaultDatasetId();
 	return listDatasets().map((dataset) => ({
 		datasetId: dataset.dataset_id,
 		label: dataset.label,
 		defaultStartDate: getDatasetDefaultStartDate(dataset.dataset_id),
 		discoveryMode: dataset.discovery_mode ?? 'static',
-		sourceCount: listDatasetSources(dataset.dataset_id).length
+		sourceCount: listDatasetSources(dataset.dataset_id).length,
+		isDefault: dataset.dataset_id === defaultDatasetId
 	}));
 }
 
@@ -119,8 +121,7 @@ export function getDefaultDatasetId(): string {
 	}
 
 	const datasets = listDatasets();
-	const preferred = datasets.find((dataset) => dataset.dataset_id === preferredDefaultDataset);
-	return preferred?.dataset_id ?? datasets[0].dataset_id;
+	return datasets[0].dataset_id;
 }
 
 export function getDatasetConfig(datasetId: string): DatasetConfig {
@@ -146,13 +147,9 @@ export function getDatasetDefaultStartDate(datasetId: string): string {
 		return configuredDefaultStartDate;
 	}
 
-	if (datasetId === preferredDefaultDataset) {
-		return legacyDefaultStartDate;
-	}
-
 	const dbPath = getDatasetDbPath(datasetId);
 	if (!fs.existsSync(dbPath)) {
-		return legacyDefaultStartDate;
+		return getFallbackStartDate();
 	}
 
 	const stat = fs.statSync(dbPath);
@@ -175,7 +172,7 @@ export function getDatasetDefaultStartDate(datasetId: string): string {
 		console.error(`Failed to derive default start date for dataset '${datasetId}':`, error);
 	}
 
-	return legacyDefaultStartDate;
+	return getFallbackStartDate();
 }
 
 export function listDatasetSources(datasetId: string): string[] {
@@ -204,18 +201,27 @@ export function getDatasetDbPath(datasetId: string): string {
 }
 
 export function getDatasetDb(datasetId: string): Database.Database {
-	const existing = datasetDbCache.get(datasetId);
-	if (existing) {
-		return existing;
-	}
-
 	const dbPath = getDatasetDbPath(datasetId);
 	if (!fs.existsSync(dbPath)) {
 		throw new Error(`Dataset database not found for '${datasetId}' at ${dbPath}`);
 	}
 
+	const stat = fs.statSync(dbPath);
+	const existing = datasetDbCache.get(datasetId);
+	if (existing && existing.dbPath === dbPath && existing.mtimeMs === stat.mtimeMs) {
+		return existing.db;
+	}
+
+	if (existing) {
+		try {
+			existing.db.close();
+		} catch (error) {
+			console.error(`Failed to close cached database for '${datasetId}':`, error);
+		}
+	}
+
 	const db = new Database(dbPath, { readonly: true });
-	datasetDbCache.set(datasetId, db);
+	datasetDbCache.set(datasetId, { db, dbPath, mtimeMs: stat.mtimeMs });
 	return db;
 }
 

@@ -153,6 +153,7 @@ def prepare_archive(
 ) -> dict[str, int]:
     """Prepare one archive into canonical bucket files."""
     dataset_root = get_dataset_root_path(dataset)
+    dataset_root.parent.mkdir(parents=True, exist_ok=True)
     stats = {"written": 0, "skipped_existing": 0, "members": 0}
 
     with tempfile.TemporaryDirectory(prefix=f"{dataset}-{source}-", dir=str(dataset_root.parent)) as temp_dir:
