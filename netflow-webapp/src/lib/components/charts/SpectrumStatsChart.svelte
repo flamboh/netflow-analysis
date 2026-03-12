@@ -96,6 +96,7 @@
 	let localHoverX = $state<number | null>(null);
 	let externalHoverX = $state<number | null>(null);
 	let activeCrosshairX = $derived(localHoverX ?? externalHoverX);
+	let activeTooltipLabel = $derived(localHoverLabel);
 
 	$effect(() => {
 		const unsubscribe = rangeSelectionStore.subscribe((value) => {
@@ -288,7 +289,24 @@
 			return null;
 		}
 		const area = chart.chartArea;
-		return `left:${x}px; top:${area.top}px; height:${area.bottom - area.top}px;`;
+		const snappedX = Math.round(x) + 0.5;
+		return `left:${snappedX}px; top:${area.top}px; height:${area.bottom - area.top}px;`;
+	}
+
+	function getCrosshairTooltipStyle(x: number | null): string | null {
+		if (x === null || !chart) {
+			return null;
+		}
+
+		const area = chart.chartArea;
+		const snappedX = Math.round(x) + 0.5;
+		const tooltipWidth = 120;
+		const left = Math.min(
+			Math.max(snappedX - tooltipWidth / 2, area.left + 6),
+			area.right - tooltipWidth - 6
+		);
+		const top = Math.max(6, area.top - 34);
+		return `left:${left}px; top:${top}px; width:${tooltipWidth}px;`;
 	}
 
 	// Color gradient function based on f value
@@ -960,9 +978,17 @@
 					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
 					{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
 						<div
-							class="pointer-events-none absolute w-px border-l border-dashed border-gray-600/80"
+							class="pointer-events-none absolute z-20 w-px bg-gray-600/80"
 							style={getCrosshairLineStyle(activeCrosshairX)}
 						></div>
+					{/if}
+					{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null && activeTooltipLabel}
+						<div
+							class="pointer-events-none absolute z-20 rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs text-white shadow-sm"
+							style={getCrosshairTooltipStyle(activeCrosshairX)}
+						>
+							{activeTooltipLabel}
+						</div>
 					{/if}
 					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 						<div

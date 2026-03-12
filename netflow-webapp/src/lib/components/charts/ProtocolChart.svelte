@@ -441,7 +441,7 @@
 								dash: [3, 3]
 							},
 							tooltip: {
-								enabled: false,
+								enabled: true,
 								delay: 500,
 								backgroundColor: 'rgba(0, 0, 0, 0.85)',
 								textColor: 'white',
