@@ -1,4 +1,23 @@
 import type { DataOption } from '$lib/components/netflow/types.ts';
+import type { NetflowMetricField } from '$lib/types/types';
+
+export const NETFLOW_DATA_OPTION_FIELDS: NetflowMetricField[] = [
+	'flows',
+	'flowsTcp',
+	'flowsUdp',
+	'flowsIcmp',
+	'flowsOther',
+	'packets',
+	'packetsTcp',
+	'packetsUdp',
+	'packetsIcmp',
+	'packetsOther',
+	'bytes',
+	'bytesTcp',
+	'bytesUdp',
+	'bytesIcmp',
+	'bytesOther'
+];
 
 export const DEFAULT_DATA_OPTIONS: DataOption[] = [
 	{ label: 'Flows', index: 0, checked: true },

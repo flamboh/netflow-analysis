@@ -5,6 +5,12 @@
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
 	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
 	import { dateStringToEpochPST } from '$lib/utils/timezone';
+	import {
+		ensureCachedWindow,
+		getMissingWindowRanges,
+		readCachedWindow,
+		type TimeRange
+	} from '$lib/utils/window-cache';
 	import type {
 		DataOption,
 		GroupByOption,
@@ -12,6 +18,7 @@
 		ChartTypeOption,
 		RouterConfig
 	} from './types.ts';
+	import type { NetflowStatsResult } from '$lib/types/types';
 
 	const props = $props<{
 		dataset: string;
@@ -33,52 +40,98 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
-	function dataOptionsToBinary(options: DataOption[]): number {
-		return options.reduce((acc, curr) => acc + (curr.checked ? 1 : 0) * Math.pow(2, curr.index), 0);
-	}
-
 	type FilterInputs = {
 		startDate: string;
 		endDate: string;
 		groupBy: GroupByOption;
 		routers: RouterConfig;
-		dataOptions: DataOption[];
 	};
 
 	let lastFiltersKey = '';
 	let requestToken = 0;
 
-	async function loadData(filters: FilterInputs, token: number, activeRouters: string[]) {
-		loading = true;
+	function deriveSelectedRouters(routers: RouterConfig): string[] {
+		return Object.entries(routers)
+			.filter(([, enabled]) => enabled)
+			.map(([router]) => router.trim())
+			.filter((router) => router.length > 0)
+			.sort();
+	}
+
+	function getCacheKey(filters: FilterInputs, selectedRouters: string[]): string {
+		return JSON.stringify({
+			chart: 'netflow',
+			dataset: props.dataset,
+			groupBy: filters.groupBy,
+			routers: selectedRouters
+		});
+	}
+
+	function getRequestedRange(filters: FilterInputs): TimeRange {
+		return {
+			start: dateStringToEpochPST(filters.startDate),
+			end: dateStringToEpochPST(filters.endDate, true)
+		};
+	}
+
+	function readCachedResults(cacheKey: string, requestedRange: TimeRange): NetflowDataPoint[] {
+		return readCachedWindow<NetflowStatsResult>(cacheKey, requestedRange, (record, range) => {
+			return record.bucketStart >= range.start && record.bucketStart < range.end;
+		});
+	}
+
+	async function loadData(
+		filters: FilterInputs,
+		token: number,
+		selectedRouters: string[],
+		requestedRange: TimeRange
+	) {
+		const cacheKey = getCacheKey(filters, selectedRouters);
+		const needsFetch = getMissingWindowRanges(cacheKey, requestedRange).length > 0;
+		loading = needsFetch;
 		error = null;
 
 		const params = new URLSearchParams({
 			dataset: props.dataset,
-			startDate: dateStringToEpochPST(filters.startDate).toString(),
-			endDate: dateStringToEpochPST(filters.endDate, true).toString(),
-			routers: activeRouters.join(','),
-			dataOptions: dataOptionsToBinary(filters.dataOptions).toString(),
+			routers: selectedRouters.join(','),
 			groupBy: filters.groupBy
 		});
 
 		try {
-			const response = await fetch(`/api/netflow/stats?${params.toString()}`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json'
-				}
+			await ensureCachedWindow<NetflowStatsResult>({
+				key: cacheKey,
+				requestedRange,
+				fetchRange: async (range) => {
+					const response = await fetch(
+						`/api/netflow/stats?${new URLSearchParams({
+							...Object.fromEntries(params.entries()),
+							startDate: range.start.toString(),
+							endDate: range.end.toString()
+						}).toString()}`,
+						{
+							method: 'GET',
+							headers: {
+								'Content-Type': 'application/json'
+							}
+						}
+					);
+
+					if (!response.ok) {
+						const message = await response.text();
+						throw new Error(message || `Failed to load data: ${response.statusText}`);
+					}
+
+					const json = await response.json();
+					return json.result as NetflowStatsResult[];
+				},
+				getRecordKey: (record) => `${record.bucketStart}`,
+				compareRecords: (left, right) => left.bucketStart - right.bucketStart
 			});
 
-			if (!response.ok) {
-				const message = await response.text();
-				throw new Error(message || `Failed to load data: ${response.statusText}`);
-			}
-
-			const json = await response.json();
 			if (token !== requestToken) {
 				return;
 			}
-			results = json.result;
+			results = readCachedResults(cacheKey, requestedRange);
 		} catch (err) {
 			if (token !== requestToken) {
 				return;
@@ -114,36 +167,24 @@
 			startDate: props.startDate,
 			endDate: props.endDate,
 			groupBy: props.groupBy,
-			routers: props.routers,
-			dataOptions: props.dataOptions
+			routers: props.routers
 		};
 
-		const routerNames = Object.keys(filters.routers);
-		if (routerNames.length === 0) {
-			return;
-		}
+		const selectedRouters = deriveSelectedRouters(filters.routers);
 
-		const activeRouters = routerNames.filter((router) => filters.routers[router]);
-
-		if (activeRouters.length === 0) {
+		if (selectedRouters.length === 0) {
 			error = 'Select at least one router to view NetFlow statistics';
 			results = [];
 			loading = false;
 			return;
 		}
 
-		const normalizedOptions = filters.dataOptions.map((option) => ({
-			index: option.index,
-			checked: option.checked
-		}));
-
 		const nextKey = JSON.stringify({
 			dataset: props.dataset,
 			startDate: filters.startDate,
 			endDate: filters.endDate,
 			groupBy: filters.groupBy,
-			routers: activeRouters,
-			options: normalizedOptions
+			routers: selectedRouters
 		});
 
 		if (nextKey === lastFiltersKey) {
@@ -151,8 +192,9 @@
 		}
 
 		lastFiltersKey = nextKey;
+		const requestedRange = getRequestedRange(filters);
 		const token = ++requestToken;
-		loadData(filters, token, activeRouters);
+		loadData(filters, token, selectedRouters, requestedRange);
 	});
 </script>
 

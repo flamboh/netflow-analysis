@@ -31,9 +31,43 @@ export interface NetflowStatsRow {
 	bytes_other?: number;
 }
 
-export interface NetflowStatsResult {
-	time: string;
-	data: string;
+export type NetflowMetricField =
+	| 'flows'
+	| 'flowsTcp'
+	| 'flowsUdp'
+	| 'flowsIcmp'
+	| 'flowsOther'
+	| 'packets'
+	| 'packetsTcp'
+	| 'packetsUdp'
+	| 'packetsIcmp'
+	| 'packetsOther'
+	| 'bytes'
+	| 'bytesTcp'
+	| 'bytesUdp'
+	| 'bytesIcmp'
+	| 'bytesOther';
+
+export interface NetflowMetricTotals {
+	flows: number;
+	flowsTcp: number;
+	flowsUdp: number;
+	flowsIcmp: number;
+	flowsOther: number;
+	packets: number;
+	packetsTcp: number;
+	packetsUdp: number;
+	packetsIcmp: number;
+	packetsOther: number;
+	bytes: number;
+	bytesTcp: number;
+	bytesUdp: number;
+	bytesIcmp: number;
+	bytesOther: number;
+}
+
+export interface NetflowStatsResult extends NetflowMetricTotals {
+	bucketStart: number;
 }
 
 export interface NetflowFileSummaryRecord {

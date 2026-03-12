@@ -29,6 +29,12 @@
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
+	import {
+		ensureCachedWindow,
+		getMissingWindowRanges,
+		readCachedWindow,
+		type TimeRange
+	} from '$lib/utils/window-cache';
 
 	const CHART_ID = 'protocol';
 
@@ -350,7 +356,8 @@
 	}
 
 	function renderChart() {
-		const selectedBuckets = buckets;
+		const selectedRouters = new Set(deriveSelectedRouters(props.routers));
+		const selectedBuckets = buckets.filter((bucket) => selectedRouters.has(bucket.router));
 
 		if (activeMetrics.length === 0 || selectedBuckets.length === 0) {
 			destroyChart();
@@ -529,28 +536,64 @@
 	let lastIncomingMetricsKey = '';
 	let requestToken = 0;
 
+	function getRequestedRange(filters: FilterInputs): TimeRange {
+		return {
+			start: toEpochSeconds(filters.startDate),
+			end: toEpochSeconds(filters.endDate, true)
+		};
+	}
+
+	function getCacheKey(filters: FilterInputs): string {
+		return JSON.stringify({
+			chart: CHART_ID,
+			dataset: props.dataset ?? '',
+			granularity: filters.granularity,
+			routers: filters.routers
+		});
+	}
+
 	async function loadData(filters: FilterInputs, token: number) {
-		loading = true;
+		const requestedRange = getRequestedRange(filters);
+		const cacheKey = getCacheKey(filters);
+		loading = getMissingWindowRanges(cacheKey, requestedRange).length > 0;
 		error = null;
-		destroyChart();
+		if (loading) {
+			destroyChart();
+		}
 
 		const params = new URLSearchParams({
 			dataset: props.dataset ?? '',
-			startDate: toEpochSeconds(filters.startDate).toString(),
-			endDate: toEpochSeconds(filters.endDate, true).toString(),
 			granularity: filters.granularity,
 			routers: filters.routers.join(',')
 		});
 
 		try {
-			const response = await fetch(`/api/protocol/stats?${params.toString()}`);
-			if (!response.ok) {
-				const message = await response.text();
-				throw new Error(message || 'Failed to load protocol statistics');
-			}
-			const data = (await response.json()) as ProtocolStatsResponse;
+			await ensureCachedWindow<ProtocolStatsBucket>({
+				key: cacheKey,
+				requestedRange,
+				fetchRange: async (range) => {
+					const response = await fetch(
+						`/api/protocol/stats?${new URLSearchParams({
+							...Object.fromEntries(params.entries()),
+							startDate: range.start.toString(),
+							endDate: range.end.toString()
+						}).toString()}`
+					);
+					if (!response.ok) {
+						const message = await response.text();
+						throw new Error(message || 'Failed to load protocol statistics');
+					}
+					const data = (await response.json()) as ProtocolStatsResponse;
+					return data.buckets;
+				},
+				getRecordKey: (record) => `${record.router}-${record.bucketStart}`,
+				compareRecords: (left, right) =>
+					left.bucketStart - right.bucketStart || left.router.localeCompare(right.router)
+			});
 			if (token !== requestToken) return;
-			buckets = data.buckets;
+			buckets = readCachedWindow<ProtocolStatsBucket>(cacheKey, requestedRange, (record, range) => {
+				return record.bucketStart >= range.start && record.bucketStart < range.end;
+			});
 			loading = false;
 			await tick();
 			renderChart();
@@ -590,25 +633,28 @@
 			return;
 		}
 
+		const selectedRouters = deriveSelectedRouters(routerConfig);
+
 		const filters: FilterInputs = {
 			startDate: getStartDate(),
 			endDate: getEndDate(),
 			granularity: getGranularity(),
-			routers: deriveSelectedRouters(routerConfig)
+			routers: selectedRouters
 		};
 
 		currentGranularity = filters.granularity;
 
-		if (filters.routers.length === 0) {
+		if (selectedRouters.length === 0) {
 			error = 'Select at least one router to view protocol statistics';
 			buckets = [];
 			destroyChart();
-			lastFiltersKey = JSON.stringify(filters);
+			lastFiltersKey = JSON.stringify({ ...filters, selectedRouters });
 			loading = false;
 			return;
 		}
 
-		const nextKey = JSON.stringify(filters);
+		error = null;
+		const nextKey = JSON.stringify({ ...filters, selectedRouters });
 		if (nextKey === lastFiltersKey) return;
 
 		lastFiltersKey = nextKey;
