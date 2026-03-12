@@ -449,34 +449,29 @@
 	}
 </script>
 
-<div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
-	<h1 class="text-text-primary mb-2 flex items-center justify-between text-2xl font-semibold">
-		NetFlow File: {data.fileInfo.filename}
-		<a
-			class="bg-cisco-blue hover:bg-cisco-blue-dark rounded-lg px-4 py-1 text-sm font-medium text-white transition-colors"
-			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
-		>
-			Next File
-		</a>
-	</h1>
-
-	<div
-		class="border-cisco-blue/30 bg-cisco-blue/5 dark:border-cisco-blue/20 dark:bg-cisco-blue/10 mb-2 rounded-xl border p-4"
-	>
-		<h2 class="text-text-primary mb-2 text-lg font-semibold">File Information</h2>
-		<div class="text-text-secondary grid grid-cols-3 gap-2">
-			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
-			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
-			<div>
+<div class="mx-auto max-w-[90vw] px-2 py-4 sm:px-2 lg:px-4">
+	<div class="mb-4 flex items-center justify-between">
+		<div>
+			<h1 class="text-text-primary text-lg font-semibold">
+				{data.fileInfo.filename}
+			</h1>
+			<div class="text-text-muted mt-0.5 flex items-center gap-3 text-xs">
+				<span
+					>{data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}
+					{data.fileInfo.hour}:{data.fileInfo.minute}</span
+				>
 				{#if summaryRecords.length}
-					Processed in DB: {formatTimestampAsPST(Date.parse(summaryRecords[0].processed_at))}
-				{:else if summaryLoading}
-					Processed in DB: Loading...
-				{:else}
-					Processed in DB: N/A
+					<span>·</span>
+					<span>Processed {formatTimestampAsPST(Date.parse(summaryRecords[0].processed_at))}</span>
 				{/if}
 			</div>
 		</div>
+		<a
+			class="bg-cisco-blue hover:bg-cisco-blue-dark rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors"
+			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
+		>
+			Next File →
+		</a>
 	</div>
 
 	{#if summaryError}
@@ -492,72 +487,26 @@
 			</button>
 		</div>
 	{:else if summaryLoading}
-		<div class="space-y-2">
+		<div class="space-y-4">
 			{#each summarySkeletons as skeletonId (skeletonId)}
-				<div class="border-border bg-surface animate-pulse rounded-xl border shadow-sm">
-					<div class="bg-cisco-blue rounded-t-xl p-4">
-						<div class="mb-2 h-7 w-56 rounded bg-white/70"></div>
-						<div class="mb-4 h-5 w-[34rem] max-w-full rounded bg-white/60"></div>
-						<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
-							<div>
-								<div class="mb-2 h-5 w-40 rounded bg-white/60"></div>
-								<div class="mb-1 h-4 w-20 rounded bg-white/60"></div>
-								<div class="h-4 w-20 rounded bg-white/60"></div>
-							</div>
-							<div>
-								<div class="mb-2 h-5 w-44 rounded bg-white/60"></div>
-								<div class="mb-1 h-4 w-20 rounded bg-white/60"></div>
-								<div class="h-4 w-20 rounded bg-white/60"></div>
-							</div>
-						</div>
-						<div class="mt-4 grid grid-cols-4 gap-4 text-sm">
-							{#each [0, 1, 2, 3] as columnIndex (`summary-column-${skeletonId}-${columnIndex}`)}
-								<div>
-									<div class="mb-2 h-5 w-28 rounded bg-white/60"></div>
-									<div class="mb-1 h-4 w-24 rounded bg-white/60"></div>
-									<div class="mb-1 h-4 w-20 rounded bg-white/60"></div>
-									<div class="mb-1 h-4 w-24 rounded bg-white/60"></div>
-									<div class="h-4 w-20 rounded bg-white/60"></div>
-								</div>
-							{/each}
-						</div>
+				<div class="border-border bg-surface animate-pulse rounded-xl border p-5 shadow-sm">
+					<div class="mb-4 flex items-center gap-3">
+						<div class="bg-cisco-blue/30 h-5 w-5 rounded-full"></div>
+						<div class="bg-surface-hover h-5 w-40 rounded"></div>
 					</div>
-					<div class="space-y-4 p-4">
-						<div class="bg-surface-hover h-6 w-36 rounded"></div>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<div class="space-y-3">
-								<div class="bg-surface-hover h-5 w-44 rounded"></div>
-								<div class="bg-surface-alt h-4 w-96 max-w-full rounded"></div>
-								<div class="bg-surface-alt h-96 rounded"></div>
+					<div class="mb-4 grid grid-cols-4 gap-4">
+						{#each [0, 1, 2, 3] as columnIndex (`summary-column-${skeletonId}-${columnIndex}`)}
+							<div class="space-y-2">
+								<div class="bg-surface-hover h-4 w-20 rounded"></div>
+								<div class="bg-surface-alt h-3 w-28 rounded"></div>
+								<div class="bg-surface-alt h-3 w-24 rounded"></div>
+								<div class="bg-surface-alt h-3 w-26 rounded"></div>
 							</div>
-							<div class="space-y-3">
-								<div class="bg-surface-hover h-5 w-52 rounded"></div>
-								<div class="bg-surface-alt h-4 w-96 max-w-full rounded"></div>
-								<div class="bg-surface-alt h-96 rounded"></div>
-							</div>
-						</div>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<div class="space-y-3">
-								<div class="bg-surface-hover h-5 w-44 rounded"></div>
-								<div class="bg-surface-alt h-4 w-96 max-w-full rounded"></div>
-								<div class="bg-surface-alt h-96 rounded"></div>
-							</div>
-							<div class="space-y-3">
-								<div class="bg-surface-hover h-5 w-52 rounded"></div>
-								<div class="bg-surface-alt h-4 w-96 max-w-full rounded"></div>
-								<div class="bg-surface-alt h-96 rounded"></div>
-							</div>
-						</div>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<div class="space-y-3">
-								<div class="bg-surface-hover h-5 w-48 rounded"></div>
-								<div class="bg-surface-alt h-56 rounded"></div>
-							</div>
-							<div class="space-y-3">
-								<div class="bg-surface-hover h-5 w-56 rounded"></div>
-								<div class="bg-surface-alt h-56 rounded"></div>
-							</div>
-						</div>
+						{/each}
+					</div>
+					<div class="grid grid-cols-2 gap-6">
+						<div class="bg-surface-alt h-72 rounded-lg"></div>
+						<div class="bg-surface-alt h-72 rounded-lg"></div>
 					</div>
 				</div>
 			{/each}
@@ -567,106 +516,131 @@
 			No database summary is available for this file.
 		</div>
 	{:else}
-		<div class="space-y-2">
+		<div class="space-y-4">
 			{#each summaryRecords as record (record.router)}
 				<div class="border-border bg-surface rounded-xl border shadow-sm">
-					<!-- Router Data Summary -->
-					<div class="bg-cisco-blue rounded-t-xl p-4 text-white">
-						<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
-						<h3 class="text-md mb-2 font-semibold">
-							Absolute Path: <br />
-							{record.file_path}
-						</h3>
-						<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+					<div class="border-border border-b p-4">
+						<div class="flex items-center gap-2.5">
+							<span class="bg-cisco-blue h-2.5 w-2.5 rounded-full"></span>
+							<h3 class="text-text-primary text-base font-semibold">{record.router}</h3>
+							<span class="text-text-muted truncate font-mono text-xs" title={record.file_path}
+								>{record.file_path}</span
+							>
+						</div>
+
+						<div
+							class="border-border mt-3 grid grid-cols-2 gap-x-6 gap-y-1 border-b pb-3 text-xs md:grid-cols-4"
+						>
 							<div>
-								<h3 class="text-md font-semibold">Unique IP Count (Source)</h3>
-								<div>
-									IPv4: {IPCountsSource.get(record.router)?.ipv4Count == null
+								<span class="text-text-muted">Src IPv4</span>
+								<span class="text-text-primary ml-1 font-medium"
+									>{IPCountsSource.get(record.router)?.ipv4Count == null
 										? '...'
-										: formatCount(IPCountsSource.get(record.router)?.ipv4Count)}
-								</div>
-								<div>
-									IPv6: {IPCountsSource.get(record.router)?.ipv6Count == null
-										? '...'
-										: formatCount(IPCountsSource.get(record.router)?.ipv6Count)}
-								</div>
+										: formatCount(IPCountsSource.get(record.router)?.ipv4Count)}</span
+								>
 							</div>
 							<div>
-								<h3 class="text-md font-semibold">Unique IP Count (Destination)</h3>
-								<div>
-									IPv4: {IPCountsDestination.get(record.router)?.ipv4Count == null
+								<span class="text-text-muted">Src IPv6</span>
+								<span class="text-text-primary ml-1 font-medium"
+									>{IPCountsSource.get(record.router)?.ipv6Count == null
 										? '...'
-										: formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}
-								</div>
-								<div>
-									IPv6: {IPCountsDestination.get(record.router)?.ipv6Count == null
+										: formatCount(IPCountsSource.get(record.router)?.ipv6Count)}</span
+								>
+							</div>
+							<div>
+								<span class="text-text-muted">Dst IPv4</span>
+								<span class="text-text-primary ml-1 font-medium"
+									>{IPCountsDestination.get(record.router)?.ipv4Count == null
 										? '...'
-										: formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}
-								</div>
+										: formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}</span
+								>
+							</div>
+							<div>
+								<span class="text-text-muted">Dst IPv6</span>
+								<span class="text-text-primary ml-1 font-medium"
+									>{IPCountsDestination.get(record.router)?.ipv6Count == null
+										? '...'
+										: formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}</span
+								>
 							</div>
 						</div>
-						<div class="grid grid-cols-4 gap-4 text-sm">
-							<div>
-								<h4 class="font-medium">Flows</h4>
-								<p>Total: {record.flows.toLocaleString()}</p>
-								<p>TCP: {record.flows_tcp.toLocaleString()}</p>
-								<p>UDP: {record.flows_udp.toLocaleString()}</p>
-								<p>ICMP: {record.flows_icmp.toLocaleString()}</p>
-								<p>Other: {record.flows_other.toLocaleString()}</p>
-							</div>
-							<div>
-								<h4 class="font-medium">Packets</h4>
-								<p>Total: {record.packets.toLocaleString()}</p>
-								<p>TCP: {record.packets_tcp.toLocaleString()}</p>
-								<p>UDP: {record.packets_udp.toLocaleString()}</p>
-								<p>ICMP: {record.packets_icmp.toLocaleString()}</p>
-								<p>Other: {record.packets_other.toLocaleString()}</p>
-							</div>
-							<div>
-								<h4 class="font-medium">Bytes</h4>
-								<p>Total: {record.bytes.toLocaleString()}</p>
-								<p>TCP: {record.bytes_tcp.toLocaleString()}</p>
-								<p>UDP: {record.bytes_udp.toLocaleString()}</p>
-								<p>ICMP: {record.bytes_icmp.toLocaleString()}</p>
-								<p>Other: {record.bytes_other.toLocaleString()}</p>
-							</div>
-							<div>
-								<h4 class="font-medium">Timestamps & Metrics</h4>
-								<p>First: {formatTimestampAsPST(record.first_timestamp * 1000)}</p>
-								<p>Last: {formatTimestampAsPST(record.last_timestamp * 1000)}</p>
-								<p>First ms: {record.msec_first}</p>
-								<p>Last ms: {record.msec_last}</p>
-								<p>Seq failures: {record.sequence_failures.toLocaleString()}</p>
-							</div>
+
+						<div class="mt-3 overflow-x-auto">
+							<table class="w-full text-xs">
+								<thead>
+									<tr class="text-text-muted text-left">
+										<th class="pr-4 pb-1 font-medium"></th>
+										<th class="pr-4 pb-1 font-medium">Total</th>
+										<th class="pr-4 pb-1 font-medium">TCP</th>
+										<th class="pr-4 pb-1 font-medium">UDP</th>
+										<th class="pr-4 pb-1 font-medium">ICMP</th>
+										<th class="pr-4 pb-1 font-medium">Other</th>
+									</tr>
+								</thead>
+								<tbody class="text-text-primary">
+									<tr>
+										<td class="text-text-secondary py-0.5 pr-4 font-medium">Flows</td>
+										<td class="py-0.5 pr-4 font-mono">{record.flows.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.flows_tcp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.flows_udp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.flows_icmp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.flows_other.toLocaleString()}</td>
+									</tr>
+									<tr>
+										<td class="text-text-secondary py-0.5 pr-4 font-medium">Packets</td>
+										<td class="py-0.5 pr-4 font-mono">{record.packets.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.packets_tcp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.packets_udp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.packets_icmp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.packets_other.toLocaleString()}</td>
+									</tr>
+									<tr>
+										<td class="text-text-secondary py-0.5 pr-4 font-medium">Bytes</td>
+										<td class="py-0.5 pr-4 font-mono">{record.bytes.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.bytes_tcp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.bytes_udp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.bytes_icmp.toLocaleString()}</td>
+										<td class="py-0.5 pr-4 font-mono">{record.bytes_other.toLocaleString()}</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<div class="text-text-muted mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+							<span>First: {formatTimestampAsPST(record.first_timestamp * 1000)}</span>
+							<span>Last: {formatTimestampAsPST(record.last_timestamp * 1000)}</span>
+							{#if record.sequence_failures > 0}
+								<span class="text-red-500 dark:text-red-400"
+									>Seq failures: {record.sequence_failures.toLocaleString()}</span
+								>
+							{/if}
 						</div>
 					</div>
 
-					<!-- Analysis for this Router -->
-					<div class="rounded-b-xl p-4">
+					<div class="p-4">
 						{#if record.file_exists_on_disk === false}
 							<div
-								class="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400"
+								class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400"
 							>
-								The original NetFlow file is missing on disk for this router. DB-backed stats can
-								still be shown, but on-demand MAAD analysis cannot run.
+								File missing on disk — DB stats shown, but MAAD analysis unavailable.
 							</div>
 						{/if}
-						<h4 class="text-md text-text-primary mb-4 font-semibold">MAAD Analysis</h4>
-						<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+
+						<div class="mb-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<h5
-								class="border-border text-cisco-blue hidden border-b pb-2 text-base font-semibold lg:block"
+								class="text-cisco-blue hidden text-xs font-semibold tracking-wider uppercase lg:block"
 							>
 								Source
 							</h5>
 							<h5
-								class="border-border text-cisco-blue hidden border-b pb-2 text-base font-semibold lg:block"
+								class="text-cisco-blue hidden text-xs font-semibold tracking-wider uppercase lg:block"
 							>
 								Destination
 							</h5>
 						</div>
 						<div class="space-y-6">
 							<div class="space-y-3">
-								<h6 class="text-md text-text-secondary font-medium">Structure</h6>
+								<h6 class="text-text-secondary text-sm font-medium">Structure Function</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingStructureSource.get(record.router)}
@@ -733,7 +707,7 @@
 								</div>
 							</div>
 							<div class="space-y-3">
-								<h6 class="text-md text-text-secondary font-medium">Spectrum</h6>
+								<h6 class="text-text-secondary text-sm font-medium">Spectrum</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingSpectrumSource.get(record.router)}
@@ -798,7 +772,7 @@
 								</div>
 							</div>
 							<div class="space-y-3">
-								<h6 class="text-md text-text-secondary font-medium">Singularities</h6>
+								<h6 class="text-text-secondary text-sm font-medium">Singularities</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingSingularitiesSource.get(record.router)}
