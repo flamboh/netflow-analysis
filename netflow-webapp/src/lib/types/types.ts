@@ -67,7 +67,6 @@ export interface NetflowMetricTotals {
 }
 
 export interface NetflowStatsResult extends NetflowMetricTotals {
-	router: string;
 	bucketStart: number;
 }
 

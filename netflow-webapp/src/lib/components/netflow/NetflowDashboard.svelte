@@ -36,7 +36,6 @@
 	}>();
 
 	let chartType = $state<ChartTypeOption>('stacked');
-	let rawResults = $state<NetflowStatsResult[]>([]);
 	let results = $state<NetflowDataPoint[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
@@ -49,15 +48,7 @@
 	};
 
 	let lastFiltersKey = '';
-	let lastAggregationKey = '';
 	let requestToken = 0;
-
-	function deriveKnownRouters(routers: RouterConfig): string[] {
-		return Object.keys(routers)
-			.map((router) => router.trim())
-			.filter((router) => router.length > 0)
-			.sort();
-	}
 
 	function deriveSelectedRouters(routers: RouterConfig): string[] {
 		return Object.entries(routers)
@@ -67,67 +58,12 @@
 			.sort();
 	}
 
-	function createEmptyBucket(bucketStart: number): NetflowDataPoint {
-		return {
-			bucketStart,
-			flows: 0,
-			flowsTcp: 0,
-			flowsUdp: 0,
-			flowsIcmp: 0,
-			flowsOther: 0,
-			packets: 0,
-			packetsTcp: 0,
-			packetsUdp: 0,
-			packetsIcmp: 0,
-			packetsOther: 0,
-			bytes: 0,
-			bytesTcp: 0,
-			bytesUdp: 0,
-			bytesIcmp: 0,
-			bytesOther: 0
-		};
-	}
-
-	function aggregateResults(
-		rows: NetflowStatsResult[],
-		selectedRouters: string[]
-	): NetflowDataPoint[] {
-		const selected = new Set(selectedRouters);
-		const buckets = new Map<number, NetflowDataPoint>();
-
-		rows.forEach((row) => {
-			if (!selected.has(row.router)) {
-				return;
-			}
-
-			const bucket = buckets.get(row.bucketStart) ?? createEmptyBucket(row.bucketStart);
-			bucket.flows += row.flows;
-			bucket.flowsTcp += row.flowsTcp;
-			bucket.flowsUdp += row.flowsUdp;
-			bucket.flowsIcmp += row.flowsIcmp;
-			bucket.flowsOther += row.flowsOther;
-			bucket.packets += row.packets;
-			bucket.packetsTcp += row.packetsTcp;
-			bucket.packetsUdp += row.packetsUdp;
-			bucket.packetsIcmp += row.packetsIcmp;
-			bucket.packetsOther += row.packetsOther;
-			bucket.bytes += row.bytes;
-			bucket.bytesTcp += row.bytesTcp;
-			bucket.bytesUdp += row.bytesUdp;
-			bucket.bytesIcmp += row.bytesIcmp;
-			bucket.bytesOther += row.bytesOther;
-			buckets.set(row.bucketStart, bucket);
-		});
-
-		return [...buckets.values()].sort((left, right) => left.bucketStart - right.bucketStart);
-	}
-
-	function getCacheKey(filters: FilterInputs, knownRouters: string[]): string {
+	function getCacheKey(filters: FilterInputs, selectedRouters: string[]): string {
 		return JSON.stringify({
 			chart: 'netflow',
 			dataset: props.dataset,
 			groupBy: filters.groupBy,
-			routers: knownRouters
+			routers: selectedRouters
 		});
 	}
 
@@ -138,7 +74,7 @@
 		};
 	}
 
-	function readCachedResults(cacheKey: string, requestedRange: TimeRange): NetflowStatsResult[] {
+	function readCachedResults(cacheKey: string, requestedRange: TimeRange): NetflowDataPoint[] {
 		return readCachedWindow<NetflowStatsResult>(cacheKey, requestedRange, (record, range) => {
 			return record.bucketStart >= range.start && record.bucketStart < range.end;
 		});
@@ -147,17 +83,17 @@
 	async function loadData(
 		filters: FilterInputs,
 		token: number,
-		knownRouters: string[],
+		selectedRouters: string[],
 		requestedRange: TimeRange
 	) {
-		const cacheKey = getCacheKey(filters, knownRouters);
+		const cacheKey = getCacheKey(filters, selectedRouters);
 		const needsFetch = getMissingWindowRanges(cacheKey, requestedRange).length > 0;
 		loading = needsFetch;
 		error = null;
 
 		const params = new URLSearchParams({
 			dataset: props.dataset,
-			routers: knownRouters.join(','),
+			routers: selectedRouters.join(','),
 			groupBy: filters.groupBy
 		});
 
@@ -188,21 +124,19 @@
 					const json = await response.json();
 					return json.result as NetflowStatsResult[];
 				},
-				getRecordKey: (record) => `${record.router}-${record.bucketStart}`,
-				compareRecords: (left, right) =>
-					left.bucketStart - right.bucketStart || left.router.localeCompare(right.router)
+				getRecordKey: (record) => `${record.bucketStart}`,
+				compareRecords: (left, right) => left.bucketStart - right.bucketStart
 			});
 
 			if (token !== requestToken) {
 				return;
 			}
-			rawResults = readCachedResults(cacheKey, requestedRange);
+			results = readCachedResults(cacheKey, requestedRange);
 		} catch (err) {
 			if (token !== requestToken) {
 				return;
 			}
 			error = `Failed to load data: ${err instanceof Error ? err.message : 'Unknown error'}`;
-			rawResults = [];
 			results = [];
 		} finally {
 			if (token === requestToken) {
@@ -236,16 +170,10 @@
 			routers: props.routers
 		};
 
-		const knownRouters = deriveKnownRouters(filters.routers);
-		if (knownRouters.length === 0) {
-			return;
-		}
-
 		const selectedRouters = deriveSelectedRouters(filters.routers);
 
 		if (selectedRouters.length === 0) {
 			error = 'Select at least one router to view NetFlow statistics';
-			rawResults = [];
 			results = [];
 			loading = false;
 			return;
@@ -256,7 +184,7 @@
 			startDate: filters.startDate,
 			endDate: filters.endDate,
 			groupBy: filters.groupBy,
-			routers: knownRouters
+			routers: selectedRouters
 		});
 
 		if (nextKey === lastFiltersKey) {
@@ -266,28 +194,7 @@
 		lastFiltersKey = nextKey;
 		const requestedRange = getRequestedRange(filters);
 		const token = ++requestToken;
-		loadData(filters, token, knownRouters, requestedRange);
-	});
-
-	$effect(() => {
-		const selectedRouters = deriveSelectedRouters(props.routers);
-		if (
-			selectedRouters.length > 0 &&
-			error === 'Select at least one router to view NetFlow statistics'
-		) {
-			error = null;
-		}
-		const nextKey = JSON.stringify({
-			selectedRouters,
-			rawResults: rawResults.map((row) => `${row.router}:${row.bucketStart}`)
-		});
-
-		if (nextKey === lastAggregationKey) {
-			return;
-		}
-
-		lastAggregationKey = nextKey;
-		results = aggregateResults(rawResults, selectedRouters);
+		loadData(filters, token, selectedRouters, requestedRange);
 	});
 </script>
 

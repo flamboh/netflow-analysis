@@ -43,7 +43,6 @@ export const GET: RequestHandler = async ({ url }) => {
 
 		const query = `
 			SELECT 
-				router,
 				${bucketStartQuery} as bucketStart,
 				SUM(flows) AS flows,
 				SUM(flows_tcp) AS flowsTcp,
@@ -64,8 +63,8 @@ export const GET: RequestHandler = async ({ url }) => {
 			WHERE router IN (${routers.map(() => '?').join(',')})
 			AND timestamp >= ? 
 			AND timestamp < ?
-			GROUP BY router, bucketStart
-			ORDER BY bucketStart, router
+			GROUP BY bucketStart
+			ORDER BY bucketStart
 		`;
 
 		const params = [...routers, startDate, endDate];
@@ -73,7 +72,6 @@ export const GET: RequestHandler = async ({ url }) => {
 		const stmt = db.prepare(query);
 		const rows = stmt.all(...params) as NetflowStatsResult[];
 		const result: NetflowStatsResult[] = rows.map((row) => ({
-			router: row.router,
 			bucketStart: row.bucketStart,
 			flows: row.flows ?? 0,
 			flowsTcp: row.flowsTcp ?? 0,
