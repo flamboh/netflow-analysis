@@ -19,7 +19,7 @@
 </script>
 
 <div class="router-filter flex flex-wrap items-center gap-4">
-	<span class="text-sm font-medium text-gray-700">Routers:</span>
+	<span class="text-sm font-medium text-gray-600">Routers:</span>
 
 	<div class="flex min-h-6 flex-wrap items-center gap-4">
 		{#if routerNames.length === 0}
@@ -34,7 +34,7 @@
 						type="checkbox"
 						checked={routers[routerName]}
 						onchange={() => handleRouterToggle(routerName)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						class="text-cisco-blue focus:ring-cisco-blue/40 h-4 w-4 rounded border-gray-300"
 					/>
 					<span class="text-sm text-gray-700">{routerName}</span>
 				</label>

@@ -206,13 +206,13 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
+<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
+		class="relative cursor-grab border-b border-gray-200 p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
-		<h2 class="text-lg font-semibold text-gray-900">Traffic Overview</h2>
+		<h2 class="text-sm font-semibold text-gray-900">Traffic Overview</h2>
 		<DragGrip />
 	</div>
 
@@ -225,25 +225,25 @@
 		/>
 
 		<div
-			class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-gray-50/50"
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="flex items-center gap-3 text-gray-500">
+					<div class="flex items-center gap-3 text-gray-400">
 						<div
 							class="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-500"
 							aria-hidden="true"
 						></div>
-						<div>Loading data...</div>
+						<span>Loading data...</span>
 					</div>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
+					<p class="text-sm text-red-600">{error}</p>
 				</div>
 			{:else if results.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No data available for the selected filters</div>
+					<p class="text-sm text-gray-400">No data available for the selected filters</p>
 				</div>
 			{:else}
 				<ChartContainer

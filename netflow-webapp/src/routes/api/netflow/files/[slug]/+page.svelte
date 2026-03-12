@@ -449,20 +449,22 @@
 	}
 </script>
 
-<div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
-	<h1 class="mb-2 flex items-center justify-between text-2xl text-black">
-		NetFlow File: {data.fileInfo.filename}
+<div class="mx-auto max-w-[90vw] px-4 py-6 sm:px-2 lg:px-4">
+	<div class="mb-4 flex items-center justify-between">
+		<h1 class="text-xl font-semibold text-gray-900">
+			NetFlow File: {data.fileInfo.filename}
+		</h1>
 		<a
-			class="w-24 rounded bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700"
+			class="bg-cisco-blue hover:bg-cisco-blue/90 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors"
 			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
 		>
 			Next File
 		</a>
-	</h1>
+	</div>
 
-	<div class="mb-2 rounded-lg border bg-blue-100 p-4">
-		<h2 class="mb-2 text-lg font-semibold">File Information</h2>
-		<div class="grid grid-cols-3 gap-2">
+	<div class="mb-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+		<h2 class="mb-2 text-sm font-semibold text-gray-900">File Information</h2>
+		<div class="grid grid-cols-3 gap-2 text-sm text-gray-600">
 			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
 			<div>
@@ -478,196 +480,177 @@
 	</div>
 
 	{#if summaryError}
-		<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-			<p>Failed to load file summary: {summaryError}</p>
+		<div class="rounded-lg border border-red-200 bg-red-50 p-4">
+			<p class="text-sm text-red-700">Failed to load file summary: {summaryError}</p>
 			<button
-				class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+				class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 				onclick={reloadSummary}
 			>
 				Retry Summary
 			</button>
 		</div>
 	{:else if summaryLoading}
-		<div class="space-y-2">
+		<div class="space-y-3">
 			{#each summarySkeletons as skeletonId (skeletonId)}
-				<div class="animate-pulse rounded-lg border bg-white shadow-sm">
+				<div class="animate-pulse rounded-lg border border-gray-200 bg-white shadow-sm">
 					<div class="bg-cisco-blue rounded-t-lg p-4">
-						<div class="mb-2 h-7 w-56 rounded bg-white/70"></div>
-						<div class="mb-4 h-5 w-[34rem] max-w-full rounded bg-white/60"></div>
+						<div class="mb-2 h-6 w-48 rounded bg-white/30"></div>
+						<div class="mb-4 h-4 w-[28rem] max-w-full rounded bg-white/20"></div>
 						<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
 							<div>
-								<div class="mb-2 h-5 w-40 rounded bg-white/60"></div>
-								<div class="mb-1 h-4 w-20 rounded bg-white/60"></div>
-								<div class="h-4 w-20 rounded bg-white/60"></div>
+								<div class="mb-2 h-4 w-36 rounded bg-white/20"></div>
+								<div class="mb-1 h-3.5 w-20 rounded bg-white/15"></div>
+								<div class="h-3.5 w-20 rounded bg-white/15"></div>
 							</div>
 							<div>
-								<div class="mb-2 h-5 w-44 rounded bg-white/60"></div>
-								<div class="mb-1 h-4 w-20 rounded bg-white/60"></div>
-								<div class="h-4 w-20 rounded bg-white/60"></div>
+								<div class="mb-2 h-4 w-40 rounded bg-white/20"></div>
+								<div class="mb-1 h-3.5 w-20 rounded bg-white/15"></div>
+								<div class="h-3.5 w-20 rounded bg-white/15"></div>
 							</div>
 						</div>
 						<div class="mt-4 grid grid-cols-4 gap-4 text-sm">
 							{#each [0, 1, 2, 3] as columnIndex (`summary-column-${skeletonId}-${columnIndex}`)}
 								<div>
-									<div class="mb-2 h-5 w-28 rounded bg-white/60"></div>
-									<div class="mb-1 h-4 w-24 rounded bg-white/60"></div>
-									<div class="mb-1 h-4 w-20 rounded bg-white/60"></div>
-									<div class="mb-1 h-4 w-24 rounded bg-white/60"></div>
-									<div class="h-4 w-20 rounded bg-white/60"></div>
+									<div class="mb-2 h-4 w-24 rounded bg-white/20"></div>
+									<div class="mb-1 h-3.5 w-20 rounded bg-white/15"></div>
+									<div class="mb-1 h-3.5 w-16 rounded bg-white/15"></div>
+									<div class="mb-1 h-3.5 w-20 rounded bg-white/15"></div>
+									<div class="h-3.5 w-16 rounded bg-white/15"></div>
 								</div>
 							{/each}
 						</div>
 					</div>
 					<div class="space-y-4 p-4">
-						<div class="h-6 w-36 rounded bg-gray-200"></div>
+						<div class="h-5 w-32 rounded bg-gray-200"></div>
 						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<div class="space-y-3">
-								<div class="h-5 w-44 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
-							</div>
-							<div class="space-y-3">
-								<div class="h-5 w-52 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
-							</div>
-						</div>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<div class="space-y-3">
-								<div class="h-5 w-44 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
-							</div>
-							<div class="space-y-3">
-								<div class="h-5 w-52 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
-							</div>
-						</div>
-						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<div class="space-y-3">
-								<div class="h-5 w-48 rounded bg-gray-200"></div>
-								<div class="h-56 rounded bg-gray-100"></div>
-							</div>
-							<div class="space-y-3">
-								<div class="h-5 w-56 rounded bg-gray-200"></div>
-								<div class="h-56 rounded bg-gray-100"></div>
-							</div>
+							<div class="h-72 rounded-md bg-gray-100"></div>
+							<div class="h-72 rounded-md bg-gray-100"></div>
 						</div>
 					</div>
 				</div>
 			{/each}
 		</div>
 	{:else if summaryRecords.length === 0}
-		<div class="rounded-lg border bg-white p-4 text-gray-600 shadow-sm">
-			No database summary is available for this file.
+		<div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+			<p class="text-sm text-gray-500">No database summary is available for this file.</p>
 		</div>
 	{:else}
-		<div class="space-y-2">
+		<div class="space-y-3">
 			{#each summaryRecords as record (record.router)}
-				<div class="rounded-lg border bg-white shadow-sm">
-					<!-- Router Data Summary -->
-					<div class="bg-cisco-blue rounded-t-lg p-4">
-						<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
-						<h3 class="text-md mb-2 font-semibold">
-							Absolute Path: <br />
+				<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
+					<div class="bg-cisco-blue rounded-t-lg p-4 text-white">
+						<h3 class="mb-1 text-base font-semibold">Router: {record.router}</h3>
+						<p class="mb-3 text-sm break-all text-white/80">
 							{record.file_path}
-						</h3>
-						<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+						</p>
+						<div class="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
 							<div>
-								<h3 class="text-md font-semibold">Unique IP Count (Source)</h3>
-								<div>
+								<h4 class="font-medium text-white/90">Unique IP Count (Source)</h4>
+								<p class="text-white/80">
 									IPv4: {IPCountsSource.get(record.router)?.ipv4Count == null
 										? '...'
 										: formatCount(IPCountsSource.get(record.router)?.ipv4Count)}
-								</div>
-								<div>
+								</p>
+								<p class="text-white/80">
 									IPv6: {IPCountsSource.get(record.router)?.ipv6Count == null
 										? '...'
 										: formatCount(IPCountsSource.get(record.router)?.ipv6Count)}
-								</div>
+								</p>
 							</div>
 							<div>
-								<h3 class="text-md font-semibold">Unique IP Count (Destination)</h3>
-								<div>
+								<h4 class="font-medium text-white/90">Unique IP Count (Destination)</h4>
+								<p class="text-white/80">
 									IPv4: {IPCountsDestination.get(record.router)?.ipv4Count == null
 										? '...'
 										: formatCount(IPCountsDestination.get(record.router)?.ipv4Count)}
-								</div>
-								<div>
+								</p>
+								<p class="text-white/80">
 									IPv6: {IPCountsDestination.get(record.router)?.ipv6Count == null
 										? '...'
 										: formatCount(IPCountsDestination.get(record.router)?.ipv6Count)}
-								</div>
+								</p>
 							</div>
 						</div>
-						<div class="grid grid-cols-4 gap-4 text-sm">
+						<div class="mt-3 grid grid-cols-4 gap-4 text-sm">
 							<div>
-								<h4 class="font-medium">Flows</h4>
-								<p>Total: {record.flows.toLocaleString()}</p>
-								<p>TCP: {record.flows_tcp.toLocaleString()}</p>
-								<p>UDP: {record.flows_udp.toLocaleString()}</p>
-								<p>ICMP: {record.flows_icmp.toLocaleString()}</p>
-								<p>Other: {record.flows_other.toLocaleString()}</p>
+								<h4 class="font-medium text-white/90">Flows</h4>
+								<p class="text-white/80">Total: {record.flows.toLocaleString()}</p>
+								<p class="text-white/80">TCP: {record.flows_tcp.toLocaleString()}</p>
+								<p class="text-white/80">UDP: {record.flows_udp.toLocaleString()}</p>
+								<p class="text-white/80">ICMP: {record.flows_icmp.toLocaleString()}</p>
+								<p class="text-white/80">Other: {record.flows_other.toLocaleString()}</p>
 							</div>
 							<div>
-								<h4 class="font-medium">Packets</h4>
-								<p>Total: {record.packets.toLocaleString()}</p>
-								<p>TCP: {record.packets_tcp.toLocaleString()}</p>
-								<p>UDP: {record.packets_udp.toLocaleString()}</p>
-								<p>ICMP: {record.packets_icmp.toLocaleString()}</p>
-								<p>Other: {record.packets_other.toLocaleString()}</p>
+								<h4 class="font-medium text-white/90">Packets</h4>
+								<p class="text-white/80">Total: {record.packets.toLocaleString()}</p>
+								<p class="text-white/80">TCP: {record.packets_tcp.toLocaleString()}</p>
+								<p class="text-white/80">UDP: {record.packets_udp.toLocaleString()}</p>
+								<p class="text-white/80">ICMP: {record.packets_icmp.toLocaleString()}</p>
+								<p class="text-white/80">Other: {record.packets_other.toLocaleString()}</p>
 							</div>
 							<div>
-								<h4 class="font-medium">Bytes</h4>
-								<p>Total: {record.bytes.toLocaleString()}</p>
-								<p>TCP: {record.bytes_tcp.toLocaleString()}</p>
-								<p>UDP: {record.bytes_udp.toLocaleString()}</p>
-								<p>ICMP: {record.bytes_icmp.toLocaleString()}</p>
-								<p>Other: {record.bytes_other.toLocaleString()}</p>
+								<h4 class="font-medium text-white/90">Bytes</h4>
+								<p class="text-white/80">Total: {record.bytes.toLocaleString()}</p>
+								<p class="text-white/80">TCP: {record.bytes_tcp.toLocaleString()}</p>
+								<p class="text-white/80">UDP: {record.bytes_udp.toLocaleString()}</p>
+								<p class="text-white/80">ICMP: {record.bytes_icmp.toLocaleString()}</p>
+								<p class="text-white/80">Other: {record.bytes_other.toLocaleString()}</p>
 							</div>
 							<div>
-								<h4 class="font-medium">Timestamps & Metrics</h4>
-								<p>First: {formatTimestampAsPST(record.first_timestamp * 1000)}</p>
-								<p>Last: {formatTimestampAsPST(record.last_timestamp * 1000)}</p>
-								<p>First ms: {record.msec_first}</p>
-								<p>Last ms: {record.msec_last}</p>
-								<p>Seq failures: {record.sequence_failures.toLocaleString()}</p>
+								<h4 class="font-medium text-white/90">Timestamps & Metrics</h4>
+								<p class="text-white/80">
+									First: {formatTimestampAsPST(record.first_timestamp * 1000)}
+								</p>
+								<p class="text-white/80">
+									Last: {formatTimestampAsPST(record.last_timestamp * 1000)}
+								</p>
+								<p class="text-white/80">First ms: {record.msec_first}</p>
+								<p class="text-white/80">Last ms: {record.msec_last}</p>
+								<p class="text-white/80">
+									Seq failures: {record.sequence_failures.toLocaleString()}
+								</p>
 							</div>
 						</div>
 					</div>
 
-					<!-- Analysis for this Router -->
 					<div class="rounded-b-lg p-4">
 						{#if record.file_exists_on_disk === false}
-							<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
-								The original NetFlow file is missing on disk for this router. DB-backed stats can
-								still be shown, but on-demand MAAD analysis cannot run.
+							<div class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+								<p class="text-sm text-amber-800">
+									The original NetFlow file is missing on disk for this router. DB-backed stats can
+									still be shown, but on-demand MAAD analysis cannot run.
+								</p>
 							</div>
 						{/if}
-						<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
+						<h4 class="mb-4 text-sm font-semibold text-gray-900">MAAD Analysis</h4>
 						<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">
+							<h5
+								class="text-cisco-blue hidden border-b border-gray-200 pb-2 text-sm font-semibold lg:block"
+							>
 								Source
 							</h5>
-							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">
+							<h5
+								class="text-cisco-blue hidden border-b border-gray-200 pb-2 text-sm font-semibold lg:block"
+							>
 								Destination
 							</h5>
 						</div>
 						<div class="space-y-6">
 							<div class="space-y-3">
-								<h6 class="text-md font-medium text-gray-700">Structure</h6>
+								<h6 class="text-sm font-medium text-gray-700">Structure</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingStructureSource.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading source structure...</div>
+												<p class="text-sm text-gray-400">Loading source structure...</p>
 											</div>
 										{:else if errorsSource.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-												<p>Error loading source structure: {errorsSource.get(record.router)}</p>
+											<div class="rounded-md border border-red-200 bg-red-50 p-4">
+												<p class="text-sm text-red-700">
+													Error loading source structure: {errorsSource.get(record.router)}
+												</p>
 												<button
-													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 													onclick={() => reloadStructure(record.router, true)}
 												>
 													Retry Source
@@ -678,25 +661,25 @@
 												data={structureFunctionDataSource.get(record.router)!}
 											/>
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
-												No source structure available.
+											<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-500">No source structure available.</p>
 											</div>
 										{/if}
 									</div>
 									<div>
 										{#if loadingStructureDestination.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading destination structure...</div>
+												<p class="text-sm text-gray-400">Loading destination structure...</p>
 											</div>
 										{:else if errorsDestination.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-												<p>
+											<div class="rounded-md border border-red-200 bg-red-50 p-4">
+												<p class="text-sm text-red-700">
 													Error loading destination structure: {errorsDestination.get(
 														record.router
 													)}
 												</p>
 												<button
-													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 													onclick={() => reloadStructure(record.router, false)}
 												>
 													Retry Destination
@@ -707,28 +690,28 @@
 												data={structureFunctionDataDestination.get(record.router)!}
 											/>
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
-												No destination structure available.
+											<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-500">No destination structure available.</p>
 											</div>
 										{/if}
 									</div>
 								</div>
 							</div>
 							<div class="space-y-3">
-								<h6 class="text-md font-medium text-gray-700">Spectrum</h6>
+								<h6 class="text-sm font-medium text-gray-700">Spectrum</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingSpectrumSource.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading source spectrum...</div>
+												<p class="text-sm text-gray-400">Loading source spectrum...</p>
 											</div>
 										{:else if errorsSpectrumSource.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-												<p>
+											<div class="rounded-md border border-red-200 bg-red-50 p-4">
+												<p class="text-sm text-red-700">
 													Error loading source spectrum: {errorsSpectrumSource.get(record.router)}
 												</p>
 												<button
-													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 													onclick={() => reloadSpectrum(record.router, true)}
 												>
 													Retry Source
@@ -737,25 +720,25 @@
 										{:else if spectrumDataSource.get(record.router)}
 											<SpectrumChart data={spectrumDataSource.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
-												No source spectrum available.
+											<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-500">No source spectrum available.</p>
 											</div>
 										{/if}
 									</div>
 									<div>
 										{#if loadingSpectrumDestination.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading destination spectrum...</div>
+												<p class="text-sm text-gray-400">Loading destination spectrum...</p>
 											</div>
 										{:else if errorsSpectrumDestination.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
-												<p>
+											<div class="rounded-md border border-red-200 bg-red-50 p-4">
+												<p class="text-sm text-red-700">
 													Error loading destination spectrum: {errorsSpectrumDestination.get(
 														record.router
 													)}
 												</p>
 												<button
-													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 													onclick={() => reloadSpectrum(record.router, false)}
 												>
 													Retry Destination
@@ -764,30 +747,30 @@
 										{:else if spectrumDataDestination.get(record.router)}
 											<SpectrumChart data={spectrumDataDestination.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
-												No destination spectrum available.
+											<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-500">No destination spectrum available.</p>
 											</div>
 										{/if}
 									</div>
 								</div>
 							</div>
 							<div class="space-y-3">
-								<h6 class="text-md font-medium text-gray-700">Singularities</h6>
+								<h6 class="text-sm font-medium text-gray-700">Singularities</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingSingularitiesSource.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading source singularities...</div>
+												<p class="text-sm text-gray-400">Loading source singularities...</p>
 											</div>
 										{:else if errorsSingularitiesSource.get(record.router)}
-											<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-												<p class="text-red-700">
+											<div class="rounded-md border border-red-200 bg-red-50 p-4">
+												<p class="text-sm text-red-700">
 													Error loading source singularities: {errorsSingularitiesSource.get(
 														record.router
 													)}
 												</p>
 												<button
-													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 													onclick={() => reloadSingularities(record.router, true)}
 												>
 													Retry Source
@@ -796,25 +779,25 @@
 										{:else if singularitiesDataSource.get(record.router)}
 											<SingularitiesList data={singularitiesDataSource.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
-												No source singularities available.
+											<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-500">No source singularities available.</p>
 											</div>
 										{/if}
 									</div>
 									<div>
 										{#if loadingSingularitiesDestination.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading destination singularities...</div>
+												<p class="text-sm text-gray-400">Loading destination singularities...</p>
 											</div>
 										{:else if errorsSingularitiesDestination.get(record.router)}
-											<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-												<p class="text-red-700">
+											<div class="rounded-md border border-red-200 bg-red-50 p-4">
+												<p class="text-sm text-red-700">
 													Error loading destination singularities: {errorsSingularitiesDestination.get(
 														record.router
 													)}
 												</p>
 												<button
-													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+													class="mt-2 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
 													onclick={() => reloadSingularities(record.router, false)}
 												>
 													Retry Destination
@@ -823,8 +806,8 @@
 										{:else if singularitiesDataDestination.get(record.router)}
 											<SingularitiesList data={singularitiesDataDestination.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
-												No destination singularities available.
+											<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-500">No destination singularities available.</p>
 											</div>
 										{/if}
 									</div>

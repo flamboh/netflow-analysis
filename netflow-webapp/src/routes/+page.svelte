@@ -38,7 +38,7 @@
 
 <main class="mx-auto flex max-w-[90vw] flex-col gap-4 px-4 py-8 sm:px-2 lg:px-4">
 	{#if loading}
-		<section class="rounded-lg border bg-white p-6 text-gray-500 shadow-sm">
+		<section class="rounded-lg border border-gray-200 bg-white p-6 text-gray-500 shadow-sm">
 			Loading datasets...
 		</section>
 	{:else if error}
@@ -46,7 +46,7 @@
 			{error}
 		</section>
 	{:else if datasets.length === 0}
-		<section class="rounded-lg border bg-white p-6 text-gray-500 shadow-sm">
+		<section class="rounded-lg border border-gray-200 bg-white p-6 text-gray-500 shadow-sm">
 			No datasets are configured.
 		</section>
 	{:else}
@@ -54,12 +54,12 @@
 			{#each datasets as dataset (dataset.datasetId)}
 				<button
 					type="button"
-					class="cursor-pointer rounded-lg border bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow"
+					class="hover:border-cisco-blue/40 cursor-pointer rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-all hover:shadow-md"
 					onclick={() => openDataset(dataset.datasetId)}
 				>
-					<h1 class="text-xl font-semibold text-gray-900">{dataset.label}</h1>
-					<p class="mt-3 text-sm text-gray-600">
-						<span class="font-mono text-gray-500">{dataset.datasetId}</span>
+					<h2 class="text-lg font-semibold text-gray-900">{dataset.label}</h2>
+					<p class="mt-2 text-sm text-gray-500">
+						<span class="font-mono text-gray-400">{dataset.datasetId}</span>
 						·
 						{dataset.sourceCount} source{dataset.sourceCount === 1 ? '' : 's'}
 						·

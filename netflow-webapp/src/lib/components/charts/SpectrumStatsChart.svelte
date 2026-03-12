@@ -921,13 +921,13 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
+<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
+		class="relative cursor-grab border-b border-gray-200 p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
-		<h3 class="text-lg font-semibold text-gray-900">Spectrum</h3>
+		<h3 class="text-sm font-semibold text-gray-900">Spectrum</h3>
 		<DragGrip />
 	</div>
 	<div class="p-4">
@@ -946,7 +946,7 @@
 								name="spectrum-router-local"
 								checked={props.router === routerName}
 								onchange={() => handleRouterChange(routerName)}
-								class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+								class="text-cisco-blue focus:ring-cisco-blue/40 h-4 w-4 border-gray-300"
 							/>
 							<span class="text-sm text-gray-700">{routerName}</span>
 						</label>
@@ -960,7 +960,7 @@
 						name="spectrum-address-type-local"
 						checked={addressType === 'sa'}
 						onchange={() => handleAddressTypeChange('sa')}
-						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+						class="text-cisco-blue focus:ring-cisco-blue/40 h-4 w-4 border-gray-300"
 					/>
 					<span class="text-sm text-gray-700">Source IPv4</span>
 				</label>
@@ -970,7 +970,7 @@
 						name="spectrum-address-type-local"
 						checked={addressType === 'da'}
 						onchange={() => handleAddressTypeChange('da')}
-						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+						class="text-cisco-blue focus:ring-cisco-blue/40 h-4 w-4 border-gray-300"
 					/>
 					<span class="text-sm text-gray-700">Destination IPv4</span>
 				</label>
@@ -978,7 +978,7 @@
 		</div>
 
 		<div
-			class="relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-gray-50/50"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -987,33 +987,33 @@
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading spectrum data...</div>
+					<p class="text-sm text-gray-400">Loading spectrum data...</p>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
+					<p class="text-sm text-red-600">{error}</p>
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No spectrum data for the selected window.</div>
+					<p class="text-sm text-gray-400">No spectrum data for the selected window.</p>
 				</div>
 			{:else}
 				<div class="h-full">
-						<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
-						{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
-							<div
-								class="pointer-events-none absolute z-20"
-								style={getCrosshairLineStyle(activeCrosshairX)}
-							></div>
-						{/if}
-						{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
-							<div
-								class="pointer-events-none absolute z-20 whitespace-nowrap rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs text-white shadow-sm"
-								style={getCrosshairTooltipStyle(localHoverX)}
-							>
-								{localHoverLabel}
-							</div>
-						{/if}
+					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
+					{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
+						<div
+							class="pointer-events-none absolute z-20"
+							style={getCrosshairLineStyle(activeCrosshairX)}
+						></div>
+					{/if}
+					{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
+						<div
+							class="pointer-events-none absolute z-20 rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white shadow-sm"
+							style={getCrosshairTooltipStyle(localHoverX)}
+						>
+							{localHoverLabel}
+						</div>
+					{/if}
 					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 						<div
 							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"

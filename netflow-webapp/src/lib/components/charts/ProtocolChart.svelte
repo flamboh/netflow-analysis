@@ -663,13 +663,13 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
+<div class="rounded-lg border border-gray-200 bg-white shadow-sm">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
+		class="relative cursor-grab border-b border-gray-200 p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
-		<h3 class="text-lg font-semibold text-gray-900">Unique Protocol Counts</h3>
+		<h3 class="text-sm font-semibold text-gray-900">Unique Protocol Counts</h3>
 		<DragGrip />
 	</div>
 	<div class="p-4">
@@ -680,7 +680,7 @@
 						type="checkbox"
 						checked={activeMetrics.includes(key)}
 						onchange={() => handleMetricToggle(key)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						class="text-cisco-blue focus:ring-cisco-blue/40 h-4 w-4 rounded border-gray-300"
 					/>
 					<span class="text-sm text-gray-700">
 						{key === 'uniqueProtocolsIpv4' ? 'Unique Protocols IPv4' : 'Unique Protocols IPv6'}
@@ -690,7 +690,7 @@
 		</div>
 
 		<div
-			class="relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-gray-50/50"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -699,19 +699,19 @@
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading protocol data...</div>
+					<p class="text-sm text-gray-400">Loading protocol data...</p>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
+					<p class="text-sm text-red-600">{error}</p>
 				</div>
 			{:else if activeMetrics.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Select at least one metric to display.</div>
+					<p class="text-sm text-gray-400">Select at least one metric to display.</p>
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No protocol data for the selected window.</div>
+					<p class="text-sm text-gray-400">No protocol data for the selected window.</p>
 				</div>
 			{:else}
 				<div class="h-full">

@@ -58,14 +58,14 @@
 	}
 </script>
 
-<div class="space-y-4 rounded-lg border bg-white p-4 shadow-sm">
+<div class="space-y-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
 	<div class="flex items-center justify-between">
-		<h2 class="text-lg font-semibold text-gray-900">Global Controls</h2>
-		<div class="flex items-center gap-4">
-			<label class="text-sm text-gray-600">
+		<h2 class="text-sm font-semibold text-gray-900">Global Controls</h2>
+		<div class="flex items-center gap-3">
+			<label class="text-sm text-gray-500">
 				Granularity
 				<select
-					class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					class="focus:border-cisco-blue focus:ring-cisco-blue/30 ml-2 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 transition-colors focus:ring-1 focus:outline-none"
 					value={props.groupBy}
 					onchange={handleGroupBySelect}
 					aria-label="Select aggregation granularity"
@@ -79,19 +79,17 @@
 			<button
 				type="button"
 				onclick={handleResetView}
-				class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+				class="bg-cisco-blue hover:bg-cisco-blue/90 focus:ring-cisco-blue/40 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors focus:ring-2 focus:outline-none"
 			>
 				Reset View
 			</button>
 		</div>
 	</div>
 
-	<div class="text-sm text-gray-600">
-		<span class="font-medium">Navigation:</span>
-		<span class="ml-1"
-			>Click chart to drill down. Drag across chart to drill into a date range.</span
-		>
-	</div>
+	<p class="text-sm text-gray-500">
+		<span class="font-medium text-gray-600">Navigation:</span>
+		Click chart to drill down. Drag across chart to drill into a date range.
+	</p>
 
 	<DateRangeFilter
 		startDate={props.startDate}

@@ -50,54 +50,54 @@
 </script>
 
 <div class="metric-selector">
-	<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-		<div class="flex flex-wrap items-center gap-2">
-			<span class="text-sm font-medium text-gray-700">Quick Select:</span>
+	<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+		<div class="flex flex-wrap items-center gap-1.5">
+			<span class="mr-1 text-sm font-medium text-gray-600">Quick Select:</span>
 			<button
 				type="button"
 				onclick={() => handleQuickSelect('flows')}
-				class="rounded-md bg-green-100 px-3 py-1 text-xs text-green-800 hover:bg-green-200 focus:ring-2 focus:ring-green-500 focus:outline-none"
+				class="focus:ring-cisco-blue/30 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 focus:ring-1 focus:outline-none"
 			>
-				All Flows
+				Flows
 			</button>
 			<button
 				type="button"
 				onclick={() => handleQuickSelect('packets')}
-				class="rounded-md bg-blue-100 px-3 py-1 text-xs text-blue-800 hover:bg-blue-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+				class="focus:ring-cisco-blue/30 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 focus:ring-1 focus:outline-none"
 			>
-				All Packets
+				Packets
 			</button>
 			<button
 				type="button"
 				onclick={() => handleQuickSelect('bytes')}
-				class="rounded-md bg-purple-100 px-3 py-1 text-xs text-purple-800 hover:bg-purple-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+				class="focus:ring-cisco-blue/30 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 focus:ring-1 focus:outline-none"
 			>
-				All Bytes
+				Bytes
 			</button>
 			<button
 				type="button"
 				onclick={handleSelectAll}
-				class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:outline-none"
+				class="focus:ring-cisco-blue/30 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 focus:ring-1 focus:outline-none"
 			>
-				Select All
+				All
 			</button>
 			<button
 				type="button"
 				onclick={handleSelectNone}
-				class="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-800 hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 focus:outline-none"
+				class="focus:ring-cisco-blue/30 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 focus:ring-1 focus:outline-none"
 			>
-				Select None
+				None
 			</button>
 		</div>
 
 		{#if chartType}
 			<div class="flex items-center">
-				<label class="text-sm text-gray-600">
+				<label class="text-sm text-gray-500">
 					Chart type
 					<select
 						value={chartType}
 						onchange={handleChartTypeChange}
-						class="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						class="focus:border-cisco-blue focus:ring-cisco-blue/30 ml-2 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 transition-colors focus:ring-1 focus:outline-none"
 						aria-label="Select NetFlow chart type"
 					>
 						<option value="stacked">Stacked Area</option>
@@ -108,14 +108,16 @@
 		{/if}
 	</div>
 
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+	<div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-5">
 		{#each dataOptions as option, index (index)}
-			<label class="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50">
+			<label
+				class="flex cursor-pointer items-center gap-2 rounded-md p-2 transition-colors hover:bg-gray-50"
+			>
 				<input
 					type="checkbox"
 					checked={option.checked}
 					onchange={() => handleMetricToggle(index)}
-					class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+					class="text-cisco-blue focus:ring-cisco-blue/40 h-4 w-4 rounded border-gray-300"
 				/>
 				<span class="text-sm text-gray-700 select-none">{option.label}</span>
 			</label>
