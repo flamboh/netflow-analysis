@@ -6,7 +6,7 @@ export interface TimeRange {
 interface CacheEntry<T> {
 	records: T[];
 	segments: TimeRange[];
-	inflight: Map<string, Promise<void>>;
+	inflight: Map<string, Promise<T[]>>;
 }
 
 const cache = new Map<string, CacheEntry<unknown>>();
@@ -122,33 +122,34 @@ export async function ensureCachedWindow<T>(options: {
 	const entry = getEntry<T>(options.key);
 	const missingRanges = getMissingWindowRanges(options.key, options.requestedRange);
 
-	await Promise.all(
+	const fetchedRanges = await Promise.all(
 		missingRanges.map(async (range) => {
 			const key = rangeKey(range);
 			const inflight = entry.inflight.get(key);
 			if (inflight) {
-				await inflight;
-				return;
+				return await inflight;
 			}
 
-			const request = (async () => {
-				const incoming = await options.fetchRange(range);
-				const merged = new Map(
-					entry.records.map((record) => [options.getRecordKey(record), record])
-				);
-				incoming.forEach((record) => {
-					merged.set(options.getRecordKey(record), record);
-				});
-				entry.records = [...merged.values()].sort(options.compareRecords);
-				entry.segments = mergeSegments([...entry.segments, range]);
-			})();
+			const request = options.fetchRange(range);
 
 			entry.inflight.set(key, request);
 			try {
-				await request;
+				return await request;
 			} finally {
 				entry.inflight.delete(key);
 			}
 		})
 	);
+
+	if (fetchedRanges.length === 0) {
+		return;
+	}
+
+	const merged = new Map(entry.records.map((record) => [options.getRecordKey(record), record]));
+	fetchedRanges.flat().forEach((record) => {
+		merged.set(options.getRecordKey(record), record);
+	});
+
+	entry.records = [...merged.values()].sort(options.compareRecords);
+	entry.segments = mergeSegments([...entry.segments, ...missingRanges]);
 }
