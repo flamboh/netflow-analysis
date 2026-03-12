@@ -19,12 +19,14 @@
 </script>
 
 <div class="router-filter flex flex-wrap items-center gap-4">
-	<span class="text-sm font-medium text-gray-700">Routers:</span>
+	<span class="text-text-secondary text-sm font-medium">Routers:</span>
 
 	<div class="flex min-h-6 flex-wrap items-center gap-4">
 		{#if routerNames.length === 0}
 			{#each Array(4) as _, index (index)}
-				<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" aria-hidden="true"
+				<span
+					class="bg-surface-hover inline-block h-4 w-24 animate-pulse rounded"
+					aria-hidden="true"
 				></span>
 			{/each}
 		{:else}
@@ -34,9 +36,9 @@
 						type="checkbox"
 						checked={routers[routerName]}
 						onchange={() => handleRouterToggle(routerName)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						class="border-border-strong text-cisco-blue focus:ring-cisco-blue h-4 w-4 rounded"
 					/>
-					<span class="text-sm text-gray-700">{routerName}</span>
+					<span class="text-text-primary text-sm">{routerName}</span>
 				</label>
 			{/each}
 		{/if}

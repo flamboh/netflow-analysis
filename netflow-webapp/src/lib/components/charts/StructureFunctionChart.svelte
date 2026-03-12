@@ -169,14 +169,16 @@
 </script>
 
 <div class="w-full">
-	<div class="mb-2 text-sm text-gray-600">
+	<div class="text-text-secondary mb-2 text-sm">
 		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
-			<p class="text-xs font-medium text-green-600">
+			<p class="text-xs font-medium text-emerald-600 dark:text-emerald-400">
 				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
 				analyzed
 			</p>
 		{:else if data.metadata.uniqueIPCount !== -1}
-			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
+			<p class="text-xs text-amber-600 dark:text-amber-400">
+				⚠ Using test data from MAAD sample set
+			</p>
 		{/if}
 	</div>
 	<div class="relative h-96 w-full">

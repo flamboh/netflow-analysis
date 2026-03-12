@@ -311,7 +311,7 @@
 </svelte:head>
 
 <main class="mx-auto flex max-w-[90vw] flex-col gap-2 px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="px-1 text-2xl font-semibold text-gray-900">{props.title ?? props.dataset}</h1>
+	<h1 class="text-text-primary px-1 text-2xl font-semibold">{props.title ?? props.dataset}</h1>
 
 	<PrimaryFilters
 		{startDate}
@@ -330,7 +330,7 @@
 			<section
 				role="listitem"
 				data-chart-card
-				class={`rounded-lg ${dropTargetChartId === chartId && draggedChartId && draggedChartId !== chartId ? 'ring-2 ring-blue-400 ring-offset-2' : ''}`}
+				class={`rounded-xl ${dropTargetChartId === chartId && draggedChartId && draggedChartId !== chartId ? 'ring-cisco-blue ring-2 ring-offset-2' : ''}`}
 				ondragstart={(event) => {
 					handleChartDragStart(event, chartId);
 				}}

@@ -19,13 +19,15 @@
 <div class="container mx-auto p-6">
 	<div class="mx-auto max-w-2xl text-center">
 		<div class="mb-6">
-			<h1 class="mb-2 text-4xl font-bold text-gray-900">{page.status}</h1>
-			<h2 class="mb-4 text-2xl font-semibold text-gray-700">{getErrorTitle(page.status)}</h2>
+			<h1 class="text-text-primary mb-2 text-4xl font-bold">{page.status}</h1>
+			<h2 class="text-text-secondary mb-4 text-2xl font-semibold">{getErrorTitle(page.status)}</h2>
 		</div>
 
 		{#if page.error?.message}
-			<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-6">
-				<div class="text-sm text-red-900">
+			<div
+				class="mb-6 rounded-xl border border-red-300 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950"
+			>
+				<div class="text-sm text-red-900 dark:text-red-400">
 					{page.error.message}
 				</div>
 			</div>
@@ -35,25 +37,25 @@
 			<div class="flex justify-center space-x-4">
 				<button
 					onclick={() => window.history.back()}
-					class="rounded bg-gray-600 px-4 py-2 text-white hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none"
+					class="bg-surface-hover text-text-primary hover:bg-border focus:ring-cisco-blue rounded-lg px-4 py-2 transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
 				>
 					Go Back
 				</button>
 				<a
 					href="/"
-					class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+					class="bg-cisco-blue hover:bg-cisco-blue-dark focus:ring-cisco-blue rounded-lg px-4 py-2 text-white transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
 				>
 					Home
 				</a>
 			</div>
 
 			{#if page.status === 404}
-				<div class="mt-4 text-sm text-gray-600">
+				<div class="text-text-secondary mt-4 text-sm">
 					<p>
 						{t('error.404.return_to_prefix')}
-						<a href="/" class="text-blue-600 hover:underline">{t('error.404.dataset_index')}</a>
+						<a href="/" class="text-cisco-blue hover:underline">{t('error.404.dataset_index')}</a>
 						{t('error.404.or_use_prefix')}
-						<a href="/netflow/files" class="text-blue-600 hover:underline">
+						<a href="/netflow/files" class="text-cisco-blue hover:underline">
 							{t('error.404.file_lookup')}
 						</a>
 						{t('error.404.timestamp_hint')}

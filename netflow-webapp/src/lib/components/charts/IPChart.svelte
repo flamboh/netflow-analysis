@@ -709,13 +709,13 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
+<div class="border-border bg-surface rounded-xl border shadow-sm">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
+		class="border-border relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
-		<h3 class="text-lg font-semibold text-gray-900">Unique IP Counts</h3>
+		<h3 class="text-text-primary text-lg font-semibold">Unique IP Counts</h3>
 		<DragGrip />
 	</div>
 	<div class="p-4">
@@ -726,15 +726,15 @@
 						type="checkbox"
 						checked={activeMetrics.includes(option.key)}
 						onchange={() => handleMetricToggle(option.key)}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						class="border-border-strong text-cisco-blue focus:ring-cisco-blue h-4 w-4 rounded"
 					/>
-					<span class="text-sm text-gray-700">{option.label}</span>
+					<span class="text-text-primary text-sm">{option.label}</span>
 				</label>
 			{/each}
 		</div>
 
 		<div
-			class="relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="border-border bg-surface-raised relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-lg border"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -743,32 +743,32 @@
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading IP data...</div>
+					<div class="text-text-muted">Loading IP data...</div>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-red-500">{error}</div>
+					<div class="text-red-500 dark:text-red-400">{error}</div>
 				</div>
 			{:else if activeMetrics.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Select at least one metric to display.</div>
+					<div class="text-text-muted">Select at least one metric to display.</div>
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No IP data for the selected window.</div>
+					<div class="text-text-muted">No IP data for the selected window.</div>
 				</div>
 			{:else}
 				<div class="h-full">
 					<canvas bind:this={chartCanvas} aria-label="IP chart"></canvas>
 					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 						<div
-							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+							class="border-cisco-blue/50 bg-cisco-blue/10 pointer-events-none absolute border"
 							style={`left:${selectionLeft}px; width:${selectionWidth}px; top:${rangeDrag.selectionTop}px; height:${rangeDrag.selectionHeight}px;`}
 						></div>
 					{/if}
 					{#if !rangeDrag.isDraggingRange && mirroredSelectionStyle !== null}
 						<div
-							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+							class="border-cisco-blue/50 bg-cisco-blue/10 pointer-events-none absolute border"
 							style={mirroredSelectionStyle}
 						></div>
 					{/if}

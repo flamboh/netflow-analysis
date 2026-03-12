@@ -719,13 +719,13 @@
 	<canvas bind:this={chartCanvas} class="h-full w-full"></canvas>
 	{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 		<div
-			class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+			class="border-cisco-blue/50 bg-cisco-blue/10 pointer-events-none absolute border"
 			style={`left:${selectionLeft}px; width:${selectionWidth}px; top:${rangeDrag.selectionTop}px; height:${rangeDrag.selectionHeight}px;`}
 		></div>
 	{/if}
 	{#if !rangeDrag.isDraggingRange && mirroredSelectionStyle !== null}
 		<div
-			class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"
+			class="border-cisco-blue/50 bg-cisco-blue/10 pointer-events-none absolute border"
 			style={mirroredSelectionStyle}
 		></div>
 	{/if}

@@ -21,24 +21,24 @@
 
 <div class="date-range-filter flex flex-wrap items-center gap-4">
 	<div class="flex items-center gap-2">
-		<label for="startDate" class="text-sm font-medium text-gray-700">Start Date:</label>
+		<label for="startDate" class="text-text-secondary text-sm font-medium">Start Date:</label>
 		<input
 			id="startDate"
 			type="date"
 			value={startDate}
 			onchange={handleStartDateChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+			class="border-border bg-surface text-text-primary focus:ring-cisco-blue rounded-lg border px-3 py-1 text-sm focus:ring-2 focus:outline-none"
 		/>
 	</div>
 
 	<div class="flex items-center gap-2">
-		<label for="endDate" class="text-sm font-medium text-gray-700">End Date:</label>
+		<label for="endDate" class="text-text-secondary text-sm font-medium">End Date:</label>
 		<input
 			id="endDate"
 			type="date"
 			value={endDate}
 			onchange={handleEndDateChange}
-			class="rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+			class="border-border bg-surface text-text-primary focus:ring-cisco-blue rounded-lg border px-3 py-1 text-sm focus:ring-2 focus:outline-none"
 		/>
 	</div>
 </div>

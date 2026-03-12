@@ -24,10 +24,8 @@
 	}
 
 	function navigateToFile() {
-		// Clear previous error
 		error = '';
 
-		// Validate timestamp format
 		if (!timestamp) {
 			error = 'Please enter a timestamp';
 			return;
@@ -43,7 +41,6 @@
 			return;
 		}
 
-		// Navigate to the file page
 		goto(`/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`);
 	}
 
@@ -66,17 +63,21 @@
 </script>
 
 <div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="mb-4 text-2xl text-black">NetFlow Files</h1>
+	<h1 class="text-text-primary mb-4 text-2xl font-semibold">NetFlow Files</h1>
 
-	<div class="mb-6 rounded-lg border bg-blue-50 p-4">
-		<h2 class="mb-3 text-lg font-semibold">Navigate to File by Timestamp</h2>
+	<div
+		class="border-cisco-blue/30 bg-cisco-blue/5 dark:border-cisco-blue/20 dark:bg-cisco-blue/10 mb-6 rounded-xl border p-4"
+	>
+		<h2 class="text-text-primary mb-3 text-lg font-semibold">Navigate to File by Timestamp</h2>
 		<div class="flex items-end space-x-3">
 			<div class="w-56">
-				<label for="dataset" class="mb-1 block text-sm font-medium text-gray-700">Dataset</label>
+				<label for="dataset" class="text-text-secondary mb-1 block text-sm font-medium"
+					>Dataset</label
+				>
 				<select
 					id="dataset"
 					bind:value={selectedDataset}
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					class="border-border bg-surface text-text-primary focus:border-cisco-blue focus:ring-cisco-blue w-full rounded-lg border px-3 py-2 focus:ring-1 focus:outline-none"
 				>
 					{#if !selectedDataset}
 						<option value="">Select a dataset</option>
@@ -87,7 +88,7 @@
 				</select>
 			</div>
 			<div class="flex-1">
-				<label for="timestamp" class="mb-1 block text-sm font-medium text-gray-700">
+				<label for="timestamp" class="text-text-secondary mb-1 block text-sm font-medium">
 					File Timestamp (YYYYMMDDHHmm)
 				</label>
 				<input
@@ -96,21 +97,21 @@
 					bind:value={timestamp}
 					onkeydown={handleKeydown}
 					placeholder="202601011200"
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					class="border-border bg-surface text-text-primary focus:border-cisco-blue focus:ring-cisco-blue w-full rounded-lg border px-3 py-2 focus:ring-1 focus:outline-none"
 					maxlength="12"
 				/>
 				{#if error}
-					<div class="mt-1 text-sm text-red-600">{error}</div>
+					<div class="mt-1 text-sm text-red-600 dark:text-red-400">{error}</div>
 				{/if}
 			</div>
 			<button
 				onclick={navigateToFile}
-				class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
+				class="bg-cisco-blue hover:bg-cisco-blue-dark focus:ring-cisco-blue rounded-lg px-4 py-2 font-medium text-white transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
 			>
 				Go to File
 			</button>
 		</div>
-		<p class="mt-2 text-sm text-gray-600">
+		<p class="text-text-muted mt-2 text-sm">
 			Choose a dataset, then enter the exact 12-digit timestamp from NetFlow filenames (e.g.,
 			`nfcapd.202501011200`).
 		</p>
