@@ -18,10 +18,10 @@
 	}
 </script>
 
-<div class="router-filter flex flex-wrap items-center gap-4">
+<div class="router-filter flex flex-wrap items-center gap-3">
 	<span class="text-sm font-medium text-gray-700">Routers:</span>
 
-	<div class="flex min-h-6 flex-wrap items-center gap-4">
+	<div class="flex min-h-0 flex-wrap items-center gap-3">
 		{#if routerNames.length === 0}
 			{#each Array(4) as _, index (index)}
 				<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" aria-hidden="true"
@@ -29,7 +29,7 @@
 			{/each}
 		{:else}
 			{#each routerNames as routerName (routerName)}
-				<label class="flex cursor-pointer items-center gap-2">
+				<label class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 hover:bg-gray-50">
 					<input
 						type="checkbox"
 						checked={routers[routerName]}
