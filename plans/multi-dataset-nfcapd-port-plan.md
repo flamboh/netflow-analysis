@@ -451,6 +451,10 @@ Initial source-of-truth location:
 
 - `/research/obo/raw_datasets`
 
+For the generalized dataset preparation performance work, see:
+
+- `plans/dataset-preparation-performance-plan.md`
+
 ### 8. Update the web routes
 
 Add dataset index and dataset-scoped dashboard/API routes.

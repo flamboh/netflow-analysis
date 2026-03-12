@@ -999,21 +999,21 @@
 				</div>
 			{:else}
 				<div class="h-full">
-						<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
-						{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
-							<div
-								class="pointer-events-none absolute z-20"
-								style={getCrosshairLineStyle(activeCrosshairX)}
-							></div>
-						{/if}
-						{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
-							<div
-								class="pointer-events-none absolute z-20 whitespace-nowrap rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs text-white shadow-sm"
-								style={getCrosshairTooltipStyle(localHoverX)}
-							>
-								{localHoverLabel}
-							</div>
-						{/if}
+					<canvas bind:this={chartCanvas} aria-label="Spectrum chart"></canvas>
+					{#if !rangeDrag.isDraggingRange && activeCrosshairX !== null}
+						<div
+							class="pointer-events-none absolute z-20"
+							style={getCrosshairLineStyle(activeCrosshairX)}
+						></div>
+					{/if}
+					{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
+						<div
+							class="pointer-events-none absolute z-20 rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white shadow-sm"
+							style={getCrosshairTooltipStyle(localHoverX)}
+						>
+							{localHoverLabel}
+						</div>
+					{/if}
 					{#if rangeDrag.isDraggingRange && selectionWidth >= MIN_DRAG_PIXELS}
 						<div
 							class="pointer-events-none absolute border border-gray-500/70 bg-gray-500/20"

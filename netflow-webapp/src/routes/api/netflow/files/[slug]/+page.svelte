@@ -11,7 +11,7 @@
 	import StructureFunctionChart from '$lib/components/charts/StructureFunctionChart.svelte';
 	import SpectrumChart from '$lib/components/charts/SpectrumChart.svelte';
 	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
 	import {
 		createDateFromPSTComponents,
@@ -23,6 +23,7 @@
 	let summaryRecords = $state<NetflowFileSummaryRecord[]>([]);
 	let summaryLoading = $state(false);
 	let summaryError = $state('');
+	let summarySkeletonVisible = $state(false);
 	let summarySkeletonCount = $state(2);
 	let structureFunctionDataSource = $state(new Map<string, StructureFunctionData>());
 	let structureFunctionDataDestination = $state(new Map<string, StructureFunctionData>());
@@ -72,8 +73,34 @@
 	const summarySkeletons = $derived(
 		Array.from({ length: summarySkeletonCount }, (_, index) => `summary-skeleton-${index}`)
 	);
+	const SUMMARY_SKELETON_DELAY_MS = 150;
+	let summaryLoadDelayId: ReturnType<typeof setTimeout> | null = null;
 	let currentSlug = $state(data.slug);
 	let loadToken = 0;
+
+	function clearSummaryLoadDelay() {
+		if (summaryLoadDelayId !== null) {
+			clearTimeout(summaryLoadDelayId);
+			summaryLoadDelayId = null;
+		}
+	}
+
+	function startSummaryLoading() {
+		clearSummaryLoadDelay();
+		summaryLoading = true;
+		summarySkeletonVisible = false;
+		summaryLoadDelayId = setTimeout(() => {
+			if (summaryLoading) {
+				summarySkeletonVisible = true;
+			}
+		}, SUMMARY_SKELETON_DELAY_MS);
+	}
+
+	function finishSummaryLoading() {
+		clearSummaryLoadDelay();
+		summaryLoading = false;
+		summarySkeletonVisible = false;
+	}
 
 	function resetDataStores() {
 		structureFunctionDataSource = new Map<string, StructureFunctionData>();
@@ -154,7 +181,7 @@
 		const token = ++loadToken;
 		summarySkeletonCount = Math.max(summaryRecords.length, summarySkeletonCount, 2);
 		summaryRecords = [];
-		summaryLoading = true;
+		startSummaryLoading();
 		summaryError = '';
 		resetDataStores();
 
@@ -183,7 +210,7 @@
 			summaryRecords = result.routers.map((routerDetails) => routerDetails.summary);
 			summarySkeletonCount = Math.max(result.routers.length, 2);
 			applyDbDetails(result);
-			summaryLoading = false;
+			finishSummaryLoading();
 
 			const tasks = result.routers.flatMap((routerDetails) => [
 				loadSingularitiesData(token, slug, routerDetails.summary.router, true),
@@ -195,7 +222,7 @@
 				return;
 			}
 
-			summaryLoading = false;
+			finishSummaryLoading();
 			summaryError = e instanceof Error ? e.message : 'Unknown error occurred';
 		}
 	}
@@ -210,6 +237,10 @@
 			currentSlug = data.slug;
 			void loadSummary(data.slug);
 		}
+	});
+
+	onDestroy(() => {
+		clearSummaryLoadDelay();
 	});
 
 	function reloadSummary() {
@@ -487,7 +518,7 @@
 				Retry Summary
 			</button>
 		</div>
-	{:else if summaryLoading}
+	{:else if summaryLoading && summarySkeletonVisible}
 		<div class="space-y-2">
 			{#each summarySkeletons as skeletonId (skeletonId)}
 				<div class="animate-pulse rounded-lg border bg-white shadow-sm">
@@ -557,6 +588,10 @@
 					</div>
 				</div>
 			{/each}
+		</div>
+	{:else if summaryLoading}
+		<div class="rounded-lg border bg-white p-4 text-gray-600 shadow-sm">
+			Loading file summary...
 		</div>
 	{:else if summaryRecords.length === 0}
 		<div class="rounded-lg border bg-white p-4 text-gray-600 shadow-sm">

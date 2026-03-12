@@ -70,8 +70,8 @@
 
 	<div class="mb-6 rounded-lg border bg-blue-50 p-4">
 		<h2 class="mb-3 text-lg font-semibold">Navigate to File by Timestamp</h2>
-		<div class="flex items-end space-x-3">
-			<div class="w-56">
+		<div class="grid gap-3 lg:grid-cols-[14rem_minmax(0,1fr)_auto]">
+			<div>
 				<label for="dataset" class="mb-1 block text-sm font-medium text-gray-700">Dataset</label>
 				<select
 					id="dataset"
@@ -86,7 +86,7 @@
 					{/each}
 				</select>
 			</div>
-			<div class="flex-1">
+			<div class="min-w-0">
 				<label for="timestamp" class="mb-1 block text-sm font-medium text-gray-700">
 					File Timestamp (YYYYMMDDHHmm)
 				</label>
@@ -99,20 +99,25 @@
 					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
 					maxlength="12"
 				/>
-				{#if error}
-					<div class="mt-1 text-sm text-red-600">{error}</div>
-				{/if}
+				<div
+					class={`mt-1 min-h-6 text-sm ${error ? 'text-red-600' : 'text-transparent'}`}
+					aria-live="polite"
+				>
+					{error || ' '}
+				</div>
 			</div>
-			<button
-				onclick={navigateToFile}
-				class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
-			>
-				Go to File
-			</button>
+			<div class="flex items-start lg:pt-6">
+				<button
+					onclick={navigateToFile}
+					class="w-full rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none lg:w-auto"
+				>
+					Go to File
+				</button>
+			</div>
 		</div>
 		<p class="mt-2 text-sm text-gray-600">
 			Choose a dataset, then enter the exact 12-digit timestamp from NetFlow filenames (e.g.,
-			`nfcapd.202501011200`).
+			`nfcapd.202601011200`).
 		</p>
 	</div>
 </div>
