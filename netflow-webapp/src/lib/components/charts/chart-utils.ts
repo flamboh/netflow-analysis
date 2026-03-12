@@ -262,6 +262,35 @@ export function groupByBucketDurationMs(groupBy: GroupByOption): number {
 	return 5 * 60 * 1000;
 }
 
+const GROUP_BY_DETAIL_LEVEL: Record<GroupByOption, number> = {
+	date: 0,
+	hour: 1,
+	'30min': 2,
+	'5min': 3
+};
+
+function parseDateInputToUtcMs(value: string): number | null {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (!match) {
+		return null;
+	}
+
+	const [, year, month, day] = match;
+	return Date.UTC(Number(year), Number(month) - 1, Number(day));
+}
+
+export function getInclusiveDateRangeMs(startDate: string, endDate: string): number | null {
+	const oneDay = 24 * 60 * 60 * 1000;
+	const startMs = parseDateInputToUtcMs(startDate);
+	const endMs = parseDateInputToUtcMs(endDate);
+
+	if (startMs === null || endMs === null || endMs < startMs) {
+		return null;
+	}
+
+	return endMs - startMs + oneDay;
+}
+
 /**
  * Choose granularity from selected range duration.
  * Thresholds are calibrated from existing click drilldown windows:
@@ -281,6 +310,44 @@ export function chooseAdaptiveGranularity(rangeMs: number): GroupByOption {
 	if (rangeMs <= thirtyMinCutoff) return '30min';
 	if (rangeMs <= hourCutoff) return 'hour';
 	return 'date';
+}
+
+export function getMaxAllowedGranularityForDateRange(
+	startDate: string,
+	endDate: string
+): GroupByOption | null {
+	const rangeMs = getInclusiveDateRangeMs(startDate, endDate);
+	if (rangeMs === null) {
+		return null;
+	}
+
+	return chooseAdaptiveGranularity(rangeMs);
+}
+
+export function isGranularityAllowedForDateRange(
+	groupBy: GroupByOption,
+	startDate: string,
+	endDate: string
+): boolean {
+	const maxAllowed = getMaxAllowedGranularityForDateRange(startDate, endDate);
+	if (maxAllowed === null) {
+		return true;
+	}
+
+	return GROUP_BY_DETAIL_LEVEL[groupBy] <= GROUP_BY_DETAIL_LEVEL[maxAllowed];
+}
+
+export function clampGroupByToDateRange(
+	groupBy: GroupByOption,
+	startDate: string,
+	endDate: string
+): GroupByOption {
+	const maxAllowed = getMaxAllowedGranularityForDateRange(startDate, endDate);
+	if (maxAllowed === null || isGranularityAllowedForDateRange(groupBy, startDate, endDate)) {
+		return groupBy;
+	}
+
+	return maxAllowed;
 }
 
 /**

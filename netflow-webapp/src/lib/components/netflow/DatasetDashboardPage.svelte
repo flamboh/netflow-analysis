@@ -7,6 +7,7 @@
 	import SpectrumStatsChart from '$lib/components/charts/SpectrumStatsChart.svelte';
 	import { DEFAULT_DATA_OPTIONS } from '$lib/components/netflow/constants';
 	import type { DataOption, GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
+	import { clampGroupByToDateRange } from '$lib/components/charts/chart-utils';
 	import {
 		IP_METRIC_OPTIONS,
 		type IpGranularity,
@@ -220,6 +221,16 @@
 			}
 		}
 	);
+
+	$effect(() => {
+		const clampedGroupBy = clampGroupByToDateRange(selectedGroupBy, startDate, endDate);
+		if (clampedGroupBy !== selectedGroupBy) {
+			selectedGroupBy = clampedGroupBy;
+			if (params.groupBy !== clampedGroupBy) {
+				params.groupBy = clampedGroupBy;
+			}
+		}
+	});
 
 	onMount(async () => {
 		loadChartOrder();

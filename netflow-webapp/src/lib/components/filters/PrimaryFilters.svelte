@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import { isGranularityAllowedForDateRange } from '$lib/components/charts/chart-utils';
 	import DateRangeFilter from '$lib/components/filters/DateRangeFilter.svelte';
 	import RouterFilter from '$lib/components/filters/RouterFilter.svelte';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
@@ -56,6 +57,14 @@
 			groupByOptions.findIndex((option: GroupBySelectOption) => option.value === props.groupBy)
 		)
 	);
+
+	function getGranularityDisabledReason(option: GroupBySelectOption): string | null {
+		if (isGranularityAllowedForDateRange(option.value, props.startDate, props.endDate)) {
+			return null;
+		}
+
+		return 'Date range too large for this granularity.';
+	}
 </script>
 
 <div class="space-y-3 rounded-lg border bg-white p-3 shadow-sm">
@@ -98,17 +107,35 @@
 				aria-hidden="true"
 			></div>
 			{#each groupByOptions as option (option.value)}
-				<button
-					type="button"
-					onclick={() =>
-						props.groupBy !== option.value && dispatch('groupByChange', { groupBy: option.value })}
-					class={`relative z-10 rounded px-3 py-1 text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-						props.groupBy === option.value ? 'text-white' : 'text-gray-600 hover:text-gray-900'
-					}`}
-					aria-pressed={props.groupBy === option.value}
-				>
-					{option.label}
-				</button>
+				{@const disabledReason = getGranularityDisabledReason(option)}
+				<div class="group relative flex">
+					<button
+						type="button"
+						onclick={() =>
+							!disabledReason &&
+							props.groupBy !== option.value &&
+							dispatch('groupByChange', { groupBy: option.value })}
+						class={`relative z-10 flex w-full items-center justify-center rounded px-3 py-1 text-center text-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none ${
+							props.groupBy === option.value
+								? 'text-white'
+								: disabledReason
+									? 'text-gray-400'
+									: 'text-gray-600 hover:text-gray-900'
+						}`}
+						aria-pressed={props.groupBy === option.value}
+						aria-disabled={disabledReason ? 'true' : 'false'}
+					>
+						{option.label}
+					</button>
+					{#if disabledReason}
+						<div
+							class="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-44 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-2 text-xs leading-4 text-gray-600 shadow-lg group-focus-within:block group-hover:block"
+							role="tooltip"
+						>
+							{disabledReason}
+						</div>
+					{/if}
+				</div>
 			{/each}
 		</div>
 
@@ -116,12 +143,10 @@
 
 		<RouterFilter routers={props.routers} onRouterChange={handleRoutersChange} />
 
-		<div class="hidden h-6 w-px bg-gray-200 sm:ml-auto sm:block" aria-hidden="true"></div>
-
 		<button
 			type="button"
 			onclick={handleResetView}
-			class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none sm:ml-0"
+			class="rounded-md bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none sm:ml-auto"
 		>
 			Reset View
 		</button>
