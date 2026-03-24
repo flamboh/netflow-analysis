@@ -1,6 +1,6 @@
 # Pipeline usage
 
-The pipeline lives in `netflow-db/pipeline.py`.
+The pipeline lives in `tools/netflow-db/pipeline.py`.
 
 It does two things:
 
@@ -17,7 +17,7 @@ If you do not pass `--discovery-window-days`, it defaults to the same value as `
 ## Normal run
 
 The pipeline resolves the repo-level `.env` relative to the script location, so
-you can run it either from the repo root or from `netflow-db/`.
+you can run it either from the repo root or from `tools/netflow-db/`.
 
 With the multi-dataset setup:
 
@@ -27,13 +27,13 @@ With the multi-dataset setup:
 - each dataset writes to its own SQLite database, typically `./data/<dataset>/netflow.sqlite`
 
 ```bash
-python netflow-db/pipeline.py
+python tools/netflow-db/pipeline.py
 ```
 
 or
 
 ```bash
-cd netflow-db
+cd tools/netflow-db
 python pipeline.py
 ```
 
@@ -42,8 +42,8 @@ That uses the default reprocessing window of 30 days.
 To target a specific dataset explicitly:
 
 ```bash
-python netflow-db/pipeline.py --dataset uoregon
-python netflow-db/pipeline.py --dataset ugr16
+python tools/netflow-db/pipeline.py --dataset uoregon
+python tools/netflow-db/pipeline.py --dataset ugr16
 ```
 
 In practice, that means:
@@ -57,39 +57,39 @@ In practice, that means:
 Only do discovery:
 
 ```bash
-python netflow-db/pipeline.py --discover-only
-python netflow-db/pipeline.py --dataset ugr16 --discover-only
+python tools/netflow-db/pipeline.py --discover-only
+python tools/netflow-db/pipeline.py --dataset ugr16 --discover-only
 ```
 
 Only do processing:
 
 ```bash
-python netflow-db/pipeline.py --process-only
-python netflow-db/pipeline.py --dataset uoregon --process-only
+python tools/netflow-db/pipeline.py --process-only
+python tools/netflow-db/pipeline.py --dataset uoregon --process-only
 ```
 
 Only run specific tables:
 
 ```bash
-python netflow-db/pipeline.py --tables flow_stats,ip_stats
+python tools/netflow-db/pipeline.py --tables flow_stats,ip_stats
 ```
 
 Limit how much work is done per table:
 
 ```bash
-python netflow-db/pipeline.py --limit 500
+python tools/netflow-db/pipeline.py --limit 500
 ```
 
 Use a separate discovery window:
 
 ```bash
-python netflow-db/pipeline.py --discovery-window-days 30 --reprocess-window-days 14
+python tools/netflow-db/pipeline.py --discovery-window-days 30 --reprocess-window-days 14
 ```
 
 Disable log-file output:
 
 ```bash
-python netflow-db/pipeline.py --no-log
+python tools/netflow-db/pipeline.py --no-log
 ```
 
 ## Legacy fallback mode
@@ -110,13 +110,13 @@ If data showed up late and you need to revisit older days, widen the reprocessin
 Example: look back 90 days
 
 ```bash
-python netflow-db/pipeline.py --reprocess-window-days 90
+python tools/netflow-db/pipeline.py --reprocess-window-days 90
 ```
 
 Example: full historical reconciliation
 
 ```bash
-python netflow-db/pipeline.py --reprocess-window-days 0
+python tools/netflow-db/pipeline.py --reprocess-window-days 0
 ```
 
 `0` means unlimited.
@@ -153,6 +153,6 @@ So if you know delayed uploads affected older history, use a larger `--reprocess
 If you edited backend Python, run:
 
 ```bash
-cd netflow-db
+cd tools/netflow-db
 python -m py_compile *.py
 ```

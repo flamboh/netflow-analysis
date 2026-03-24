@@ -7,9 +7,9 @@ with (import (builtins.fetchTarball {
 mkShell {
   buildInputs = [
     pkgs.uv
+    pkgs.bun
     pkgs.stdenv.cc.cc.lib
   ];
   
   LD_LIBRARY_PATH = "${stdenv.cc.cc.lib}/lib";
 }
-

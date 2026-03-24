@@ -1,0 +1,498 @@
+//! Copyright: 2025 Chris Misa
+//! License: (See ./LICENSE)
+//!
+//! Functions for dealing with IPv4 addresses
+//!
+
+const std = @import("std");
+
+pub const Prefix = struct {
+    base: u32,
+    len: u32,
+
+    pub fn format(self: Prefix, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("{d}.{d}.{d}.{d},{d}", .{ (self.base >> 24) & 0xFF, (self.base >> 16) & 0xFF, (self.base >> 8) & 0xFF, self.base & 0xFF, self.len });
+    }
+};
+
+pub const Addr = struct {
+    base: u32,
+    pub fn format(self: Addr, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("{d}.{d}.{d}.{d}", .{ (self.base >> 24) & 0xFF, (self.base >> 16) & 0xFF, (self.base >> 8) & 0xFF, self.base & 0xFF });
+    }
+};
+
+pub const AddrAnalyzerError = error{AddingToAlreadyBuiltMap};
+
+///
+/// AddrAnalyzer accumulates addresses (using AddrAnalyzer.addAddr()) then forms the prefix tree of cascade structure.
+///
+/// Once this structure is formed, several analysis can be performed.
+/// * AddrAnalyzer.logit_normal_fit() fits the distribution of the weights to a symmetric logit-normal distribution returning the fit parameter sigma.
+/// * AddrAnalyzer.getSingularity(addr) estimates the singular scaling exponent at addr.
+///
+/// Note that the analysis functions automatically form the prefix tree (by calling AddrAnalyzer.prefixify()) so you can't add more addresses after calling them.
+///
+pub const AddrAnalyzer = struct {
+    /// data is an array of maps where the array index is the prefix length,
+    /// the map key is the base address of each prefix, and
+    /// the map value is a tuple of { number-of-addresses, weight }.
+    data: []std.AutoHashMap(u32, struct { u32, f64 }),
+    allocator: std.mem.Allocator,
+    is_prefixified: bool,
+
+    pub fn init(allocator: std.mem.Allocator) error{OutOfMemory}!AddrAnalyzer {
+        const data = try allocator.alloc(std.AutoHashMap(u32, struct { u32, f64 }), 33);
+        for (data) |*elem| {
+            elem.* = std.AutoHashMap(u32, struct { u32, f64 }).init(allocator);
+        }
+        return AddrAnalyzer{ .data = data, .allocator = allocator, .is_prefixified = false };
+    }
+
+    pub fn deinit(self: *AddrAnalyzer) void {
+        for (self.data) |*elem| {
+            elem.deinit();
+        }
+        self.allocator.free(self.data);
+    }
+
+    ///
+    /// Returns the number of addresses stored
+    ///
+    pub fn n(self: *AddrAnalyzer) usize {
+        return self.data[32].count();
+    }
+
+    ///
+    /// Adds the given address to the prefix map with weight 1.
+    /// (After all addresses are added, prefixify() must be called to actually form the map)
+    ///
+    pub fn addAddr(self: *AddrAnalyzer, addr: u32) (error{OutOfMemory} || AddrAnalyzerError)!void {
+        try self.addAddrWeight(addr, 1.0);
+    }
+
+    ///
+    /// Adds the given address to the prefix map with arbitrary weight.
+    /// (After all addresses are added, prefixify() must be called to actually form the map)
+    ///
+    pub fn addAddrWeight(self: *AddrAnalyzer, addr: u32, weight: f64) (error{OutOfMemory} || AddrAnalyzerError)!void {
+        if (self.is_prefixified) {
+            return error.AddingToAlreadyBuiltMap;
+        } else if (!self.data[32].contains(addr)) {
+            try self.data[32].put(addr, .{ 1, weight });
+        }
+    }
+
+    ///
+    /// Increments the given address's weight by one.
+    /// (After all addresses are added, prefixify() must be called to actually form the map)
+    ///
+    pub fn incrAddr(self: *AddrAnalyzer, addr: u32) (error{OutOfMemory} || AddrAnalyzerError)!void {
+        if (self.is_prefixified) {
+            return error.AddingToAlreadyBuiltMap;
+        }
+        if (self.data[32].getPtr(addr)) |v| {
+            v.*.@"1" += 1.0;
+        } else {
+            try self.data[32].put(addr, .{ 1, 1.0 });
+        }
+    }
+
+    ///
+    /// Performs a symmetric logit-normal fit of the weights of the given prefix map.
+    /// Returns the fit value of sigma.
+    ///
+    pub fn logit_normal_fit(self: *AddrAnalyzer) error{OutOfMemory}!f64 {
+        const m = self.*.data;
+
+        if (!self.is_prefixified) {
+            try self.prefixify();
+        }
+
+        var count: u64 = 0;
+        var m1: f64 = 0.0;
+        var m2: f64 = 0.0;
+
+        for (8..32) |pl| {
+            var it = m[pl].iterator();
+            while (it.next()) |elem| {
+                // Skip the singletons
+                if (elem.value_ptr.*.@"0" > 1) {
+                    var w = self.get_w(.{ .base = elem.key_ptr.*, .len = @intCast(pl) });
+
+                    // TODO: technically should only round like this if w is integral
+                    if (w == 0.0) {
+                        w = 1.0 / (2.0 * elem.value_ptr.*.@"1");
+                    }
+                    if (w == 1.0) {
+                        w = 1.0 - (1.0 / (2.0 * elem.value_ptr.*.@"1"));
+                    }
+
+                    const x = @log(w / (1.0 - w));
+
+                    // Welford's algorithm...
+                    count += 1;
+                    const d = x - m1;
+                    m1 += d / @as(f64, @floatFromInt(count));
+                    const d2 = x - m1;
+                    m2 += d * d2;
+                }
+            }
+        }
+        return @sqrt(m2 / @as(f64, @floatFromInt(count - 1)));
+    }
+
+    ///
+    /// Returns the singular scaling estimate (alpha(x)) at the given /32 address w.r.t. this prefix map.
+    ///
+    pub fn getSingularity(self: *AddrAnalyzer, addr: u32) error{OutOfMemory}!f64 {
+        if (!self.is_prefixified) {
+            try self.prefixify();
+        }
+
+        const nf: f64 = @as(f64, @floatFromInt(self.n()));
+        var slope: SlopeFitter = .{};
+
+        // Go down prefix tree towards addr and estimate the slope along the way.
+        for (0..33) |pl| {
+            const mask: u32 = @truncate(@as(u64, 0xFFFFFFFF) << @truncate(32 - pl));
+            if (self.data[pl].get(addr & mask)) |count| {
+
+                // TODO: technically could include the first time count.@"0" == 1 as the end of the line
+                if (count.@"0" > 1) {
+                    const x = @as(f64, @floatFromInt(pl));
+                    const y = -@log2(count.@"1" / nf);
+                    slope.addPoint(x, y);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        return slope.fit();
+    }
+
+    ///
+    /// Returns the structure function estimate of the weights of the given addresses.
+    /// In particular, the return is a slice of tuples where each tuples is
+    /// { q, tau-tilde(q), sd-hat(tau-tilde(q)) }
+    ///
+    /// TODO: find a way to implement all the sums in here using tree-fold for better numeric precision.
+    ///
+    pub fn structure_function(self: *AddrAnalyzer, allocator: std.mem.Allocator) error{OutOfMemory}![]struct { f64, f64, f64 } {
+        if (!self.is_prefixified) {
+            try self.prefixify();
+        }
+
+        var out = try allocator.alloc(struct { f64, f64, f64 }, 61);
+        @memset(out, .{ 0.0, 0.0, 0.0 });
+        var out_count: f64 = 0.0;
+
+        for (8..17) |pl| {
+            out_count += 1.0; // for running mean
+
+            // Compute total weight at this prefix length
+            const total: f64 = blk: {
+                var s: f64 = 0.0;
+                var it = self.data[pl].valueIterator();
+                while (it.next()) |val| {
+                    if (val.*.@"0" > 1) {
+                        s += val.*.@"1";
+                    }
+                }
+                break :blk s;
+            };
+
+            for (0..61, 0..) |q_i, q_idx| {
+                const q = @as(f64, @floatFromInt(@as(i32, @intCast(q_i)) - 20)) / 10.0;
+
+                const thisZ = blk: {
+                    var z: f64 = 0.0;
+                    var it = self.data[pl].valueIterator();
+                    while (it.next()) |val| {
+                        if (val.*.@"0" > 1) {
+                            z += std.math.pow(f64, val.*.@"1" / total, q);
+                        }
+                    }
+                    break :blk z;
+                };
+                const nextZ = blk: {
+                    var z: f64 = 0.0;
+                    var it = self.data[pl + 1].iterator();
+                    while (it.next()) |elem| {
+                        const mask: u32 = @truncate(@as(u64, 0xFFFFFFFF) << @truncate(32 - pl));
+                        const parent_key = elem.key_ptr.* & mask;
+                        const parent_value = if (self.data[pl].get(parent_key)) |v| v.@"0" else 0;
+                        if (parent_value > 1) {
+                            z += std.math.pow(f64, elem.value_ptr.*.@"1" / total, q);
+                        }
+                    }
+                    break :blk z;
+                };
+                const tau = @log2(thisZ) - @log2(nextZ);
+
+                const d2 = blk: {
+                    var d2: f64 = 0.0;
+                    var it = self.data[pl].iterator();
+                    while (it.next()) |elem| {
+                        if (elem.value_ptr.*.@"0" > 1) {
+                            const left_child_key = elem.key_ptr.*;
+                            const left_child =
+                                if (self.data[pl + 1].get(left_child_key)) |c| std.math.pow(f64, c.@"1" / total, q) else 0.0;
+                            const right_child_key = elem.key_ptr.* | @as(u32, @truncate(@as(u64, 1) << @truncate(32 - (pl + 1))));
+                            const right_child =
+                                if (self.data[pl + 1].get(right_child_key)) |c| std.math.pow(f64, c.@"1" / total, q) else 0.0;
+                            d2 += std.math.pow(f64, (std.math.pow(f64, elem.value_ptr.*.@"1" / total, q) / thisZ) - ((left_child + right_child) / nextZ), 2);
+                        }
+                    }
+                    break :blk d2;
+                };
+
+                out[q_idx].@"0" = q;
+
+                // Running mean of tau values over pls
+                out[q_idx].@"1" += (tau - out[q_idx].@"1") / out_count;
+
+                // Sum d2's over pls
+                out[q_idx].@"2" += d2;
+            }
+        }
+
+        // Finish sd-hat estimate
+        for (out) |*elem| {
+            elem.*.@"2" = @sqrt(elem.*.@"2") / out_count;
+        }
+        // .. something's messed up with this sd estimation, esp for small q. Might just be numeric precision issues.
+
+        return out;
+    }
+
+    ///
+    /// Form the prefix map for the addresses already added.
+    /// Returns the total number of addresses.
+    ///
+    pub fn prefixify(self: *AddrAnalyzer) error{OutOfMemory}!void {
+        const m = self.*.data;
+        // Sum children, bottom-up
+        for (0..32) |i| {
+            const pl = 32 - i;
+            const mask: u32 = @truncate(@as(u64, 0xFFFFFFFF) << @truncate(i + 1));
+            var it = m[pl].iterator();
+            while (it.next()) |elem| {
+                const addr = elem.key_ptr.* & mask;
+                if (m[pl - 1].getPtr(addr)) |next_elem| {
+                    next_elem.*.@"0" += elem.value_ptr.*.@"0";
+                    next_elem.*.@"1" += elem.value_ptr.*.@"1";
+                } else {
+                    try m[pl - 1].put(addr, elem.value_ptr.*);
+                }
+            }
+        }
+
+        self.*.is_prefixified = true;
+    }
+
+    ///
+    /// Look up the weight (w) of how much mass goes left at the given prefix.
+    /// (Note that how much mass goes right is just (1.0 - w).)
+    ///
+    fn get_w(self: *AddrAnalyzer, pfx: Prefix) f64 {
+        const m = self.*.data;
+        const pl = pfx.len + 1;
+        const l_base: u32 = pfx.base;
+        const r_base: u32 = pfx.base | (@as(u32, 1) << @truncate(32 - pl));
+
+        const l: f64 = if (m[pl].get(l_base)) |v| v.@"1" else 0.0;
+        const r: f64 = if (m[pl].get(r_base)) |v| v.@"1" else 0.0;
+
+        return l / (l + r);
+    }
+};
+
+///
+/// generate() constructs a conservative cascade with symmetric logit-normal(sigma) generator
+/// and samples n addresses.
+///
+/// Returned elements are { address, alpha(address) } tuples.
+///
+/// The caller is responsible for freeing the returned slice.
+///
+pub fn generate(
+    sigma: f64,
+    n: u32,
+    rand: *std.Random,
+    allocator: std.mem.Allocator,
+) error{OutOfMemory}!std.ArrayList(struct { u32, f64 }) {
+    const root = Prefix{ .base = 0, .len = 0 };
+    var res = try std.ArrayList(struct { u32, f64 }).initCapacity(allocator, n);
+    const slope: SlopeFitter = .{};
+    try gen_rec(sigma, n, root, n, rand, &res, slope);
+    return res;
+}
+
+fn gen_rec(
+    sigma: f64,
+    total: u32,
+    pfx: Prefix,
+    n: u32,
+    rand: *std.Random,
+    res: *std.ArrayList(struct { u32, f64 }),
+    slope: SlopeFitter,
+) error{OutOfMemory}!void {
+    if (n == 0) {
+        return;
+    } else if (pfx.len == 32) {
+        const alpha = slope.fit();
+        try res.append(.{ pfx.base, alpha });
+    } else {
+        const normal: f64 = rand.*.floatNorm(f64) * sigma;
+        const w: f64 = 1.0 / (1 + @exp(-normal)); // w ~ logit-normal(sigma)
+        const left_count: u32 = @intFromFloat(@round(@as(f64, @floatFromInt(n)) * w));
+        const right_count: u32 = @intFromFloat(@round(@as(f64, @floatFromInt(n)) * (1.0 - w)));
+        const left = Prefix{ .base = pfx.base, .len = pfx.len + 1 };
+        const right = Prefix{ .base = pfx.base | (@as(u32, 1) << @truncate(32 - (pfx.len + 1))), .len = pfx.len + 1 };
+        const left_count2, const right_count2 = balance(left, left_count, right, right_count);
+
+        var slope2 = slope;
+        if (n > 1) {
+            const x = @as(f64, @floatFromInt(pfx.len));
+            const y = -@log2(@as(f64, @floatFromInt(n)) / @as(f64, @floatFromInt(total)));
+            slope2.addPoint(x, y);
+        }
+
+        try gen_rec(sigma, total, left, left_count2, rand, res, slope2);
+        try gen_rec(sigma, total, right, right_count2, rand, res, slope2);
+    }
+}
+
+///
+/// Get number of addresses that can fit in this prefix.
+///
+fn getCapacity(pfx: Prefix) u32 {
+    return @truncate(@as(u64, 1) << @truncate(32 - pfx.len));
+}
+
+///
+/// Balance the given left and right prefix counts.
+/// Returns { left_count, right_count} such that both are below their respective capacities.
+///
+fn balance(left: Prefix, left_count: u32, right: Prefix, right_count: u32) struct { u32, u32 } {
+    const left_cap = getCapacity(left);
+    const right_cap = getCapacity(right);
+    var left_final: u32 = undefined;
+    var right_final: u32 = undefined;
+
+    if (@as(u64, left_count) + @as(u64, right_count) > @as(u64, left_cap) + @as(u64, right_cap)) {
+        // A balance is not possible...
+        std.debug.print("ERROR: trying to balance more addresses than total capacity ({} > {})\n", .{ left_count + right_count, left_cap + right_cap });
+        @panic("...this shouldn't happen");
+    } else if (left_count > left_cap) {
+        // Spill from left to right
+        left_final = left_cap;
+        right_final = right_count + (left_count - left_cap);
+    } else if (right_count > right_cap) {
+        // Spill from right to left
+        left_final = left_count + (right_count - right_cap);
+        right_final = right_cap;
+    } else {
+        // No spill
+        left_final = left_count;
+        right_final = right_count;
+    }
+    return .{ left_final, right_final };
+}
+
+///
+/// Maintain a mapping between real-world addresses and generated addresses.
+/// The mapping preserves the alpha-ranking of addresses in each set.
+///
+pub const AddrMap = struct {
+    map: std.AutoHashMap(u32, u32),
+
+    ///
+    /// Constructs an AddrMap from the given lists of (address, alpha(address)) pairs.
+    /// The lists end up sorted.
+    ///
+    pub fn init(allocator: std.mem.Allocator, rand: *std.Random, from: []struct { u32, f64 }, to: []struct { u32, f64 }) error{OutOfMemory}!AddrMap {
+        var map = std.AutoHashMap(u32, u32).init(allocator);
+
+        rand.*.shuffle(struct { u32, f64 }, from);
+        rand.*.shuffle(struct { u32, f64 }, to);
+
+        const comp = struct {
+            fn lt(_: void, l: struct { u32, f64 }, r: struct { u32, f64 }) bool {
+                return l.@"1" < r.@"1";
+            }
+        }.lt;
+        std.mem.sort(struct { u32, f64 }, from, {}, comp);
+        std.mem.sort(struct { u32, f64 }, to, {}, comp);
+
+        for (from, to) |f, t| {
+            try map.put(f.@"0", t.@"0");
+        }
+        return AddrMap{ .map = map };
+    }
+
+    pub fn deinit(self: *AddrMap) void {
+        self.map.deinit();
+    }
+
+    pub fn get(self: AddrMap, addr: u32) ?u32 {
+        return self.map.get(addr);
+    }
+};
+
+///
+/// Utility for estimating slopes using ordinary least-squares.
+///
+pub const SlopeFitter = struct {
+    mx: f64 = 0.0,
+    my: f64 = 0.0,
+    c: f64 = 0.0,
+    v: f64 = 0.0,
+    count: f64 = 0.0,
+
+    pub fn addPoint(self: *SlopeFitter, x: f64, y: f64) void {
+        // Welford-type algorithm for variance and covariance
+        self.*.count += 1.0;
+        const dx = x - self.*.mx;
+        self.*.mx += dx / self.*.count;
+        self.*.my += (y - self.*.my) / self.*.count;
+        self.*.c += dx * (y - self.*.my);
+        self.*.v += dx * (x - self.*.mx);
+    }
+
+    pub fn fit(self: SlopeFitter) f64 {
+        // covariance is c / (count - 1)
+        // variance is v / (count - 1)
+        // ... so the (count - 1) terms cancel out.
+        return self.c / self.v;
+    }
+};
+
+///
+/// Parse the given string as dotted-decimal IPv4
+///
+pub fn string_to_ipv4(str: []const u8) !u32 {
+    var i: u32 = 0;
+    while (str[i] == ' ') i += 1;
+    var s = i;
+    while (str[i] != '.') i += 1;
+    const b1 = try std.fmt.parseUnsigned(u8, str[s..i], 10);
+    i += 1;
+    s = i;
+    while (str[i] != '.') i += 1;
+    const b2 = try std.fmt.parseUnsigned(u8, str[s..i], 10);
+    i += 1;
+    s = i;
+    while (str[i] != '.') i += 1;
+    const b3 = try std.fmt.parseUnsigned(u8, str[s..i], 10);
+    i += 1;
+    const b4 = try std.fmt.parseUnsigned(u8, str[i..str.len], 10);
+    return (@as(u32, b1) << 24) + (@as(u32, b2) << 16) + (@as(u32, b3) << 8) + b4;
+}

@@ -6,23 +6,23 @@ This file is for coding agents working in this repository. Prefer concrete, veri
 
 ## Project Structure
 
-- `netflow-webapp/`: SvelteKit frontend and API routes.
-- `netflow-webapp/src/routes`: Pages and route-level loaders.
-- `netflow-webapp/src/routes/api`: HTTP endpoints and file-detail utilities.
-- `netflow-webapp/src/lib`: Shared UI, stores, helpers, and common types (`src/lib/types/types.ts`).
-- `netflow-db/`: Python data ingestion/aggregation scripts, logs, and SQLite database files.
-- `maad/`: Haskell MAAD tooling (`nix-shell` + `./compile.sh` when MAAD binaries are needed).
-- `burstify/`: Zig MAAD tooling.
+- `apps/web/`: SvelteKit frontend and API routes.
+- `apps/web/src/routes`: Pages and route-level loaders.
+- `apps/web/src/routes/api`: HTTP endpoints and file-detail utilities.
+- `apps/web/src/lib`: Shared UI, stores, helpers, and common types (`src/lib/types/types.ts`).
+- `tools/netflow-db/`: Python data ingestion/aggregation scripts, logs, and SQLite database files.
+- `vendor/maad/`: Haskell MAAD tooling (`nix-shell` + `./compile.sh` when MAAD binaries are needed).
+- `vendor/burstify/`: Zig MAAD tooling.
 
 ## Backend Pipeline Notes
 
-- `netflow-db/flow_db.py`
-- `netflow-db/ip_db.py`
-- `netflow-db/protocol_db.py`
-- `netflow-db/spectrum_db.py`
-- `netflow-db/structure_db.py`
-- `netflow-db/discovery.py`
-- `netflow-db/pipeline.py`
+- `tools/netflow-db/flow_db.py`
+- `tools/netflow-db/ip_db.py`
+- `tools/netflow-db/protocol_db.py`
+- `tools/netflow-db/spectrum_db.py`
+- `tools/netflow-db/structure_db.py`
+- `tools/netflow-db/discovery.py`
+- `tools/netflow-db/pipeline.py`
 
 ## Git
 
@@ -61,24 +61,24 @@ Core routes commonly used by the frontend:
 - `/api/netflow/files/[slug]`
 - `/api/netflow/files/[slug]/structure-function`
 
-Other utility routes exist for protocol, IP, spectrum, singularities, and router metadata. Discover the full set in `netflow-webapp/src/routes/api`.
+Other utility routes exist for protocol, IP, spectrum, singularities, and router metadata. Discover the full set in `apps/web/src/routes/api`.
 
 ## Commands
 
-Frontend (`netflow-webapp/`):
+Frontend (`apps/web/`):
 
 ```bash
-npm install
-npm run build
-npm run check
-npm run lint
-npm run format
-npm run validate
+bun install
+bun run build:web
+bun run check:web
+bun run lint:web
+bun run format:web
+bun run validate:web
 ```
 
-Do not start `npm run dev` or `npm run preview` unless the user explicitly asks. Assume a dev server may already be running.
+Do not start `bun run dev:web` unless the user explicitly asks. Assume a dev server may already be running.
 
-Backend (`netflow-db/`) validation:
+Backend (`tools/netflow-db/`) validation:
 
 ```bash
 python -m py_compile *.py
@@ -94,18 +94,19 @@ Run backend compile checks after backend Python edits and before handing off wor
 
 ## Testing Expectations
 
-- Frontend changes: run `npm run validate` in `netflow-webapp/`.
-- Backend changes: run `python -m py_compile *.py` in `netflow-db/`.
+- Frontend changes: run `bun run validate:web` from repo root.
+- Backend changes: run `python -m py_compile *.py` in `tools/netflow-db/`.
 - Add or update route-level smoke coverage when introducing new pages or endpoints.
 
 ## Environment & Data
 
 Expected `.env` keys include:
 
-- `NETFLOW_DATA_PATH`
-- `AVAILABLE_ROUTERS`
-- `DATABASE_PATH`
+- `DATASETS_CONFIG_PATH`
+- `DEFAULT_DATASET`
 - `LOG_PATH`
+- `NETFLOW_DB_DIR`
+- `MAAD_DIR`
 - `FIRST_RUN`
 
 Router identities are environment-configured and must not be hardcoded in documentation or logic assumptions. Use `YYYY-MM-DD HH:mm:ss` for timestamp formatting.

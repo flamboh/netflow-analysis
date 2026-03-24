@@ -18,7 +18,7 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 ### Data Access
 
 ```zsh
-> cd netflow-db
+> cd tools/netflow-db
 > sqlite3 flowStats.db
 ```
 
@@ -78,7 +78,7 @@ ORDER BY router, bucket_start;
 STATS
 
 1. Raw netflow files from a configurable location
-2. Python script (`netflow-db/db.py`) processes files using `nfdump` and populates SQLite database
+2. Python script (`tools/netflow-db/flow_db.py`) processes files using `nfdump` and populates SQLite database
 3. SvelteKit API queries database with `better-sqlite3` for fast aggregation
 4. Frontend renders interactive charts with real-time filtering
 
@@ -119,22 +119,19 @@ SQLite database (`flowStats.db`) with `netflow_stats` table containing:
 2. **Install frontend dependencies**
 
    ```bash
-   cd netflow-webapp
-   npm install
+   bun install
    ```
 
 3. **Populate database** (if needed)
 
    ```bash
-   cd ../netflow-db
-   python db.py
+   python tools/netflow-db/flow_db.py
    ```
 
 4. **Start development server**
 
    ```bash
-   cd ../netflow-webapp
-   npm run dev
+   bun run dev:web
    ```
 
 5. **Access via SSH tunnel**
@@ -164,23 +161,21 @@ SQLite database (`flowStats.db`) with `netflow_stats` table containing:
 ### Frontend Commands
 
 ```bash
-cd netflow-webapp/
-
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run check        # TypeScript type checking
-npm run format       # Format with Prettier
-npm run lint         # Run ESLint and Prettier checks
+bun run dev:web      # Start development server
+bun run build:web    # Build for production
+bun run check:web    # TypeScript type checking
+bun run format:web   # Format with Prettier
+bun run lint:web     # Run ESLint
+bun run validate:web # Format + lint + Svelte checks
 ```
 
 ### Database Management
 
 ```bash
-cd netflow-db/
+cd tools/netflow-db/
 
 # Process new netflow files
-python db.py
+python flow_db.py
 
 # Query database directly
 sqlite3 flowStats.db
