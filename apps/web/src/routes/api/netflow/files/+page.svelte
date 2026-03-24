@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import {
 		getCachedDatasetSummaries,
@@ -44,7 +45,7 @@
 		}
 
 		// Navigate to the file page
-		goto(`/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`);
+		goto(resolve(`/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`));
 	}
 
 	function handleKeydown(event: KeyboardEvent) {

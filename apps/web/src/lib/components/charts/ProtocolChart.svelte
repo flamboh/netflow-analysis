@@ -2,6 +2,7 @@
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import type { ActiveElement, ChartEvent } from 'chart.js';
@@ -88,6 +89,7 @@
 	const getStartDate = () => props.startDate ?? '2025-01-01';
 	const getEndDate = () => props.endDate ?? formatDate(today);
 	const getGranularity = () => props.granularity ?? '1h';
+	const getInitialMetrics = () => props.activeMetrics ?? DEFAULT_METRICS;
 
 	function deriveSelectedRouters(config: RouterConfig | undefined): string[] {
 		if (!config) {
@@ -102,7 +104,7 @@
 
 	const DEFAULT_METRICS: ProtocolMetricKey[] = ['uniqueProtocolsIpv4', 'uniqueProtocolsIpv6'];
 
-	let activeMetrics = $state<ProtocolMetricKey[]>(props.activeMetrics ?? DEFAULT_METRICS);
+	let activeMetrics = $state<ProtocolMetricKey[]>(getInitialMetrics());
 	let currentGranularity = $state<IpGranularity>(getGranularity());
 
 	let buckets = $state<ProtocolStatsBucket[]>([]);
@@ -333,7 +335,7 @@
 			const labelForSlug = activeLabel ?? label;
 			const slug = generateSlugFromLabel(labelForSlug, '5min');
 			if (slug) {
-				goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`);
+				goto(resolve(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`));
 			}
 			return;
 		}

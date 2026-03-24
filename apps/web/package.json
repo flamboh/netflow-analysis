@@ -16,7 +16,7 @@
 		"test": "vitest run",
 		"test:e2e": "playwright test",
 		"test:e2e:headed": "playwright test --headed",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun run check"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",

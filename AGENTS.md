@@ -100,7 +100,8 @@ Run backend compile checks after backend Python edits and before handing off wor
 
 ## Testing Expectations
 
-- Frontend changes: run `bun run test:web` from repo root.
+- Frontend-only changes: run `bun run test:web` from repo root.
+- Cross-cutting, infra, or workflow changes: run `bun run test`, or run `bun run test:db` / `bun run test:e2e` as the change requires.
 - Backend changes: run `python -m compileall tools/netflow-db` from repo root.
 - Add or update route-level smoke coverage when introducing new pages or endpoints.
 
