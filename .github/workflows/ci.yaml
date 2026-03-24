@@ -8,6 +8,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -18,7 +21,7 @@ jobs:
           python-version: '3.13'
 
       - name: Install JS dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Copy .env.example files
         shell: bash

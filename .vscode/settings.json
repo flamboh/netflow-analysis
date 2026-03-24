@@ -1,3 +1,3 @@
 {
-  "cmake.sourceDirectory": "/home/obo/oliver/netflow-analysis/maad/cpp-lib/nanobind"
+  "cmake.sourceDirectory": "${workspaceFolder}/vendor/maad/cpp-lib/nanobind"
 }

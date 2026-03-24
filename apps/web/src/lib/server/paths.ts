@@ -1,6 +1,8 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const repoRoot = path.resolve(process.cwd(), '../..');
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(currentDir, '../../../../../');
 
 function resolveRepoPath(value: string | undefined, fallback: string): string {
 	const target = value?.trim() || fallback;

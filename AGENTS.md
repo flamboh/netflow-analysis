@@ -65,7 +65,7 @@ Other utility routes exist for protocol, IP, spectrum, singularities, and router
 
 ## Commands
 
-Frontend (`apps/web/`):
+Frontend (`apps/web/`, run from repo root):
 
 ```bash
 bun install
@@ -81,7 +81,7 @@ Do not start `bun run dev:web` unless the user explicitly asks. Assume a dev ser
 Backend (`tools/netflow-db/`) validation:
 
 ```bash
-python -m py_compile *.py
+python -m compileall tools/netflow-db
 ```
 
 Run backend compile checks after backend Python edits and before handing off work.
@@ -95,7 +95,7 @@ Run backend compile checks after backend Python edits and before handing off wor
 ## Testing Expectations
 
 - Frontend changes: run `bun run validate:web` from repo root.
-- Backend changes: run `python -m py_compile *.py` in `tools/netflow-db/`.
+- Backend changes: run `python -m compileall tools/netflow-db` from repo root.
 - Add or update route-level smoke coverage when introducing new pages or endpoints.
 
 ## Environment & Data

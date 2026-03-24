@@ -13,7 +13,10 @@
     "format:web": "cd apps/web && bun run format",
     "test:web": "cd apps/web && bun run test",
     "validate:web": "cd apps/web && bun run validate",
-    "check:db": "cd tools/netflow-db && python -m py_compile *.py",
+    "check:db": "python -m compileall tools/netflow-db",
     "validate": "bun run validate:web && bun run check:db"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.1"
   }
 }

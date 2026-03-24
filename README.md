@@ -19,10 +19,10 @@ A web-based network flow analysis tool for visualizing University of Oregon netw
 
 ```zsh
 > cd tools/netflow-db
-> sqlite3 flowStats.db
+> sqlite3 ../../data/<dataset>/netflow.sqlite
 ```
 
-Now you're connected to the database. Try some of the following to explore the shape of the database
+Now you're connected to the dataset database. Try some of the following to explore the shape of the database
 
 ```zsh
 sqlite> .tables
@@ -90,7 +90,7 @@ MAAD
 
 ### Database Schema
 
-SQLite database (`flowStats.db`) with `netflow_stats` table containing:
+Dataset-scoped SQLite databases (for example `data/<dataset>/netflow.sqlite`) with a `netflow_stats` table containing:
 
 - Router identification and timestamps
 - Flow counts by protocol (TCP, UDP, ICMP, Other)
@@ -104,6 +104,7 @@ SQLite database (`flowStats.db`) with `netflow_stats` table containing:
 ### Prerequisites
 
 - Node.js 20+
+- Bun 1.2+ for `bun install` / `bun run ...`
 - Python 3.x with `nfdump` available
 - SSH access to pinot, to use ONRG database
 
@@ -177,8 +178,8 @@ cd tools/netflow-db/
 # Process new netflow files
 python flow_db.py
 
-# Query database directly
-sqlite3 flowStats.db
+# Query a dataset database directly
+sqlite3 ../../data/<dataset>/netflow.sqlite
 ```
 
 ## Technical Stack
