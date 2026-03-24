@@ -84,9 +84,7 @@ describe('aggregate API routes', () => {
 		});
 
 		const response = await getProtocolStats({
-			url: new URL(
-				'http://localhost/api/protocol/stats?routers=r1&startDate=100&endDate=200'
-			)
+			url: new URL('http://localhost/api/protocol/stats?routers=r1&startDate=100&endDate=200')
 		} as never);
 
 		expect(response.status).toBe(400);
@@ -129,13 +127,13 @@ describe('aggregate API routes', () => {
 		} as never);
 
 		await expect(spectrumResponse.json()).resolves.toEqual({
-			buckets: [{ bucketStart: 100, router: 'r1', spectrumSa: [{ alpha: 1, f: 2 }], spectrumDa: [] }],
+			buckets: [
+				{ bucketStart: 100, router: 'r1', spectrumSa: [{ alpha: 1, f: 2 }], spectrumDa: [] }
+			],
 			requestedRouters: ['r1']
 		});
 		await expect(structureResponse.json()).resolves.toEqual({
-			buckets: [
-				{ bucketStart: 100, router: 'r1', structureSa: [{ q: 1, s: 2 }], structureDa: [] }
-			],
+			buckets: [{ bucketStart: 100, router: 'r1', structureSa: [{ q: 1, s: 2 }], structureDa: [] }],
 			requestedRouters: ['r1']
 		});
 	});

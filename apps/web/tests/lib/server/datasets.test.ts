@@ -58,7 +58,9 @@ describe('dataset server helpers', () => {
 			}
 		]);
 		expect(datasets.listDatasetSources('alpha')).toEqual(['router-a', 'router-b']);
-		expect(datasets.getRequestedDataset(new URL('http://localhost/api?dataset=alpha'))).toBe('alpha');
+		expect(datasets.getRequestedDataset(new URL('http://localhost/api?dataset=alpha'))).toBe(
+			'alpha'
+		);
 	});
 
 	it('falls back when sqlite db is missing and rejects unknown datasets', async () => {
