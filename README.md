@@ -166,8 +166,9 @@ bun run dev:web      # Start development server
 bun run build:web    # Build for production
 bun run check:web    # TypeScript type checking
 bun run format:web   # Format with Prettier
+bun run format:check:web # Check Prettier formatting
 bun run lint:web     # Run ESLint
-bun run validate:web # Format + lint + Svelte checks
+bun run precommit    # Pre-commit gate: format, lint, checks, tests
 ```
 
 ### Database Management

@@ -11,12 +11,14 @@
     "check:web": "cd apps/web && bun run check",
     "lint:web": "cd apps/web && bun run lint",
     "format:web": "cd apps/web && bun run format",
+    "format:check:web": "cd apps/web && bun run format:check",
     "test:web": "cd apps/web && bun run test",
     "test:e2e": "cd apps/web && bun run test:e2e",
     "test:e2e:headed": "cd apps/web && bun run test:e2e:headed",
-    "validate:web": "cd apps/web && bun run validate",
+    "precommit:web": "bun run format:web && bun run lint:web && bun run check:web && bun run test:web",
+    "precommit:db": "nix-shell --run 'uv run pytest tests/python && python -m compileall tools/netflow-db'",
+    "precommit": "bun run precommit:web && bun run precommit:db",
     "check:db": "python -m compileall tools/netflow-db",
-    "validate": "bun run validate:web && bun run check:db",
     "test": "vitest"
   },
   "devDependencies": {
