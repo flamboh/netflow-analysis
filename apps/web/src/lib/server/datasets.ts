@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
-import { DatabaseSync } from 'node:sqlite';
-import type { SQLInputValue } from 'node:sqlite';
 import type { DatasetSummary } from '$lib/types/types';
 import { getDatasetsConfigPath, getRepoRoot } from '$lib/server/paths';
 
@@ -19,6 +18,7 @@ export interface DatasetConfig {
 
 const repoRoot = getRepoRoot();
 const defaultRegistryPath = getDatasetsConfigPath();
+const require = createRequire(import.meta.url);
 
 type PreparedStatement = {
 	get(...params: unknown[]): unknown;
@@ -211,6 +211,8 @@ export function getDatasetDbPath(datasetId: string): string {
 }
 
 function openNodeSqliteDatabase(dbPath: string): ReadonlyDatasetDb {
+	const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+	type SQLInputValue = import('node:sqlite').SQLInputValue;
 	const db = new DatabaseSync(dbPath, { open: true, readOnly: true });
 	return {
 		prepare(sql: string): PreparedStatement {

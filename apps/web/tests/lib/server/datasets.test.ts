@@ -4,6 +4,27 @@ import path from 'path';
 import { spawnSync } from 'child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+class MockDatabaseSync {
+	constructor(private readonly dbPath: string) {}
+
+	prepare(query: string) {
+		return {
+			get: () => {
+				const result = spawnSync('sqlite3', [this.dbPath, query], { encoding: 'utf-8' });
+				if (result.status !== 0) {
+					throw new Error(result.stderr || 'sqlite3 query failed');
+				}
+
+				const minTimestamp = Number(result.stdout.trim());
+				return { minTimestamp: Number.isFinite(minTimestamp) ? minTimestamp : null };
+			},
+			all: () => []
+		};
+	}
+
+	close() {}
+}
+
 const betterSqlite3Factory = vi.fn((dbPath: string) => ({
 	prepare(query: string) {
 		return {
@@ -23,6 +44,15 @@ const betterSqlite3Factory = vi.fn((dbPath: string) => ({
 
 vi.mock('better-sqlite3', () => ({
 	default: vi.fn().mockImplementation((dbPath: string) => betterSqlite3Factory(dbPath))
+}));
+
+vi.mock('node:module', async () => ({
+	createRequire: () => (specifier: string) => {
+		if (specifier === 'node:sqlite') {
+			return { DatabaseSync: MockDatabaseSync };
+		}
+		throw new Error(`Unexpected require: ${specifier}`);
+	}
 }));
 
 async function loadDatasetsModule() {
