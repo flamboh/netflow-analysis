@@ -32,3 +32,5 @@ exploration/
 **/local-notes
 **/tmp
 datasets.json
+
+.claude/worktrees/
