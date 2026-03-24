@@ -1,8 +1,30 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import Database from 'better-sqlite3';
+import { spawnSync } from 'child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('better-sqlite3', () => ({
+	default: class MockDatabase {
+		constructor(private readonly dbPath: string) {}
+
+		prepare(query: string) {
+			return {
+				get: () => {
+					const result = spawnSync('sqlite3', [this.dbPath, query], { encoding: 'utf-8' });
+					if (result.status !== 0) {
+						throw new Error(result.stderr || 'sqlite3 query failed');
+					}
+
+					const minTimestamp = Number(result.stdout.trim());
+					return { minTimestamp: Number.isFinite(minTimestamp) ? minTimestamp : null };
+				}
+			};
+		}
+
+		close() {}
+	}
+}));
 
 async function loadDatasetsModule() {
 	vi.resetModules();
@@ -19,11 +41,15 @@ describe('dataset server helpers', () => {
 		const dbPath = path.join(tempDir, 'netflow.sqlite');
 		const registryPath = path.join(tempDir, 'datasets.json');
 
-		const seedDb = new Database(dbPath);
-		seedDb.exec(
-			'CREATE TABLE netflow_stats (timestamp INTEGER NOT NULL); INSERT INTO netflow_stats (timestamp) VALUES (1740823200);'
+		const seedResult = spawnSync(
+			'sqlite3',
+			[
+				dbPath,
+				'CREATE TABLE netflow_stats (timestamp INTEGER NOT NULL); INSERT INTO netflow_stats (timestamp) VALUES (1740823200);'
+			],
+			{ encoding: 'utf-8' }
 		);
-		seedDb.close();
+		expect(seedResult.status).toBe(0);
 
 		fs.mkdirSync(path.join(tempDir, 'captures', 'router-b'), { recursive: true });
 		fs.mkdirSync(path.join(tempDir, 'captures', 'router-a'), { recursive: true });

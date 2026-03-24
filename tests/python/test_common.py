@@ -53,6 +53,7 @@ def test_initialize_runtime_loads_dataset_config(tmp_path: Path, monkeypatch: py
 
     monkeypatch.delenv('DATASETS_CONFIG_PATH', raising=False)
     monkeypatch.delenv('DEFAULT_DATASET', raising=False)
+    monkeypatch.delenv('NETFLOW_DATASET', raising=False)
 
     common.initialize_runtime(str(env_path))
 

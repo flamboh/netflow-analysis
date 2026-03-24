@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 async function loadPathsModule() {
 	vi.resetModules();
@@ -6,6 +6,10 @@ async function loadPathsModule() {
 }
 
 describe('server paths', () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
 	it('resolves configured absolute and relative paths from repo root', async () => {
 		vi.stubEnv('DATASETS_CONFIG_PATH', 'config/datasets.json');
 		vi.stubEnv('NETFLOW_DB_DIR', '/tmp/netflow-db');

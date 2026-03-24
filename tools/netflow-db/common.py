@@ -254,15 +254,53 @@ def initialize_runtime(env_path: Optional[str] = None) -> None:
     global DATA_START_DATE
 
     load_env_file(env_path)
-    DATASET_REGISTRY = load_dataset_registry()
-    DEFAULT_DATASET = get_default_dataset_id()
-    ACTIVE_DATASET = get_dataset_config()
-    NETFLOW_DATA_PATH = str(get_dataset_root_path())
-    AVAILABLE_ROUTERS = list_dataset_sources()
-    DATABASE_PATH = str(get_dataset_db_path())
-    MAX_WORKERS = int(get_optional_env('MAX_WORKERS', '8'))
-    BATCH_SIZE = int(get_optional_env('BATCH_SIZE', '50'))
-    DATA_START_DATE = get_dataset_start_date()
+    dataset_registry = load_dataset_registry()
+    default_dataset = get_default_dataset_id()
+    selected_dataset = get_optional_env('NETFLOW_DATASET', default_dataset)
+    active_dataset = next(
+        (config for config in dataset_registry if config['dataset_id'] == selected_dataset),
+        None,
+    )
+    if active_dataset is None:
+        available = ', '.join(config['dataset_id'] for config in dataset_registry)
+        raise ConfigurationError(f"Unknown dataset '{selected_dataset}'. Available datasets: {available}")
+
+    netflow_data_path = str(Path(active_dataset['root_path']))
+    configured_sources = active_dataset.get('source_ids') or []
+    if configured_sources:
+        available_routers = configured_sources
+    else:
+        root_path = Path(active_dataset['root_path'])
+        if not root_path.exists():
+            available_routers = []
+        elif active_dataset.get('source_mode', 'subdirs') != 'subdirs':
+            raise ValueError(f"Unsupported source_mode: {active_dataset.get('source_mode')}")
+        else:
+            available_routers = sorted(entry.name for entry in root_path.iterdir() if entry.is_dir())
+
+    database_path = str(Path(active_dataset['db_path']))
+    max_workers = int(get_optional_env('MAX_WORKERS', '8'))
+    batch_size = int(get_optional_env('BATCH_SIZE', '50'))
+    raw_start_date = str(active_dataset.get('default_start_date', '')).strip()
+    if raw_start_date:
+        try:
+            data_start_date = datetime.strptime(raw_start_date, '%Y-%m-%d')
+        except ValueError as error:
+            raise ConfigurationError(
+                f"Invalid default_start_date '{raw_start_date}' for dataset '{active_dataset['dataset_id']}'. Expected YYYY-MM-DD."
+            ) from error
+    else:
+        data_start_date = DEFAULT_DATA_START_DATE
+
+    DATASET_REGISTRY = dataset_registry
+    DEFAULT_DATASET = default_dataset
+    ACTIVE_DATASET = active_dataset
+    NETFLOW_DATA_PATH = netflow_data_path
+    AVAILABLE_ROUTERS = available_routers
+    DATABASE_PATH = database_path
+    MAX_WORKERS = max_workers
+    BATCH_SIZE = batch_size
+    DATA_START_DATE = data_start_date
 
 
 if get_optional_env('NETFLOW_DB_SKIP_AUTO_INIT') != '1':

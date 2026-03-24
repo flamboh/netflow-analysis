@@ -25,13 +25,14 @@ vi.mock('$lib/server/paths', () => ({
 
 vi.mock('fs', async () => {
 	const actual = await vi.importActual<typeof import('fs')>('fs');
+	const existsSyncMock = vi.fn();
 	return {
 		...actual,
 		default: {
 			...actual,
-			existsSync: vi.fn()
+			existsSync: existsSyncMock
 		},
-		existsSync: vi.fn()
+		existsSync: existsSyncMock
 	};
 });
 
