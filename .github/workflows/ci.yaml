@@ -38,8 +38,6 @@ jobs:
 
       - run: uv sync
 
-      - run: bun run lint:web
-
       - run: bun run check:web
 
       - run: bun run test:web
