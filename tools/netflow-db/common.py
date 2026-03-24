@@ -230,22 +230,43 @@ def get_dataset_start_date(dataset_id: Optional[str] = None) -> datetime:
         ) from error
 
 
-# Initialize environment on module import
-load_env_file()
+DATASET_REGISTRY: list[dict[str, Any]] = []
+DEFAULT_DATASET = ''
+ACTIVE_DATASET: dict[str, Any] = {}
+NETFLOW_DATA_PATH = ''
+AVAILABLE_ROUTERS: list[str] = []
+DATABASE_PATH = ''
+MAX_WORKERS = 8
+BATCH_SIZE = 50
+DATA_START_DATE = DEFAULT_DATA_START_DATE
 
-DATASET_REGISTRY = load_dataset_registry()
-DEFAULT_DATASET = get_default_dataset_id()
-ACTIVE_DATASET = get_dataset_config()
 
-# Dataset-scoped configuration used by the existing processors.
-NETFLOW_DATA_PATH = str(get_dataset_root_path())
-AVAILABLE_ROUTERS = list_dataset_sources()
-DATABASE_PATH = str(get_dataset_db_path())
-MAX_WORKERS = int(get_optional_env('MAX_WORKERS', '8'))
-BATCH_SIZE = int(get_optional_env('BATCH_SIZE', '50'))
+def initialize_runtime(env_path: Optional[str] = None) -> None:
+    """Load environment and derive module-level runtime configuration."""
+    global DATASET_REGISTRY
+    global DEFAULT_DATASET
+    global ACTIVE_DATASET
+    global NETFLOW_DATA_PATH
+    global AVAILABLE_ROUTERS
+    global DATABASE_PATH
+    global MAX_WORKERS
+    global BATCH_SIZE
+    global DATA_START_DATE
 
-# Data before this date is ignored for the active dataset.
-DATA_START_DATE = get_dataset_start_date()
+    load_env_file(env_path)
+    DATASET_REGISTRY = load_dataset_registry()
+    DEFAULT_DATASET = get_default_dataset_id()
+    ACTIVE_DATASET = get_dataset_config()
+    NETFLOW_DATA_PATH = str(get_dataset_root_path())
+    AVAILABLE_ROUTERS = list_dataset_sources()
+    DATABASE_PATH = str(get_dataset_db_path())
+    MAX_WORKERS = int(get_optional_env('MAX_WORKERS', '8'))
+    BATCH_SIZE = int(get_optional_env('BATCH_SIZE', '50'))
+    DATA_START_DATE = get_dataset_start_date()
+
+
+if get_optional_env('NETFLOW_DB_SKIP_AUTO_INIT') != '1':
+    initialize_runtime()
 
 
 @contextmanager

@@ -8,8 +8,13 @@ mkShell {
   buildInputs = [
     pkgs.uv
     pkgs.bun
+    pkgs.nodejs
+    pkgs.playwright-driver.browsers
     pkgs.stdenv.cc.cc.lib
   ];
   
   LD_LIBRARY_PATH = "${stdenv.cc.cc.lib}/lib";
+  PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+  PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
 }
