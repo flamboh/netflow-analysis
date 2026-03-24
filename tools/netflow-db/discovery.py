@@ -503,7 +503,12 @@ def get_stale_days(
         WITH day_status AS (
             SELECT 
                 router,
-                (timestamp / 86400) * 86400 AS day_start,
+                CAST(
+                    strftime(
+                        '%s',
+                        datetime(timestamp, 'unixepoch', 'localtime', 'start of day')
+                    ) AS INTEGER
+                ) AS day_start,
                 MAX(CASE WHEN {status_column} = 1 THEN 1 ELSE 0 END) AS has_processed,
                 MAX(CASE WHEN {status_column} IS NULL THEN 1 ELSE 0 END) AS has_pending
             FROM processed_files
