@@ -1,0 +1,95 @@
+import { describe, expect, it, vi } from 'vitest';
+import { GET } from '../../src/routes/api/netflow/stats/+server';
+import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
+
+vi.mock('$lib/server/datasets', () => ({
+	getDatasetDb: vi.fn(),
+	getRequestedDataset: vi.fn()
+}));
+
+describe('/api/netflow/stats GET', () => {
+	it('returns 400 when no routers are selected', async () => {
+		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
+
+		const response = await GET({
+			url: new URL('http://localhost/api/netflow/stats?startDate=1&endDate=2')
+		} as never);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({ error: 'No routers selected' });
+	});
+
+	it('returns normalized bucket rows from the database', async () => {
+		const all = vi.fn().mockReturnValue([
+			{
+				bucketStart: 100,
+				flows: 1,
+				flowsTcp: null,
+				flowsUdp: 2,
+				flowsIcmp: 3,
+				flowsOther: 4,
+				packets: 5,
+				packetsTcp: 6,
+				packetsUdp: 7,
+				packetsIcmp: 8,
+				packetsOther: 9,
+				bytes: 10,
+				bytesTcp: 11,
+				bytesUdp: 12,
+				bytesIcmp: 13,
+				bytesOther: 14
+			}
+		]);
+		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
+		vi.mocked(getDatasetDb).mockReturnValue({
+			prepare: vi.fn().mockReturnValue({ all })
+		} as never);
+
+		const response = await GET({
+			url: new URL(
+				'http://localhost/api/netflow/stats?routers=r1,r2&startDate=1&endDate=2&groupBy=hour'
+			)
+		} as never);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			result: [
+				{
+					bucketStart: 100,
+					flows: 1,
+					flowsTcp: 0,
+					flowsUdp: 2,
+					flowsIcmp: 3,
+					flowsOther: 4,
+					packets: 5,
+					packetsTcp: 6,
+					packetsUdp: 7,
+					packetsIcmp: 8,
+					packetsOther: 9,
+					bytes: 10,
+					bytesTcp: 11,
+					bytesUdp: 12,
+					bytesIcmp: 13,
+					bytesOther: 14
+				}
+			]
+		});
+		expect(all).toHaveBeenCalledWith('r1', 'r2', '1', '2');
+	});
+
+	it('returns 500 when the database query fails', async () => {
+		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
+		vi.mocked(getDatasetDb).mockReturnValue({
+			prepare: vi.fn(() => {
+				throw new Error('boom');
+			})
+		} as never);
+
+		const response = await GET({
+			url: new URL('http://localhost/api/netflow/stats?routers=r1&startDate=1&endDate=2')
+		} as never);
+
+		expect(response.status).toBe(500);
+		await expect(response.json()).resolves.toEqual({ error: 'Database query failed' });
+	});
+});

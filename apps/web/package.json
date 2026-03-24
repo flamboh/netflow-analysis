@@ -13,12 +13,15 @@
 		"format": "prettier --write .",
 		"lint": "eslint .",
 		"test": "vitest run",
+		"test:e2e": "playwright test",
+		"test:e2e:headed": "playwright test --headed",
 		"typecheck": "tsc --noEmit",
 		"validate": "bun run format && bun run lint && bun run check"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
 		"@eslint/js": "^9.18.0",
+		"@playwright/test": "1.52.0",
 		"@sveltejs/adapter-auto": "^6.0.0",
 		"@sveltejs/adapter-node": "^5.5.1",
 		"@sveltejs/kit": "^2.16.0",
