@@ -165,10 +165,15 @@ Dataset-scoped SQLite databases (for example `data/<dataset>/netflow.sqlite`) wi
 bun run dev:web      # Start development server
 bun run build:web    # Build for production
 bun run check:web    # TypeScript type checking
+bun run format:repo  # Format root docs/config
 bun run format:web   # Format with Prettier
+bun run format:check:repo # Check root docs/config formatting
 bun run format:check:web # Check Prettier formatting
 bun run lint:web     # Run ESLint
-bun run precommit    # Pre-commit gate: format, lint, checks, tests
+bun run test:web     # Vitest
+bun run test:db      # Pytest
+bun run test:e2e     # Playwright
+bun run test         # All test surfaces
 ```
 
 ### Database Management

@@ -71,10 +71,15 @@ Frontend (`apps/web/`, run from repo root):
 bun install
 bun run build:web
 bun run check:web
+bun run format:repo
 bun run lint:web
 bun run format:web
+bun run format:check:repo
 bun run format:check:web
-bun run precommit
+bun run test:web
+bun run test:db
+bun run test:e2e
+bun run test
 ```
 
 Do not start `bun run dev:web` unless the user explicitly asks. Assume a dev server may already be running.
@@ -95,7 +100,7 @@ Run backend compile checks after backend Python edits and before handing off wor
 
 ## Testing Expectations
 
-- Frontend changes: run `bun run precommit:web` from repo root.
+- Frontend changes: run `bun run test:web` from repo root.
 - Backend changes: run `python -m compileall tools/netflow-db` from repo root.
 - Add or update route-level smoke coverage when introducing new pages or endpoints.
 

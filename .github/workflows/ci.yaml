@@ -2,7 +2,10 @@ name: CI
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,7 +39,7 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - run: bunx prettier --check package.json apps/web/package.json
+      - run: bun run format:check:repo
 
       - run: uv sync
 
@@ -46,7 +49,7 @@ jobs:
 
       - run: bun run test:web
 
-      - run: uv run pytest tests/python
+      - run: bun run test:db
 
       - run: python -m compileall tools/netflow-db
 
@@ -56,6 +59,7 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     needs: unit-and-build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v6
 

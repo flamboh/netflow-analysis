@@ -36,3 +36,4 @@ exploration/
 datasets.json
 
 .claude/worktrees/
+.husky/_/
