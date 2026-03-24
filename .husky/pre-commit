@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+
+[ -z "$STAGED" ] && exit 0
+
+printf '%s\n' "$STAGED" | xargs -d '\n' -r bunx prettier --write --ignore-unknown
+
+WEB_LINT_TARGETS=$(
+	printf '%s\n' "$STAGED" | grep -E '^apps/web/.*\.(cjs|cts|js|jsx|mjs|mts|svelte|ts|tsx)$' | sed 's|^apps/web/||' || true
+)
+
+if [ -n "$WEB_LINT_TARGETS" ]; then
+	printf '%s\n' "$WEB_LINT_TARGETS" | (cd apps/web && xargs -d '\n' -r bunx eslint --no-warn-ignored)
+fi
+
+git update-index --again
+
+bun run typecheck

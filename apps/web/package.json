@@ -13,7 +13,6 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint .",
-		"precommit": "bun run format && bun run lint && bun run check && bun run test",
 		"test": "vitest run",
 		"test:e2e": "playwright test",
 		"test:e2e:headed": "playwright test --headed",

@@ -6,22 +6,24 @@
     "apps/*"
   ],
   "scripts": {
+    "prepare": "husky",
     "dev:web": "cd apps/web && bun run dev",
     "build:web": "cd apps/web && bun run build",
     "check:web": "cd apps/web && bun run check",
     "lint:web": "cd apps/web && bun run lint",
+    "typecheck": "cd apps/web && bun run typecheck",
+    "format:repo": "cd apps/web && bunx prettier --write ../../package.json ../../README.md ../../AGENTS.md ../../.github/workflows/ci.yaml",
+    "format:check:repo": "cd apps/web && bunx prettier --check ../../package.json ../../README.md ../../AGENTS.md ../../.github/workflows/ci.yaml",
     "format:web": "cd apps/web && bun run format",
     "format:check:web": "cd apps/web && bun run format:check",
     "test:web": "cd apps/web && bun run test",
-    "test:e2e": "cd apps/web && bun run test:e2e",
-    "test:e2e:headed": "cd apps/web && bun run test:e2e:headed",
-    "precommit:web": "bun run format:web && bun run lint:web && bun run check:web && bun run test:web",
-    "precommit:db": "nix-shell --run 'uv run pytest tests/python && python -m compileall tools/netflow-db'",
-    "precommit": "bun run precommit:web && bun run precommit:db",
+    "test:db": "nix-shell --run 'uv run pytest tests/python'",
+    "test:e2e": "nix-shell --run 'cd apps/web && PLAYWRIGHT_WEB_SERVER=1 bun run test:e2e'",
+    "test:e2e:headed": "nix-shell --run 'cd apps/web && PLAYWRIGHT_WEB_SERVER=1 bun run test:e2e:headed'",
     "check:db": "python -m compileall tools/netflow-db",
-    "test": "vitest"
+    "test": "bun run test:web && bun run test:db && bun run test:e2e"
   },
   "devDependencies": {
-    "vitest": "^4.1.1"
+    "husky": "^9.1.7"
   }
 }
