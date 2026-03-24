@@ -441,7 +441,16 @@ def init_processed_files_table(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_processed_files_router_timestamp 
         ON processed_files(router, timestamp)
     """)
-    
+
+    try:
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_processed_files_router_timestamp_unique 
+            ON processed_files(router, timestamp)
+        """)
+    except sqlite3.IntegrityError:
+        print("Warning: processed_files has duplicate router/timestamp rows; "
+              "skipping unique index creation until repaired")
+
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_processed_files_pending 
         ON processed_files(processed_at) 

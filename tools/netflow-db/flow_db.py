@@ -73,6 +73,15 @@ def init_netflow_stats_table(conn: sqlite3.Connection) -> None:
     CREATE INDEX IF NOT EXISTS idx_router_timestamp ON netflow_stats (router, timestamp)
     """)
 
+    try:
+        cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_netflow_router_timestamp_unique
+        ON netflow_stats (router, timestamp)
+        """)
+    except sqlite3.IntegrityError:
+        print("[flow_stats] Warning: netflow_stats has duplicate router/timestamp rows; "
+              "skipping unique index creation until repaired")
+
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_file_path ON netflow_stats (file_path)
     """)
@@ -170,6 +179,10 @@ def batch_insert_results(conn: sqlite3.Connection, results: list[dict]) -> int:
         
         data = result['data']
         try:
+            cursor.execute("""
+                DELETE FROM netflow_stats
+                WHERE router = ? AND timestamp = ? AND file_path != ?
+            """, (result['router'], result['timestamp'], result['file_path']))
             cursor.execute("""
                 INSERT OR REPLACE INTO netflow_stats (
                     file_path, router, timestamp,
