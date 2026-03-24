@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { describe, expect, it, vi } from 'vitest';
+import { createDateFromPSTComponents } from '../../src/lib/utils/timezone';
 import {
 	getDatasetFromRequest,
 	getNetflowFilePath,
@@ -43,7 +44,9 @@ describe('netflow file helpers and routes', () => {
 	it('parses slugs and resolves dataset from requests', async () => {
 		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
 
-		expect(slugToBucketStart('202503010005')).toBe(1740816300);
+		expect(slugToBucketStart('202503010005')).toBe(
+			Math.floor(createDateFromPSTComponents(2025, 3, 1, 0, 5).getTime() / 1000)
+		);
 		expect(slugToBucketStart('bad')).toBeNull();
 		expect(getDatasetFromRequest(new URL('http://localhost/api?dataset=alpha'))).toBe('alpha');
 	});
