@@ -2,6 +2,7 @@
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import type { ActiveElement, ChartEvent } from 'chart.js';
@@ -76,12 +77,15 @@
 
 	const today = new Date();
 	const formatDate = (date: Date): string => formatDateAsPSTDateString(date);
+	const getInitialAddressType = () => props.addressType ?? 'sa';
+	const getInitialRouter = () => (props.router ?? '').trim();
+	const getInitialGranularity = () => props.granularity ?? '1h';
 
 	let buckets = $state<SpectrumStatsBucket[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
-	let addressType = $state<'sa' | 'da'>(props.addressType ?? 'sa');
-	let currentRouter = $state((props.router ?? '').trim());
+	let addressType = $state<'sa' | 'da'>(getInitialAddressType());
+	let currentRouter = $state(getInitialRouter());
 	let bucketStarts: number[] = [];
 
 	let chartCanvas = $state<HTMLCanvasElement | null>(null);
@@ -497,7 +501,7 @@
 			const labelForSlug = activeLabel ?? label;
 			const slug = generateSlugFromLabel(labelForSlug, '5min');
 			if (slug) {
-				goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`);
+				goto(resolve(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`));
 			}
 			return;
 		}
@@ -864,7 +868,7 @@
 		destroyChart();
 	});
 
-	let currentGranularity = $state<IpGranularity>(props.granularity ?? '1h');
+	let currentGranularity = $state<IpGranularity>(getInitialGranularity());
 
 	$effect(() => {
 		const availableRouters = (props.availableRouters ?? [])

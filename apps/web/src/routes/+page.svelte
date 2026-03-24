@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import {
 		getCachedDatasetSummaries,
@@ -13,7 +14,7 @@
 	let error = $state('');
 
 	function openDataset(datasetId: string) {
-		goto(`/datasets/${datasetId}`);
+		goto(resolve('/datasets/[dataset]', { dataset: datasetId }));
 	}
 
 	onMount(async () => {

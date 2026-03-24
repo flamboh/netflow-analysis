@@ -24,9 +24,10 @@
 		title?: string;
 	}>();
 
-	const params = useSearchParams(createDateRangeSearchSchema(props.defaultStartDate), {
-		noScroll: true
-	});
+	const params = (() =>
+		useSearchParams(createDateRangeSearchSchema(props.defaultStartDate), {
+			noScroll: true
+		}))();
 	let startDate = $state(params.startDate);
 	let endDate = $state(params.endDate);
 	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);

@@ -4,6 +4,7 @@
 	import type { TooltipItem } from 'chart.js';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
@@ -398,7 +399,7 @@
 			if (onNavigateToFile) {
 				onNavigateToFile(slug);
 			} else {
-				goto(`/netflow/files/${slug}`);
+				goto(resolve(`/netflow/files/${slug}`));
 			}
 		}
 

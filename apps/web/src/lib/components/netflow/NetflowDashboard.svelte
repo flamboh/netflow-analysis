@@ -2,6 +2,7 @@
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
 	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
 	import { dateStringToEpochPST } from '$lib/utils/timezone';
@@ -152,7 +153,7 @@
 	}
 
 	function handleNavigateToFile(slug: string) {
-		goto(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset)}`);
+		goto(resolve(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset)}`));
 	}
 
 	function handleChartTypeChange(newChartType: ChartTypeOption) {

@@ -75,7 +75,8 @@
 	);
 	const SUMMARY_SKELETON_DELAY_MS = 150;
 	let summaryLoadDelayId: ReturnType<typeof setTimeout> | null = null;
-	let currentSlug = $state(data.slug);
+	const getInitialSlug = () => data.slug;
+	let currentSlug = $state(getInitialSlug());
 	let loadToken = 0;
 
 	function clearSummaryLoadDelay() {
