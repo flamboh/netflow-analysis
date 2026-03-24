@@ -14,7 +14,8 @@
     "test:web": "cd apps/web && bun run test",
     "validate:web": "cd apps/web && bun run validate",
     "check:db": "python -m compileall tools/netflow-db",
-    "validate": "bun run validate:web && bun run check:db"
+    "validate": "bun run validate:web && bun run check:db",
+    "test": "vitest"
   },
   "devDependencies": {
     "vitest": "^4.1.1"
