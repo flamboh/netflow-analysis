@@ -17,7 +17,7 @@ const BUCKET_SIZES: Record<string, number> = {
  */
 function getBucketStartQuery(groupBy: string): string {
 	const bucketSize = BUCKET_SIZES[groupBy] ?? BUCKET_SIZES.date;
-	return `(CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime')) AS integer) / ${bucketSize}) * ${bucketSize}`;
+	return `(CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime', 'start of day', 'utc', printf('+%d seconds', ((CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime')) AS integer) - CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime', 'start of day')) AS integer)) / ${bucketSize}) * ${bucketSize}))) AS integer))`;
 }
 
 export const GET: RequestHandler = async ({ url }) => {
