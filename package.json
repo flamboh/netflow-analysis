@@ -16,12 +16,13 @@
     "format:check:repo": "cd apps/web && bunx prettier --check ../../package.json ../../README.md ../../AGENTS.md ../../.github/workflows/ci.yaml",
     "format:web": "cd apps/web && bun run format",
     "format:check:web": "cd apps/web && bun run format:check",
+    "test:": "bun run test:web && bun run test:db",
+    "test:all": "bun run test:web && bun run test:db && bun run test:e2e",
     "test:web": "cd apps/web && bun run test",
     "test:db": "nix-shell --run 'uv run pytest tests/python'",
     "test:e2e": "nix-shell --run 'cd apps/web && PLAYWRIGHT_WEB_SERVER=1 bun run test:e2e'",
     "test:e2e:headed": "nix-shell --run 'cd apps/web && PLAYWRIGHT_WEB_SERVER=1 bun run test:e2e:headed'",
-    "check:db": "python -m compileall tools/netflow-db",
-    "test": "bun run test:web && bun run test:db && bun run test:e2e"
+    "check:db": "python -m compileall tools/netflow-db"
   },
   "devDependencies": {
     "husky": "^9.1.7"
