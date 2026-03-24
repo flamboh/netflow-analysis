@@ -1,5 +1,5 @@
 {
-	"name": "netflow-webapp",
+	"name": "@netflow-analysis/web",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
@@ -14,7 +14,7 @@
 		"lint": "eslint .",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit",
-		"validate": "npm run format && npm run lint && npm run check"
+		"validate": "bun run format && bun run lint && bun run check"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",

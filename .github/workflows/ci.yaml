@@ -7,20 +7,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Install Dependencies
-        run: cd netflow-webapp && npm install
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install JS dependencies
+        run: bun install --frozen-lockfile
 
       - name: Copy .env.example files
         shell: bash
         run: find . -type f -name ".env.example" -exec sh -c 'cp "$1" "${1%.*}"' _ {} \;
 
       - name: Generate types
-        run: cd netflow-webapp && npx svelte-kit sync
+        run: cd apps/web && bun x svelte-kit sync
 
-      - name: Typecheck
-        run: cd netflow-webapp && npm run typecheck
+      - name: Frontend validate
+        run: bun run validate:web
 
-      - name: Lint
-        run: cd netflow-webapp && npm run lint
+      - name: Backend compile check
+        run: bun run check:db

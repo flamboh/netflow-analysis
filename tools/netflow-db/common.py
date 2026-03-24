@@ -14,7 +14,7 @@ from typing import Any, Optional
 from contextlib import contextmanager
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ENV_PATH = REPO_ROOT / '.env'
 DEFAULT_DATASETS_PATH = REPO_ROOT / 'datasets.json'
 DEFAULT_DATA_START_DATE = datetime(2025, 2, 1)

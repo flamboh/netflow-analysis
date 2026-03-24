@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
 import type { DatasetSummary } from '$lib/types/types';
+import { getDatasetsConfigPath, getRepoRoot } from '$lib/server/paths';
 
 export interface DatasetConfig {
 	dataset_id: string;
@@ -14,8 +15,8 @@ export interface DatasetConfig {
 	source_ids?: string[];
 }
 
-const repoRoot = path.resolve(process.cwd(), '..');
-const defaultRegistryPath = path.resolve(repoRoot, 'datasets.json');
+const repoRoot = getRepoRoot();
+const defaultRegistryPath = getDatasetsConfigPath();
 const datasetDbCache = new Map<
 	string,
 	{ db: Database.Database; dbPath: string; mtimeMs: number }
@@ -52,11 +53,7 @@ function resolveRepoPath(value: string): string {
 }
 
 function getRegistryPath(): string {
-	const configured = process.env.DATASETS_CONFIG_PATH;
-	if (!configured) {
-		return defaultRegistryPath;
-	}
-	return path.isAbsolute(configured) ? configured : path.resolve(repoRoot, configured);
+	return defaultRegistryPath;
 }
 
 function readDatasetRegistry(): DatasetConfig[] {

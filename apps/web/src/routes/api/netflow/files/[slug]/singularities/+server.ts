@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { getDatasetFromRequest, getNetflowFilePath } from '../utils';
+import { getMaadDir } from '$lib/server/paths';
 
 const execAsync = promisify(exec);
 
@@ -24,7 +25,7 @@ async function runSingularitiesAnalysis(
 ): Promise<Singularity[]> {
 	try {
 		// Use nfdump to extract IPv4 addresses (source or destination) and pipe directly to MAAD Singularities
-		const maadPath = path.join(process.cwd(), '..', 'maad');
+		const maadPath = getMaadDir();
 		const singularitiesPath = path.join(maadPath, 'Singularities');
 
 		// Use %sa for source addresses, %da for destination addresses

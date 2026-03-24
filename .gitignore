@@ -5,8 +5,8 @@ node_modules
 .vercel
 .netlify
 .wrangler
-/netflow-webapp/.svelte-kit
-/netflow-webapp/build
+/apps/web/.svelte-kit
+/apps/web/build
 __pycache__
 
 # OS

@@ -13,7 +13,7 @@ const config = {
 		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
 		adapter: adapter(),
 		env: {
-			dir: '..' // Look for .env files in parent directory
+			dir: '../..' // Look for .env files in repository root
 		}
 	}
 };
