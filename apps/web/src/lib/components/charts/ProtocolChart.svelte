@@ -786,9 +786,9 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm dark:border-dark-border dark:bg-dark-surface">
+<div class="dark:border-dark-border dark:bg-dark-surface rounded-lg border bg-white shadow-sm">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing dark:border-dark-border"
+		class="dark:border-dark-border relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
@@ -813,7 +813,7 @@
 		</div>
 
 		<div
-			class="relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 dark:border-dark-border dark:bg-dark-subtle/60"
+			class="dark:border-dark-border dark:bg-dark-subtle/60 relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -834,7 +834,9 @@
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500 dark:text-gray-400">No protocol data for the selected window.</div>
+					<div class="text-gray-500 dark:text-gray-400">
+						No protocol data for the selected window.
+					</div>
 				</div>
 			{:else}
 				<div class="h-full">

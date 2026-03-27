@@ -72,7 +72,7 @@
 <div class="metric-selector">
 	<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 		<div
-			class="relative inline-grid min-w-[24rem] grid-cols-5 rounded-md border border-gray-200 bg-gray-50 p-1 dark:border-dark-border dark:bg-dark-subtle"
+			class="dark:border-dark-border dark:bg-dark-subtle relative inline-grid min-w-[24rem] grid-cols-5 rounded-md border border-gray-200 bg-gray-50 p-1"
 		>
 			<div
 				class={`pointer-events-none absolute top-1 bottom-1 rounded bg-blue-600 shadow-sm transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none ${
@@ -104,7 +104,7 @@
 				<select
 					value={chartType}
 					onchange={handleChartTypeChange}
-					class="rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-dark-border dark:bg-dark-subtle dark:text-gray-300"
+					class="dark:border-dark-border dark:bg-dark-subtle rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:text-gray-300"
 					aria-label="Select NetFlow chart type"
 				>
 					<option value="stacked">Stacked Area</option>
@@ -117,7 +117,7 @@
 	<div class="grid grid-cols-4 gap-2">
 		{#each dataOptions as option, index (index)}
 			<label
-				class="flex min-h-14 cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50 dark:hover:bg-dark-subtle"
+				class="dark:hover:bg-dark-subtle flex min-h-14 cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50"
 			>
 				<input
 					type="checkbox"

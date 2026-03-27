@@ -629,11 +629,7 @@
 	}
 
 	function renderChart() {
-		const {
-			textColor,
-			gridColor,
-			gridHighlightColor
-		} = getChartColors();
+		const { textColor, gridColor, gridHighlightColor } = getChartColors();
 		const canvas = chartCanvas;
 		if (!canvas) {
 			return;
@@ -981,9 +977,9 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm dark:border-dark-border dark:bg-dark-surface">
+<div class="dark:border-dark-border dark:bg-dark-surface rounded-lg border bg-white shadow-sm">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing dark:border-dark-border"
+		class="dark:border-dark-border relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
 		draggable="true"
 		data-drag-handle
 	>
@@ -995,7 +991,9 @@
 			<div class="flex min-h-6 flex-wrap items-center gap-4">
 				{#if (props.availableRouters ?? []).length === 0}
 					{#each Array(4) as _, index (index)}
-						<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-dark-border" aria-hidden="true"
+						<span
+							class="dark:bg-dark-border inline-block h-4 w-24 animate-pulse rounded bg-gray-200"
+							aria-hidden="true"
 						></span>
 					{/each}
 				{:else}
@@ -1038,7 +1036,7 @@
 		</div>
 
 		<div
-			class="relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 dark:border-dark-border dark:bg-dark-subtle/60"
+			class="dark:border-dark-border dark:bg-dark-subtle/60 relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -1055,7 +1053,9 @@
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500 dark:text-gray-400">No spectrum data for the selected window.</div>
+					<div class="text-gray-500 dark:text-gray-400">
+						No spectrum data for the selected window.
+					</div>
 				</div>
 			{:else}
 				<div class="h-full">

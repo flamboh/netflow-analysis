@@ -47,7 +47,9 @@
 
 		{#if bottomSingularities.length > 0}
 			<div class="rounded-lg border bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-				<h4 class="mb-2 font-semibold dark:text-gray-100">Bottom Singularities (Least Anomalous)</h4>
+				<h4 class="mb-2 font-semibold dark:text-gray-100">
+					Bottom Singularities (Least Anomalous)
+				</h4>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
 						<thead>
@@ -78,14 +80,14 @@
 		{/if}
 
 		{#if topSingularities.length === 0 && bottomSingularities.length === 0}
-			<div class="rounded-lg border bg-gray-50 p-4 dark:border-dark-border dark:bg-dark-subtle">
+			<div class="dark:border-dark-border dark:bg-dark-subtle rounded-lg border bg-gray-50 p-4">
 				<p class="text-gray-600 dark:text-gray-400">No singularities data available.</p>
 			</div>
 		{/if}
 	</div>
 {:else}
 	<div class="w-full">
-		<div class="rounded-lg border bg-gray-50 p-4 dark:border-dark-border dark:bg-dark-subtle">
+		<div class="dark:border-dark-border dark:bg-dark-subtle rounded-lg border bg-gray-50 p-4">
 			<p class="text-gray-600 dark:text-gray-400">Loading singularities data...</p>
 		</div>
 	</div>

@@ -27,7 +27,7 @@
 			type="date"
 			value={startDate}
 			onchange={handleStartDateChange}
-			class="min-w-[9.5rem] rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-dark-border dark:bg-dark-subtle dark:text-gray-100 dark:[color-scheme:dark]"
+			class="dark:border-dark-border dark:bg-dark-subtle min-w-[9.5rem] rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-gray-100 dark:[color-scheme:dark]"
 		/>
 	</div>
 
@@ -40,7 +40,7 @@
 			type="date"
 			value={endDate}
 			onchange={handleEndDateChange}
-			class="min-w-[9.5rem] rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-dark-border dark:bg-dark-subtle dark:text-gray-100 dark:[color-scheme:dark]"
+			class="dark:border-dark-border dark:bg-dark-subtle min-w-[9.5rem] rounded-md border border-gray-300 px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-gray-100 dark:[color-scheme:dark]"
 		/>
 	</div>
 </div>

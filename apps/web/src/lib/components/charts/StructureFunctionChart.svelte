@@ -66,13 +66,8 @@
 
 	function updateChart() {
 		const points = data.structureFunction;
-		const {
-			textColor,
-			gridColor,
-			tooltipBackgroundColor,
-			tooltipTextColor,
-			tooltipBorderColor
-		} = getChartColors();
+		const { textColor, gridColor, tooltipBackgroundColor, tooltipTextColor, tooltipBorderColor } =
+			getChartColors();
 
 		const errorBarAnnotations: Record<
 			string,
@@ -236,10 +231,12 @@
 				analyzed
 			</p>
 		{:else if data.metadata.uniqueIPCount !== -1}
-			<p class="text-xs text-amber-600 dark:text-amber-400">⚠ Using test data from MAAD sample set</p>
+			<p class="text-xs text-amber-600 dark:text-amber-400">
+				⚠ Using test data from MAAD sample set
+			</p>
 		{/if}
 	</div>
-	<div class="relative h-72 min-w-0 w-full sm:h-96">
+	<div class="relative h-72 w-full min-w-0 sm:h-96">
 		<canvas bind:this={chartCanvas}></canvas>
 	</div>
 </div>
