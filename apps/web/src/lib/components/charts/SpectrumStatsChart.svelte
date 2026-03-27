@@ -35,6 +35,7 @@
 	} from '$lib/utils/timezone';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
+	import { theme } from '$lib/stores/theme.svelte';
 	import {
 		ensureCachedWindow,
 		getMissingWindowRanges,
@@ -218,6 +219,41 @@
 			return null;
 		}
 		return bucketStarts[roundedIndex] ?? null;
+	}
+
+	function getChartColors() {
+		const style = getComputedStyle(document.documentElement);
+		return {
+			textColor: style.getPropertyValue('--chart-text-color').trim(),
+			gridColor: style.getPropertyValue('--chart-grid-color').trim(),
+			gridHighlightColor: style.getPropertyValue('--chart-grid-highlight-color').trim(),
+			tooltipBackgroundColor: style.getPropertyValue('--chart-tooltip-bg').trim(),
+			tooltipTextColor: style.getPropertyValue('--chart-tooltip-text-color').trim(),
+			tooltipBorderColor: style.getPropertyValue('--chart-tooltip-border-color').trim()
+		};
+	}
+
+	function applyChartTheme() {
+		if (!chart) {
+			return;
+		}
+
+		const { textColor, gridColor, gridHighlightColor } = getChartColors();
+		const scales = chart.options.scales;
+
+		if (scales?.x) {
+			scales.x.title = { ...scales.x.title, color: textColor };
+			scales.x.ticks = { ...scales.x.ticks, color: textColor };
+			scales.x.grid = { ...scales.x.grid, color: scales.x.grid?.color ?? gridHighlightColor };
+		}
+
+		if (scales?.y) {
+			scales.y.title = { ...scales.y.title, color: textColor };
+			scales.y.ticks = { ...scales.y.ticks, color: textColor };
+			scales.y.grid = { ...scales.y.grid, color: gridColor };
+		}
+
+		chart.update('none');
 	}
 
 	function getPixelForLabel(label: string | null): number | null {
@@ -593,6 +629,11 @@
 	}
 
 	function renderChart() {
+		const {
+			textColor,
+			gridColor,
+			gridHighlightColor
+		} = getChartColors();
 		const canvas = chartCanvas;
 		if (!canvas) {
 			return;
@@ -654,7 +695,7 @@
 				},
 				options: {
 					onClick: handleChartClick,
-					animation: false,
+					animation: false as const,
 					responsive: true,
 					maintainAspectRatio: false,
 					events: ['click'],
@@ -677,9 +718,11 @@
 							max: bucketStarts.length - 1,
 							title: {
 								display: true,
-								text: `Time (${granularity})`
+								text: `Time (${granularity})`,
+								color: textColor
 							},
 							ticks: {
+								color: textColor,
 								stepSize: 1,
 								autoSkip: false,
 								maxRotation: 45,
@@ -696,12 +739,12 @@
 									const tickValue = ctx.tick?.value;
 									const bucketStart = getBucketStartForTickValue(tickValue);
 									if (bucketStart === null || typeof tickValue !== 'number') {
-										return 'rgba(0,0,0,0.02)';
+										return gridHighlightColor;
 									}
 									const index = Math.round(tickValue);
 									return shouldHighlightTick(bucketStart, granularity, index)
-										? 'rgba(0,0,0,0.08)'
-										: 'rgba(0,0,0,0.02)';
+										? gridColor
+										: gridHighlightColor;
 								}
 							}
 						},
@@ -714,8 +757,11 @@
 							},
 							title: {
 								display: true,
-								text: 'alpha'
-							}
+								text: 'alpha',
+								color: textColor
+							},
+							ticks: { color: textColor },
+							grid: { color: gridColor }
 						}
 					}
 				}
@@ -735,8 +781,9 @@
 				x: {
 					min: 0,
 					max: bucketStarts.length - 1,
-					title: { display: true, text: `Time (${granularity})` },
+					title: { display: true, text: `Time (${granularity})`, color: textColor },
 					ticks: {
+						color: textColor,
 						stepSize: 1,
 						autoSkip: false,
 						maxRotation: 45,
@@ -753,12 +800,12 @@
 							const tickValue = ctx.tick?.value;
 							const bucketStart = getBucketStartForTickValue(tickValue);
 							if (bucketStart === null || typeof tickValue !== 'number') {
-								return 'rgba(0,0,0,0.02)';
+								return gridHighlightColor;
 							}
 							const index = Math.round(tickValue);
 							return shouldHighlightTick(bucketStart, granularity, index)
-								? 'rgba(0,0,0,0.08)'
-								: 'rgba(0,0,0,0.02)';
+								? gridColor
+								: gridHighlightColor;
 						}
 					}
 				} as never,
@@ -768,7 +815,9 @@
 					afterFit(axis: { width: number }) {
 						axis.width = Y_AXIS_WIDTH;
 					},
-					title: { display: true, text: 'alpha' }
+					title: { display: true, text: 'alpha', color: textColor },
+					ticks: { color: textColor },
+					grid: { color: gridColor }
 				} as never
 			};
 			chart.options.onClick = handleChartClick;
@@ -871,6 +920,13 @@
 	let currentGranularity = $state<IpGranularity>(getInitialGranularity());
 
 	$effect(() => {
+		void theme.dark;
+		if (chart) {
+			applyChartTheme();
+		}
+	});
+
+	$effect(() => {
 		const availableRouters = (props.availableRouters ?? [])
 			.map((router: string) => router.trim())
 			.filter((router: string) => router.length > 0);
@@ -925,13 +981,13 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
+<div class="rounded-lg border bg-white shadow-sm dark:border-dark-border dark:bg-dark-surface">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
+		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing dark:border-dark-border"
 		draggable="true"
 		data-drag-handle
 	>
-		<h3 class="text-lg font-semibold text-gray-900">Spectrum</h3>
+		<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Spectrum</h3>
 		<DragGrip />
 	</div>
 	<div class="p-4">
@@ -939,7 +995,7 @@
 			<div class="flex min-h-6 flex-wrap items-center gap-4">
 				{#if (props.availableRouters ?? []).length === 0}
 					{#each Array(4) as _, index (index)}
-						<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" aria-hidden="true"
+						<span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200 dark:bg-dark-border" aria-hidden="true"
 						></span>
 					{/each}
 				{:else}
@@ -952,7 +1008,7 @@
 								onchange={() => handleRouterChange(routerName)}
 								class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
-							<span class="text-sm text-gray-700">{routerName}</span>
+							<span class="text-sm text-gray-700 dark:text-gray-300">{routerName}</span>
 						</label>
 					{/each}
 				{/if}
@@ -966,7 +1022,7 @@
 						onchange={() => handleAddressTypeChange('sa')}
 						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
-					<span class="text-sm text-gray-700">Source IPv4</span>
+					<span class="text-sm text-gray-700 dark:text-gray-300">Source IPv4</span>
 				</label>
 				<label class="flex cursor-pointer items-center gap-2">
 					<input
@@ -976,13 +1032,13 @@
 						onchange={() => handleAddressTypeChange('da')}
 						class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
-					<span class="text-sm text-gray-700">Destination IPv4</span>
+					<span class="text-sm text-gray-700 dark:text-gray-300">Destination IPv4</span>
 				</label>
 			</div>
 		</div>
 
 		<div
-			class="relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="relative h-[400px] min-h-[300px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 dark:border-dark-border dark:bg-dark-subtle/60"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -991,7 +1047,7 @@
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading spectrum data...</div>
+					<div class="text-gray-500 dark:text-gray-400">Loading spectrum data...</div>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">
@@ -999,7 +1055,7 @@
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No spectrum data for the selected window.</div>
+					<div class="text-gray-500 dark:text-gray-400">No spectrum data for the selected window.</div>
 				</div>
 			{:else}
 				<div class="h-full">
@@ -1012,8 +1068,8 @@
 					{/if}
 					{#if !rangeDrag.isDraggingRange && localHoverX !== null && showLocalTooltip && localHoverLabel}
 						<div
-							class="pointer-events-none absolute z-20 rounded border border-gray-600/80 bg-gray-900 px-2 py-1 text-xs whitespace-nowrap text-white shadow-sm"
-							style={getCrosshairTooltipStyle(localHoverX)}
+							class="pointer-events-none absolute z-20 rounded border px-2 py-1 text-xs whitespace-nowrap shadow-sm"
+							style={`${getCrosshairTooltipStyle(localHoverX)} background:${getChartColors().tooltipBackgroundColor}; color:${getChartColors().tooltipTextColor}; border-color:${getChartColors().tooltipBorderColor};`}
 						>
 							{localHoverLabel}
 						</div>

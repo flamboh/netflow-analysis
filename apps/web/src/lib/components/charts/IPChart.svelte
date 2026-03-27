@@ -33,6 +33,7 @@
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
+	import { theme } from '$lib/stores/theme.svelte';
 	import {
 		ensureCachedWindow,
 		getMissingWindowRanges,
@@ -238,6 +239,77 @@
 		}
 	}
 
+	function getChartColors() {
+		const style = getComputedStyle(document.documentElement);
+		return {
+			textColor: style.getPropertyValue('--chart-text-color').trim(),
+			gridColor: style.getPropertyValue('--chart-grid-color').trim(),
+			gridHighlightColor: style.getPropertyValue('--chart-grid-highlight-color').trim(),
+			tooltipBackgroundColor: style.getPropertyValue('--chart-tooltip-bg').trim(),
+			tooltipTextColor: style.getPropertyValue('--chart-tooltip-text-color').trim(),
+			tooltipBorderColor: style.getPropertyValue('--chart-tooltip-border-color').trim()
+		};
+	}
+
+	function applyChartTheme() {
+		if (!chart) {
+			return;
+		}
+
+		const {
+			textColor,
+			gridColor,
+			gridHighlightColor,
+			tooltipBackgroundColor,
+			tooltipTextColor,
+			tooltipBorderColor
+		} = getChartColors();
+		const scales = chart.options.scales;
+
+		if (scales?.x) {
+			scales.x.title = { ...scales.x.title, color: textColor };
+			scales.x.ticks = { ...scales.x.ticks, color: textColor };
+			scales.x.grid = { ...scales.x.grid, color: scales.x.grid?.color ?? gridHighlightColor };
+		}
+
+		if (scales?.y) {
+			scales.y.title = { ...scales.y.title, color: textColor };
+			scales.y.ticks = { ...scales.y.ticks, color: textColor };
+			scales.y.grid = { ...scales.y.grid, color: gridColor };
+		}
+
+		chart.options.plugins = {
+			...chart.options.plugins,
+			legend: { position: 'top', labels: { color: textColor } },
+			verticalCrosshair: {
+				enabled: true,
+				line: {
+					color: 'rgba(100, 100, 100, 0.8)',
+					width: 1,
+					dash: [3, 3]
+				},
+				tooltip: {
+					enabled: true,
+					delay: 500,
+					backgroundColor: tooltipBackgroundColor,
+					textColor: tooltipTextColor,
+					borderColor: tooltipBorderColor,
+					borderWidth: 1,
+					borderRadius: 4,
+					padding: 8,
+					fontSize: 12,
+					fontFamily: 'system-ui, sans-serif'
+				},
+				sync: {
+					onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
+					getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
+				}
+			}
+		} as Record<string, unknown>;
+
+		chart.update('none');
+	}
+
 	function emitDrilldown(nextGroupBy: GroupByOption, start: Date, end: Date) {
 		dispatch('groupByChange', { groupBy: nextGroupBy });
 		dispatch('dateChange', {
@@ -386,6 +458,14 @@
 	}
 
 	function renderChart() {
+		const {
+			textColor,
+			gridColor,
+			gridHighlightColor,
+			tooltipBackgroundColor,
+			tooltipTextColor,
+			tooltipBorderColor
+		} = getChartColors();
 		const selectedRouters = new Set(deriveSelectedRouters(props.routers));
 		const selectedBuckets = buckets.filter((bucket) => selectedRouters.has(bucket.router));
 
@@ -462,7 +542,7 @@
 					maintainAspectRatio: false,
 					interaction: { mode: 'index', intersect: false },
 					plugins: {
-						legend: { position: 'top' },
+						legend: { position: 'top', labels: { color: textColor } },
 						verticalCrosshair: {
 							enabled: true,
 							line: {
@@ -473,9 +553,9 @@
 							tooltip: {
 								enabled: true,
 								delay: 500,
-								backgroundColor: 'rgba(0, 0, 0, 0.85)',
-								textColor: 'white',
-								borderColor: 'rgba(100, 100, 100, 0.8)',
+								backgroundColor: tooltipBackgroundColor,
+								textColor: tooltipTextColor,
+								borderColor: tooltipBorderColor,
 								borderWidth: 1,
 								borderRadius: 4,
 								padding: 8,
@@ -492,9 +572,11 @@
 						x: {
 							title: {
 								display: true,
-								text: `Time (${currentGranularity})`
+								text: `Time (${currentGranularity})`,
+								color: textColor
 							},
 							ticks: {
+								color: textColor,
 								autoSkip: false,
 								maxRotation: 45,
 								minRotation: 45,
@@ -508,8 +590,8 @@
 							grid: {
 								color: (ctx) =>
 									shouldHighlightTick(bucketStarts[ctx.index] ?? 0, currentGranularity, ctx.index)
-										? 'rgba(0,0,0,0.08)'
-										: 'rgba(0,0,0,0.02)'
+										? gridColor
+										: gridHighlightColor
 							}
 						},
 						y: {
@@ -519,10 +601,15 @@
 							},
 							title: {
 								display: true,
-								text: 'Unique IPs'
+								text: 'Unique IPs',
+								color: textColor
 							},
 							ticks: {
+								color: textColor,
 								callback: (value: string | number) => formatNumber(Number(value))
+							},
+							grid: {
+								color: gridColor
 							}
 						}
 					}
@@ -536,8 +623,9 @@
 			chart.options.scales = {
 				x: {
 					...chart.options.scales?.x,
-					title: { display: true, text: `Time (${currentGranularity})` },
+					title: { display: true, text: `Time (${currentGranularity})`, color: textColor },
 					ticks: {
+						color: textColor,
 						autoSkip: false,
 						maxRotation: 45,
 						minRotation: 45,
@@ -547,8 +635,8 @@
 					grid: {
 						color: (ctx) =>
 							shouldHighlightTick(bucketStarts[ctx.index] ?? 0, currentGranularity, ctx.index)
-								? 'rgba(0,0,0,0.08)'
-								: 'rgba(0,0,0,0.02)'
+								? gridColor
+								: gridHighlightColor
 					}
 				},
 				y: {
@@ -556,13 +644,45 @@
 					afterFit(axis: { width: number }) {
 						axis.width = Y_AXIS_WIDTH;
 					},
-					title: { display: true, text: 'Unique IPs' },
+					title: { display: true, text: 'Unique IPs', color: textColor },
 					ticks: {
+						color: textColor,
 						callback: (value: string | number) => formatNumber(Number(value))
+					},
+					grid: {
+						color: gridColor
 					}
 				}
 			};
 			chart.options.onClick = handleChartClick;
+			chart.options.plugins = {
+				...chart.options.plugins,
+				legend: { position: 'top', labels: { color: textColor } },
+				verticalCrosshair: {
+					enabled: true,
+					line: {
+						color: 'rgba(100, 100, 100, 0.8)',
+						width: 1,
+						dash: [3, 3]
+					},
+					tooltip: {
+						enabled: true,
+						delay: 500,
+						backgroundColor: tooltipBackgroundColor,
+						textColor: tooltipTextColor,
+						borderColor: tooltipBorderColor,
+						borderWidth: 1,
+						borderRadius: 4,
+						padding: 8,
+						fontSize: 12,
+						fontFamily: 'system-ui, sans-serif'
+					},
+					sync: {
+						onHover: (label: string | null) => crosshairStore.setHover(label, CHART_ID),
+						getExternalLabel: () => crosshairStore.getExternalLabel(CHART_ID)
+					}
+				}
+			} as Record<string, unknown>;
 			chart.update();
 		}
 	}
@@ -660,6 +780,13 @@
 	});
 
 	$effect(() => {
+		void theme.dark;
+		if (chart) {
+			applyChartTheme();
+		}
+	});
+
+	$effect(() => {
 		const incomingMetrics = props.activeMetrics ?? DEFAULT_METRICS;
 		const nextKey = JSON.stringify(incomingMetrics);
 		if (nextKey === lastIncomingMetricsKey) {
@@ -711,13 +838,13 @@
 	});
 </script>
 
-<div class="rounded-lg border bg-white shadow-sm">
+<div class="rounded-lg border bg-white shadow-sm dark:border-dark-border dark:bg-dark-surface">
 	<div
-		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing"
+		class="relative cursor-grab border-b p-4 select-none active:cursor-grabbing dark:border-dark-border"
 		draggable="true"
 		data-drag-handle
 	>
-		<h3 class="text-lg font-semibold text-gray-900">Unique IP Counts</h3>
+		<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Unique IP Counts</h3>
 		<DragGrip />
 	</div>
 	<div class="p-4">
@@ -730,13 +857,13 @@
 						onchange={() => handleMetricToggle(option.key)}
 						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
-					<span class="text-sm text-gray-700">{option.label}</span>
+					<span class="text-sm text-gray-700 dark:text-gray-300">{option.label}</span>
 				</label>
 			{/each}
 		</div>
 
 		<div
-			class="relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="relative h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60 dark:border-dark-border dark:bg-dark-subtle/60"
 			role="presentation"
 			onmousedown={handleRangeMouseDown}
 			onmousemove={handleRangeMouseMove}
@@ -745,7 +872,7 @@
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Loading IP data...</div>
+					<div class="text-gray-500 dark:text-gray-400">Loading IP data...</div>
 				</div>
 			{:else if error}
 				<div class="flex h-full items-center justify-center">
@@ -753,11 +880,11 @@
 				</div>
 			{:else if activeMetrics.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">Select at least one metric to display.</div>
+					<div class="text-gray-500 dark:text-gray-400">Select at least one metric to display.</div>
 				</div>
 			{:else if buckets.length === 0}
 				<div class="flex h-full items-center justify-center">
-					<div class="text-gray-500">No IP data for the selected window.</div>
+					<div class="text-gray-500 dark:text-gray-400">No IP data for the selected window.</div>
 				</div>
 			{:else}
 				<div class="h-full">
