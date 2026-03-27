@@ -215,16 +215,60 @@ def sync_processed_files_table(
     print("Scanning filesystem for NetFlow files...")
     for file_path, router, timestamp in scan_filesystem(discovery_window_days):
         stats['discovered'] += 1
-        
-        # Insert or ignore if already exists
-        cursor.execute("""
-            INSERT OR IGNORE INTO processed_files 
-            (file_path, router, timestamp, file_exists, discovered_at)
-            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
-        """, (file_path, router, timestamp_to_unix(timestamp)))
-        
-        if cursor.rowcount > 0:
-            stats['new_files'] += 1
+
+        timestamp_unix = timestamp_to_unix(timestamp)
+        existing = cursor.execute("""
+            SELECT file_path, file_exists
+            FROM processed_files
+            WHERE router = ? AND timestamp = ?
+            LIMIT 1
+        """, (router, timestamp_unix)).fetchone()
+
+        if existing is None:
+            cursor.execute("""
+                INSERT OR IGNORE INTO processed_files 
+                (file_path, router, timestamp, file_exists, discovered_at)
+                VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """, (file_path, router, timestamp_unix))
+            if cursor.rowcount > 0:
+                stats['new_files'] += 1
+        else:
+            existing_path, existing_file_exists = existing
+            if existing_path != file_path or existing_file_exists == 0:
+                cursor.execute("""
+                    UPDATE processed_files
+                    SET file_path = ?,
+                        file_exists = 1,
+                        discovered_at = CASE
+                            WHEN file_exists = 0 THEN CURRENT_TIMESTAMP
+                            ELSE discovered_at
+                        END,
+                        processed_at = CASE
+                            WHEN file_exists = 0 THEN NULL
+                            ELSE processed_at
+                        END,
+                        flow_stats_status = CASE
+                            WHEN file_exists = 0 THEN NULL
+                            ELSE flow_stats_status
+                        END,
+                        ip_stats_status = CASE
+                            WHEN file_exists = 0 THEN NULL
+                            ELSE ip_stats_status
+                        END,
+                        protocol_stats_status = CASE
+                            WHEN file_exists = 0 THEN NULL
+                            ELSE protocol_stats_status
+                        END,
+                        spectrum_stats_status = CASE
+                            WHEN file_exists = 0 THEN NULL
+                            ELSE spectrum_stats_status
+                        END,
+                        structure_stats_status = CASE
+                            WHEN file_exists = 0 THEN NULL
+                            ELSE structure_stats_status
+                        END
+                    WHERE router = ? AND timestamp = ?
+                """, (file_path, router, timestamp_unix))
         
         # Commit periodically
         if stats['discovered'] % 1000 == 0:
@@ -267,15 +311,24 @@ def sync_processed_files_table(
         for gap_timestamp in gaps:
             # Construct the expected file path for this gap
             gap_path = construct_file_path(router, gap_timestamp)
-            
-            cursor.execute("""
-                INSERT OR IGNORE INTO processed_files 
-                (file_path, router, timestamp, file_exists, discovered_at)
-                VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
-            """, (gap_path, router, timestamp_to_unix(gap_timestamp)))
-            
-            if cursor.rowcount > 0:
-                stats['gaps'] += 1
+            gap_timestamp_unix = timestamp_to_unix(gap_timestamp)
+
+            existing = cursor.execute("""
+                SELECT 1
+                FROM processed_files
+                WHERE router = ? AND timestamp = ?
+                LIMIT 1
+            """, (router, gap_timestamp_unix)).fetchone()
+
+            if existing is None:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO processed_files 
+                    (file_path, router, timestamp, file_exists, discovered_at)
+                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                """, (gap_path, router, gap_timestamp_unix))
+
+                if cursor.rowcount > 0:
+                    stats['gaps'] += 1
         
         print(f"  Router {router}: {len(gaps)} gaps identified, {stats['gaps']} new gap entries")
     
@@ -503,7 +556,12 @@ def get_stale_days(
         WITH day_status AS (
             SELECT 
                 router,
-                (timestamp / 86400) * 86400 AS day_start,
+                CAST(
+                    strftime(
+                        '%s',
+                        datetime(timestamp, 'unixepoch', 'localtime', 'start of day')
+                    ) AS INTEGER
+                ) AS day_start,
                 MAX(CASE WHEN {status_column} = 1 THEN 1 ELSE 0 END) AS has_processed,
                 MAX(CASE WHEN {status_column} IS NULL THEN 1 ELSE 0 END) AS has_pending
             FROM processed_files

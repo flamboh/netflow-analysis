@@ -40,9 +40,10 @@ describe('/api/netflow/stats GET', () => {
 				bytesOther: 14
 			}
 		]);
+		const prepare = vi.fn().mockReturnValue({ all });
 		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
 		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare: vi.fn().mockReturnValue({ all })
+			prepare
 		} as never);
 
 		const response = await GET({
@@ -75,6 +76,7 @@ describe('/api/netflow/stats GET', () => {
 			]
 		});
 		expect(all).toHaveBeenCalledWith('r1', 'r2', '1', '2');
+		expect(prepare).toHaveBeenCalledWith(expect.stringContaining("'start of day', 'utc'"));
 	});
 
 	it('returns 500 when the database query fails', async () => {

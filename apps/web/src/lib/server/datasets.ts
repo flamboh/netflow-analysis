@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import type { DatasetSummary } from '$lib/types/types';
 import { getDatasetsConfigPath, getRepoRoot } from '$lib/server/paths';
@@ -17,9 +18,21 @@ export interface DatasetConfig {
 
 const repoRoot = getRepoRoot();
 const defaultRegistryPath = getDatasetsConfigPath();
+const require = createRequire(import.meta.url);
+
+type PreparedStatement = {
+	get(...params: unknown[]): unknown;
+	all(...params: unknown[]): unknown[];
+};
+
+export interface ReadonlyDatasetDb {
+	prepare(sql: string): PreparedStatement;
+	close(): void;
+}
+
 const datasetDbCache = new Map<
 	string,
-	{ db: Database.Database; dbPath: string; mtimeMs: number }
+	{ db: ReadonlyDatasetDb; dbPath: string; mtimeMs: number }
 >();
 const datasetDefaultStartCache = new Map<
 	string,
@@ -197,7 +210,25 @@ export function getDatasetDbPath(datasetId: string): string {
 	return getDatasetConfig(datasetId).db_path;
 }
 
-export function getDatasetDb(datasetId: string): Database.Database {
+function openNodeSqliteDatabase(dbPath: string): ReadonlyDatasetDb {
+	const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+	type SQLInputValue = import('node:sqlite').SQLInputValue;
+	const db = new DatabaseSync(dbPath, { open: true, readOnly: true });
+	return {
+		prepare(sql: string): PreparedStatement {
+			const stmt = db.prepare(sql);
+			return {
+				get: (...params: unknown[]) => stmt.get(...(params as SQLInputValue[])),
+				all: (...params: unknown[]) => stmt.all(...(params as SQLInputValue[]))
+			};
+		},
+		close() {
+			db.close();
+		}
+	};
+}
+
+export function getDatasetDb(datasetId: string): ReadonlyDatasetDb {
 	const dbPath = getDatasetDbPath(datasetId);
 	if (!fs.existsSync(dbPath)) {
 		throw new Error(`Dataset database not found for '${datasetId}' at ${dbPath}`);
@@ -217,7 +248,18 @@ export function getDatasetDb(datasetId: string): Database.Database {
 		}
 	}
 
-	const db = new Database(dbPath, { readonly: true });
+	let db: ReadonlyDatasetDb;
+	try {
+		db = new Database(dbPath, { readonly: true });
+	} catch (error) {
+		if (error instanceof Error && 'code' in error && error.code === 'ERR_DLOPEN_FAILED') {
+			console.warn(`better-sqlite3 failed to load for '${datasetId}', falling back to node:sqlite`);
+			db = openNodeSqliteDatabase(dbPath);
+		} else {
+			throw error;
+		}
+	}
+
 	datasetDbCache.set(datasetId, { db, dbPath, mtimeMs: stat.mtimeMs });
 	return db;
 }

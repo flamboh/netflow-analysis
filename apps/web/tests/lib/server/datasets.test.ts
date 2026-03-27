@@ -4,25 +4,54 @@ import path from 'path';
 import { spawnSync } from 'child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('better-sqlite3', () => ({
-	default: class MockDatabase {
-		constructor(private readonly dbPath: string) {}
+class MockDatabaseSync {
+	constructor(private readonly dbPath: string) {}
 
-		prepare(query: string) {
-			return {
-				get: () => {
-					const result = spawnSync('sqlite3', [this.dbPath, query], { encoding: 'utf-8' });
-					if (result.status !== 0) {
-						throw new Error(result.stderr || 'sqlite3 query failed');
-					}
-
-					const minTimestamp = Number(result.stdout.trim());
-					return { minTimestamp: Number.isFinite(minTimestamp) ? minTimestamp : null };
+	prepare(query: string) {
+		return {
+			get: () => {
+				const result = spawnSync('sqlite3', [this.dbPath, query], { encoding: 'utf-8' });
+				if (result.status !== 0) {
+					throw new Error(result.stderr || 'sqlite3 query failed');
 				}
-			};
-		}
 
-		close() {}
+				const minTimestamp = Number(result.stdout.trim());
+				return { minTimestamp: Number.isFinite(minTimestamp) ? minTimestamp : null };
+			},
+			all: () => []
+		};
+	}
+
+	close() {}
+}
+
+const betterSqlite3Factory = vi.fn((dbPath: string) => ({
+	prepare(query: string) {
+		return {
+			get: () => {
+				const result = spawnSync('sqlite3', [dbPath, query], { encoding: 'utf-8' });
+				if (result.status !== 0) {
+					throw new Error(result.stderr || 'sqlite3 query failed');
+				}
+
+				const minTimestamp = Number(result.stdout.trim());
+				return { minTimestamp: Number.isFinite(minTimestamp) ? minTimestamp : null };
+			}
+		};
+	},
+	close() {}
+}));
+
+vi.mock('better-sqlite3', () => ({
+	default: vi.fn().mockImplementation((dbPath: string) => betterSqlite3Factory(dbPath))
+}));
+
+vi.mock('node:module', async () => ({
+	createRequire: () => (specifier: string) => {
+		if (specifier === 'node:sqlite') {
+			return { DatabaseSync: MockDatabaseSync };
+		}
+		throw new Error(`Unexpected require: ${specifier}`);
 	}
 }));
 
@@ -34,6 +63,7 @@ async function loadDatasetsModule() {
 describe('dataset server helpers', () => {
 	afterEach(() => {
 		vi.unstubAllEnvs();
+		betterSqlite3Factory.mockClear();
 	});
 
 	it('lists dataset summaries from registry + sqlite min timestamp', async () => {
@@ -114,5 +144,44 @@ describe('dataset server helpers', () => {
 		expect(startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(datasets.listDatasetSources('alpha')).toEqual(['r1', 'r2']);
 		expect(() => datasets.getDatasetConfig('missing')).toThrow(/Unknown dataset 'missing'/);
+	});
+
+	it('falls back to node:sqlite when better-sqlite3 fails to load', async () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'datasets-test-'));
+		const dbPath = path.join(tempDir, 'netflow.sqlite');
+		const registryPath = path.join(tempDir, 'datasets.json');
+
+		const seedResult = spawnSync(
+			'sqlite3',
+			[
+				dbPath,
+				'CREATE TABLE netflow_stats (timestamp INTEGER NOT NULL); INSERT INTO netflow_stats (timestamp) VALUES (1740823200);'
+			],
+			{ encoding: 'utf-8' }
+		);
+		expect(seedResult.status).toBe(0);
+
+		fs.writeFileSync(
+			registryPath,
+			JSON.stringify([
+				{
+					dataset_id: 'alpha',
+					label: 'Alpha Label',
+					root_path: tempDir,
+					db_path: dbPath
+				}
+			])
+		);
+
+		betterSqlite3Factory.mockImplementationOnce(() => {
+			const error = new Error('Module did not self-register') as Error & { code: string };
+			error.code = 'ERR_DLOPEN_FAILED';
+			throw error;
+		});
+
+		vi.stubEnv('DATASETS_CONFIG_PATH', registryPath);
+
+		const datasets = await loadDatasetsModule();
+		expect(datasets.getDatasetDefaultStartDate('alpha')).toBe('2025-03-01');
 	});
 });

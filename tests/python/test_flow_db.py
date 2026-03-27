@@ -56,3 +56,40 @@ def test_batch_insert_results_inserts_successful_rows() -> None:
     ).fetchone()
     assert inserted == 1
     assert row == ('/tmp/a', 'r1', 3, 4, 5, 0)
+
+
+def test_batch_insert_results_replaces_mirrored_path_duplicate() -> None:
+    _, flow_db = load_modules()
+    conn = sqlite3.connect(':memory:')
+    flow_db.init_netflow_stats_table(conn)
+    conn.execute(
+        """
+        INSERT INTO netflow_stats (
+            file_path, router, timestamp,
+            flows, flows_tcp, flows_udp, flows_icmp, flows_other,
+            packets, packets_tcp, packets_udp, packets_icmp, packets_other,
+            bytes, bytes_tcp, bytes_udp, bytes_icmp, bytes_other,
+            first_timestamp, last_timestamp, msec_first, msec_last, sequence_failures
+        ) VALUES (?, ?, ?, ?, 0, 0, 0, 0, ?, 0, 0, 0, 0, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        """,
+        ('/old-root/a', 'r1', 123, 3, 4, 5),
+    )
+
+    inserted = flow_db.batch_insert_results(
+        conn,
+        [
+            {
+                'file_path': '/new-root/a',
+                'router': 'r1',
+                'timestamp': 123,
+                'success': True,
+                'data': {'flows': 7, 'packets': 8, 'bytes': 9},
+            }
+        ],
+    )
+
+    rows = conn.execute(
+        'SELECT file_path, router, timestamp, flows, packets, bytes FROM netflow_stats'
+    ).fetchall()
+    assert inserted == 1
+    assert rows == [('/new-root/a', 'r1', 123, 7, 8, 9)]
