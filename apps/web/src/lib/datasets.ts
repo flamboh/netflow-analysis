@@ -28,8 +28,24 @@ export function parseDatasetSummariesResponse(payload: unknown): DatasetSummarie
 	return datasetSummariesResponseSchema.parse(payload);
 }
 
+export function cacheDatasetSummaries(datasets: DatasetSummary[]): DatasetSummary[] {
+	cachedDatasetSummaries = datasets;
+	return datasets;
+}
+
 export function resolveDefaultDatasetId(datasets: DatasetSummary[]): string {
 	return datasets.find((dataset) => dataset.isDefault)?.datasetId ?? datasets[0]?.datasetId ?? '';
+}
+
+export async function loadDatasetSummariesFromFetch(
+	fetchFn: typeof fetch
+): Promise<DatasetSummary[]> {
+	const response = await fetchFn('/api/datasets');
+	const payload = parseDatasetSummariesResponse(await response.json());
+	if (!response.ok || payload.error || payload.data === null) {
+		throw new Error(payload.error || `Failed to load datasets: ${response.statusText}`);
+	}
+	return cacheDatasetSummaries(payload.data);
 }
 
 export async function loadDatasetSummaries(): Promise<DatasetSummary[]> {
@@ -41,21 +57,9 @@ export async function loadDatasetSummaries(): Promise<DatasetSummary[]> {
 		return pendingDatasetSummariesRequest;
 	}
 
-	pendingDatasetSummariesRequest = fetch('/api/datasets')
-		.then(async (response) => {
-			const payload = parseDatasetSummariesResponse(await response.json());
-			if (!response.ok || payload.error || payload.data === null) {
-				throw new Error(payload.error || `Failed to load datasets: ${response.statusText}`);
-			}
-			return payload.data;
-		})
-		.then((datasets) => {
-			cachedDatasetSummaries = datasets;
-			return datasets;
-		})
-		.finally(() => {
-			pendingDatasetSummariesRequest = null;
-		});
+	pendingDatasetSummariesRequest = loadDatasetSummariesFromFetch(fetch).finally(() => {
+		pendingDatasetSummariesRequest = null;
+	});
 
 	return pendingDatasetSummariesRequest;
 }

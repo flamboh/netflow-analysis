@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n';
 
@@ -40,7 +41,7 @@
 					Go Back
 				</button>
 				<a
-					href="/"
+					href={resolve('/')}
 					class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
 				>
 					Home
@@ -51,9 +52,11 @@
 				<div class="mt-4 text-sm text-gray-600">
 					<p>
 						{t('error.404.return_to_prefix')}
-						<a href="/" class="text-blue-600 hover:underline">{t('error.404.dataset_index')}</a>
+						<a href={resolve('/')} class="text-blue-600 hover:underline">
+							{t('error.404.dataset_index')}
+						</a>
 						{t('error.404.or_use_prefix')}
-						<a href="/netflow/files" class="text-blue-600 hover:underline">
+						<a href={resolve('/netflow/files')} class="text-blue-600 hover:underline">
 							{t('error.404.file_lookup')}
 						</a>
 						{t('error.404.timestamp_hint')}

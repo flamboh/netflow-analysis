@@ -9,6 +9,7 @@
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
 	import { theme } from '$lib/stores/theme.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { NETFLOW_DATA_OPTION_FIELDS } from '$lib/components/netflow/constants';
 	import {
 		formatLabels,
@@ -248,7 +249,7 @@
 			return [];
 		}
 
-		const visibleFamilies = new Set<MetricFamily>();
+		const visibleFamilies = new SvelteSet<MetricFamily>();
 		for (const item of items) {
 			const family = getMetricFamily(item.dataset.label ?? '');
 			if (family) {

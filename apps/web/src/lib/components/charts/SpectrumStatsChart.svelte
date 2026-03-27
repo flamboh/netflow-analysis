@@ -42,6 +42,7 @@
 		readCachedWindow,
 		type TimeRange
 	} from '$lib/utils/window-cache';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	const CHART_ID = 'spectrum';
 
@@ -579,7 +580,7 @@
 		maxAlpha: number;
 	} {
 		// Create a map for quick lookup: bucketStart -> spectrum points
-		const bucketMap = new Map<number, SpectrumPoint[]>();
+		const bucketMap = new SvelteMap<number, SpectrumPoint[]>();
 		selectedBuckets.forEach((bucket) => {
 			const points = addressType === 'sa' ? bucket.spectrumSa : bucket.spectrumDa;
 			if (points.length > 0) {

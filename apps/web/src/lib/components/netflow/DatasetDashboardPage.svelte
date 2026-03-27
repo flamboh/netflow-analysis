@@ -21,6 +21,7 @@
 	const props = $props<{
 		dataset: string;
 		defaultStartDate: string;
+		routers?: string[];
 		title?: string;
 	}>();
 
@@ -31,8 +32,14 @@
 	let startDate = $state(params.startDate);
 	let endDate = $state(params.endDate);
 	let selectedGroupBy = $state<GroupByOption>(params.groupBy as GroupByOption);
+	function createRouterConfig(routers: string[]): RouterConfig {
+		const routerConfig: RouterConfig = {};
+		for (const router of routers) {
+			routerConfig[router] = true;
+		}
+		return routerConfig;
+	}
 	let selectedRouters = $state<RouterConfig>({});
-	let routersLoaded = $state(false);
 	let selectedSpectrumRouter = $state('');
 	let selectedSpectrumAddressType = $state<'sa' | 'da'>('sa');
 	let dataOptions = $state<DataOption[]>(DEFAULT_DATA_OPTIONS.map((option) => ({ ...option })));
@@ -55,7 +62,10 @@
 	};
 
 	const ipGranularity = $derived(GROUP_BY_TO_IP[selectedGroupBy]);
+	const routers = $derived(Array.isArray(props.routers) ? props.routers : []);
+	const routerStateKey = $derived(`${props.dataset}:${routers.join('\0')}`);
 	const availableSpectrumRouters = $derived(getEnabledRouters(selectedRouters));
+	const routersLoaded = $derived(Array.isArray(props.routers));
 
 	function isValidChartOrder(value: unknown): value is ChartCardId[] {
 		if (!Array.isArray(value)) {
@@ -233,37 +243,30 @@
 		}
 	});
 
-	onMount(async () => {
+	onMount(() => {
 		loadChartOrder();
+	});
 
-		try {
-			const response = await fetch(`/api/routers?dataset=${encodeURIComponent(props.dataset)}`);
-			if (!response.ok) {
-				throw new Error(`Failed to load routers: ${response.statusText}`);
-			}
+	let lastRouterStateKey = $state('');
 
-			const routerList = await response.json();
-			if (
-				!Array.isArray(routerList) ||
-				!routerList.every((router): router is string => typeof router === 'string') ||
-				routerList.length === 0
-			) {
-				return;
-			}
+	$effect(() => {
+		const nextKey = routerStateKey;
+		if (nextKey === lastRouterStateKey) {
+			return;
+		}
+		lastRouterStateKey = nextKey;
 
-			const routerConfig: RouterConfig = {};
-			routerList.forEach((router) => {
-				routerConfig[router] = true;
-			});
-			selectedRouters = routerConfig;
-			const enabledRouters = getEnabledRouters(routerConfig);
-			if (!selectedSpectrumRouter || !enabledRouters.includes(selectedSpectrumRouter)) {
-				selectedSpectrumRouter = enabledRouters[0] ?? '';
-			}
-		} catch (err) {
-			console.error(err);
-		} finally {
-			routersLoaded = true;
+		const nextRouters = routers;
+		const nextSelectedRouters = createRouterConfig(nextRouters);
+		selectedRouters = nextSelectedRouters;
+
+		const enabledRouters = getEnabledRouters(nextSelectedRouters);
+		selectedSpectrumRouter = nextRouters[0] ?? enabledRouters[0] ?? '';
+	});
+
+	$effect(() => {
+		if (!availableSpectrumRouters.includes(selectedSpectrumRouter)) {
+			selectedSpectrumRouter = availableSpectrumRouters[0] ?? '';
 		}
 	});
 

@@ -1,119 +1,53 @@
-# Coding Agent Guidelines
+# AGENTS.md
 
-## Scope
+Generally speaking, you should browse the codebase to figure out what is going on.
 
-This file is for coding agents working in this repository. Prefer concrete, verifiable commands over assumptions.
+## Task Completion Requirements
 
-## Project Structure
+- All of `bun format`, `bun lint`, and `bun typecheck` must pass before considering tasks completed. Testing can be narrowed where appropriate based on the diff.
+- Never run `bun test`, use `bun run test` for all testing (runs Vitest).
 
-- `apps/web/`: SvelteKit frontend and API routes.
-- `apps/web/src/routes`: Pages and route-level loaders.
-- `apps/web/src/routes/api`: HTTP endpoints and file-detail utilities.
-- `apps/web/src/lib`: Shared UI, stores, helpers, and common types (`src/lib/types/types.ts`).
-- `tools/netflow-db/`: Python data ingestion/aggregation scripts, logs, and SQLite database files.
-- `vendor/maad/`: Haskell MAAD tooling (`nix-shell` + `./compile.sh` when MAAD binaries are needed).
-- `vendor/burstify/`: Zig MAAD tooling.
+## Project Snapshot
 
-## Backend Pipeline Notes
+NetFlow Analysis is a large-scale network telemetry visualization platform.
 
-- `tools/netflow-db/flow_db.py`
-- `tools/netflow-db/ip_db.py`
-- `tools/netflow-db/protocol_db.py`
-- `tools/netflow-db/spectrum_db.py`
-- `tools/netflow-db/structure_db.py`
-- `tools/netflow-db/discovery.py`
-- `tools/netflow-db/pipeline.py`
+This repository is WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
 
-## Git
+## Core Priorities
 
-Use Graphite to draft and create PRs:
+1. Performance first.
+2. Reliability first.
+3. Simple code first.
 
-```bash
-# Create a branch with a single commit
-#   - the --all flag will stage any modified files
-#   - a branch will be created from the given `--message`
-#   - the commit will have the given `--message`
-#   - the branch will be checked out for you
-gt create --all --message "feat(api): Add new API method for fetching users"
+If a trade-off is required, choose correctness and robustness over short-term convenience.
 
-# Push changes to your remote and create a new pull request
-gt submit
+Avoide complex type assertions, needless casts, and extreme robustness. No "legacy fallbacks" or excessive try catch blocks.
 
+## Maintainability
 
-# If you need to make any follow up changes to the PR, you can
-# amend the existing commit with gt modify
-echo "some more changes" >> file.js
-gt modify --all
+Long-term maintainability is a core priority. If you add new functionality, first check if there are shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
 
+## Package Roles
 
-# Submit new changes
-gt submit
-```
+- `tools/netflow-db`: Manages NetFlow database
+- `apps/web`: Data visualization dashboard frontend
+- `apps/landing`: App landing page for SEO, discoverability, and marketing
+- `vendor/*`: Git submodules containing compiled binaries for network analysis
+- `scripts`: One-off scripts or migrations
+- `plans`: Generated plans
+- `docs`: Maintainer/Admin facing documentation
 
-See `gt --help` for more.
-Keep large generated artifacts out of git (SQLite DB/WAL/SHM files, captures, compiled binaries).
+## Svelte
 
-## Key Endpoints
+### $effect
 
-Core routes commonly used by the frontend:
+Never update state inside of an effect, effects are an escape hatch and should NEVER be used.
 
-- `/api/netflow/stats`
-- `/api/netflow/files/[slug]`
-- `/api/netflow/files/[slug]/structure-function`
+- If you need to sync state to an external library, it is often neater to use {@attach ...}
+- If you need to run some code in response to user interaction, put the code directly in an event handler or use a function binding as appropriate
+- If you need to log values for debugging purposes, use $inspect
+- If you need to observe something external to Svelte, use createSubscriber
 
-Other utility routes exist for protocol, IP, spectrum, singularities, and router metadata. Discover the full set in `apps/web/src/routes/api`.
+## References
 
-## Commands
-
-Frontend (`apps/web/`, run from repo root):
-
-```bash
-bun install
-bun run build:web
-bun run check:web
-bun run format:repo
-bun run lint:web
-bun run format:web
-bun run format:check:repo
-bun run format:check:web
-bun run test:web
-bun run test:db
-bun run test:e2e
-bun run test
-```
-
-Do not start `bun run dev:web` unless the user explicitly asks. Assume a dev server may already be running.
-
-Backend (`tools/netflow-db/`) validation:
-
-```bash
-python -m compileall tools/netflow-db
-```
-
-Run backend compile checks after backend Python edits and before handing off work.
-
-## Style Conventions
-
-- Frontend: TypeScript + Svelte, 2-space indent, PascalCase components, shared types in `src/lib/types/types.ts`.
-- Python: 4-space indent, snake_case, prefer `pathlib.Path` and environment-driven config.
-- Keep comments short and only where logic is non-obvious.
-
-## Testing Expectations
-
-- Frontend-only changes: run `bun run test:web` from repo root.
-- Cross-cutting, infra, or workflow changes: run `bun run test`, or run `bun run test:db` / `bun run test:e2e` as the change requires.
-- Backend changes: run `python -m compileall tools/netflow-db` from repo root.
-- Add or update route-level smoke coverage when introducing new pages or endpoints.
-
-## Environment & Data
-
-Expected `.env` keys include:
-
-- `DATASETS_CONFIG_PATH`
-- `DEFAULT_DATASET`
-- `LOG_PATH`
-- `NETFLOW_DB_DIR`
-- `MAAD_DIR`
-- `FIRST_RUN`
-
-Router identities are environment-configured and must not be hardcoded in documentation or logic assumptions. Use `YYYY-MM-DD HH:mm:ss` for timestamp formatting.
+- Skills: use ~/.agents/skills/find-skills to locate relevant skills wherever possible

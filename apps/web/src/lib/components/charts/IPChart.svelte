@@ -40,6 +40,7 @@
 		readCachedWindow,
 		type TimeRange
 	} from '$lib/utils/window-cache';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	const CHART_ID = 'ip';
 
@@ -484,7 +485,7 @@
 		).sort((a, b) => a - b);
 		const routers = Array.from(new Set(selectedBuckets.map((bucket) => bucket.router))).sort();
 
-		const labelSamples = new Map<number, IpStatsBucket>();
+		const labelSamples = new SvelteMap<number, IpStatsBucket>();
 		selectedBuckets.forEach((bucket) => {
 			if (!labelSamples.has(bucket.bucketStart)) {
 				labelSamples.set(bucket.bucketStart, bucket);
@@ -496,7 +497,7 @@
 			return bucket ? formatBucketLabel(bucket, currentGranularity) : '';
 		});
 
-		const bucketMap = new Map<string, IpStatsBucket>();
+		const bucketMap = new SvelteMap<string, IpStatsBucket>();
 		selectedBuckets.forEach((bucket) => {
 			bucketMap.set(`${bucket.router}-${bucket.bucketStart}`, bucket);
 		});
