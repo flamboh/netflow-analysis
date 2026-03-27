@@ -1,7 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
-import { parseDatasetSummariesResponse } from '$lib/datasets';
-import type { DatasetSummary } from '$lib/types/types';
+import { loadDatasetSummariesFromFetch } from '$lib/datasets';
 
 export const load: PageLoad = async ({ params, fetch }) => {
 	const { dataset } = params;
@@ -10,21 +9,34 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		throw error(400, 'Dataset parameter is required');
 	}
 
-	const response = await fetch('/api/datasets');
-	const payload = parseDatasetSummariesResponse(await response.json());
-	if (!response.ok || payload.error || payload.data === null) {
-		throw error(response.status, payload.error || 'Failed to load dataset metadata');
-	}
-
-	const datasets = payload.data as DatasetSummary[];
+	const datasets = await loadDatasetSummariesFromFetch(fetch);
 	const selectedDataset = datasets.find((entry) => entry.datasetId === dataset);
 	if (!selectedDataset) {
 		throw error(404, `Unknown dataset '${dataset}'`);
 	}
 
+	const routersResponse = await fetch(`/api/routers?dataset=${encodeURIComponent(dataset)}`);
+	const routersPayload = await routersResponse.json();
+	if (!routersResponse.ok) {
+		throw error(
+			routersResponse.status,
+			typeof routersPayload?.error === 'string'
+				? routersPayload.error
+				: 'Failed to load router metadata'
+		);
+	}
+
+	if (
+		!Array.isArray(routersPayload) ||
+		!routersPayload.every((router): router is string => typeof router === 'string')
+	) {
+		throw error(500, 'Invalid router metadata response');
+	}
+
 	return {
 		datasetId: selectedDataset.datasetId,
 		title: selectedDataset.label,
-		defaultStartDate: selectedDataset.defaultStartDate
+		defaultStartDate: selectedDataset.defaultStartDate,
+		routers: routersPayload
 	};
 };

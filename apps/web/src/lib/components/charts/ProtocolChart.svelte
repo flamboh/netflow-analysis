@@ -37,6 +37,7 @@
 		readCachedWindow,
 		type TimeRange
 	} from '$lib/utils/window-cache';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	const CHART_ID = 'protocol';
 
@@ -454,7 +455,7 @@
 		).sort((a, b) => a - b);
 		const routers = Array.from(new Set(selectedBuckets.map((bucket) => bucket.router))).sort();
 
-		const labelSamples = new Map<number, ProtocolStatsBucket>();
+		const labelSamples = new SvelteMap<number, ProtocolStatsBucket>();
 		selectedBuckets.forEach((bucket) => {
 			if (!labelSamples.has(bucket.bucketStart)) {
 				labelSamples.set(bucket.bucketStart, bucket);
@@ -466,7 +467,7 @@
 			return bucket ? formatBucketLabel(bucket, currentGranularity) : '';
 		});
 
-		const bucketMap = new Map<string, ProtocolStatsBucket>();
+		const bucketMap = new SvelteMap<string, ProtocolStatsBucket>();
 		selectedBuckets.forEach((bucket) => {
 			bucketMap.set(`${bucket.router}-${bucket.bucketStart}`, bucket);
 		});

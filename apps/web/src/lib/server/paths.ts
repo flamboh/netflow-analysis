@@ -1,8 +1,55 @@
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(currentDir, '../../../../../');
+
+function hasWorkspacePackage(dir: string): boolean {
+	const packageJsonPath = path.join(dir, 'package.json');
+	if (!fs.existsSync(packageJsonPath)) {
+		return false;
+	}
+
+	try {
+		const raw = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
+			workspaces?: unknown;
+		};
+		return Array.isArray(raw.workspaces);
+	} catch {
+		return false;
+	}
+}
+
+function hasRepoMarker(dir: string): boolean {
+	return fs.existsSync(path.join(dir, 'datasets.json')) || fs.existsSync(path.join(dir, '.git'));
+}
+
+function findRepoRoot(startDir: string): string {
+	let dir = startDir;
+
+	while (true) {
+		if (hasRepoMarker(dir)) {
+			return dir;
+		}
+
+		const parent = path.dirname(dir);
+		if (parent === dir) {
+			break;
+		}
+
+		dir = parent;
+	}
+
+	for (const candidate of [process.cwd(), path.resolve(startDir, '../../../../../')]) {
+		if (hasRepoMarker(candidate) || hasWorkspacePackage(candidate)) {
+			return candidate;
+		}
+	}
+
+	throw new Error(`Unable to resolve repo root from ${startDir}`);
+}
+
+const repoRoot = findRepoRoot(currentDir);
 
 function resolveRepoPath(value: string | undefined, fallback: string): string {
 	const target = value?.trim() || fallback;

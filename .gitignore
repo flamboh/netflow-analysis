@@ -37,3 +37,5 @@ datasets.json
 
 .claude/worktrees/
 .husky/_/
+**/playwright-mcp
+data/**

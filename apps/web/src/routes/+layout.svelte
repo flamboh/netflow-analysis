@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { Sun, Moon } from '@lucide/svelte';
@@ -21,7 +22,7 @@
 			<div class="flex items-center justify-between py-6">
 				<div>
 					<h1 class="text-3xl font-bold text-gray-900 hover:underline dark:text-gray-100">
-						<a href="/">NetFlow Analysis</a>
+						<a href={resolve('/')}>NetFlow Analysis</a>
 					</h1>
 					<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
 						An Oregon Networking Research Group Project
@@ -29,12 +30,12 @@
 				</div>
 				<div class="flex items-center gap-4">
 					<a
-						href="/"
+						href={resolve('/')}
 						class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
 						>Home</a
 					>
 					<a
-						href="/netflow/files"
+						href={resolve('/netflow/files')}
 						class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
 						>Files</a
 					>

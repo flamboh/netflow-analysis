@@ -1,18 +1,14 @@
 import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
-import { parseDatasetSummariesResponse, resolveDefaultDatasetId } from '$lib/datasets';
+import { loadDatasetSummariesFromFetch, resolveDefaultDatasetId } from '$lib/datasets';
 
 export const load: PageLoad = async ({ params, url, fetch }) => {
 	const { slug } = params;
 	let dataset = url.searchParams.get('dataset')?.trim() || '';
 
 	if (!dataset) {
-		const response = await fetch('/api/datasets');
-		const payload = parseDatasetSummariesResponse(await response.json());
-		if (!response.ok || payload.error || payload.data === null) {
-			throw error(response.status, payload.error || 'Failed to load dataset metadata');
-		}
-		dataset = resolveDefaultDatasetId(payload.data);
+		const datasets = await loadDatasetSummariesFromFetch(fetch);
+		dataset = resolveDefaultDatasetId(datasets);
 		if (!dataset) {
 			throw error(404, 'No datasets are configured');
 		}

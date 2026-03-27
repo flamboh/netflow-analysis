@@ -9,4 +9,5 @@
 	dataset={data.datasetId}
 	title={data.title}
 	defaultStartDate={data.defaultStartDate}
+	routers={data.routers}
 />
