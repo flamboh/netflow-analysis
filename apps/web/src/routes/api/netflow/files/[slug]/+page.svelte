@@ -13,6 +13,7 @@
 	import SingularitiesList from '$lib/components/charts/SingularitiesList.svelte';
 	import { onDestroy, onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import {
 		createDateFromPSTComponents,
 		epochToPSTComponents,
@@ -37,6 +38,8 @@
 	let loadingSpectrumDestination = $state(new Map<string, boolean>());
 	let loadingSingularitiesSource = $state(new Map<string, boolean>());
 	let loadingSingularitiesDestination = $state(new Map<string, boolean>());
+	let requestedSingularitiesSource = $state(new Map<string, boolean>());
+	let requestedSingularitiesDestination = $state(new Map<string, boolean>());
 	let errorsSource = $state(new Map<string, string>());
 	let errorsDestination = $state(new Map<string, string>());
 	let errorsSpectrumSource = $state(new Map<string, string>());
@@ -116,6 +119,8 @@
 		loadingSpectrumDestination = new Map<string, boolean>();
 		loadingSingularitiesSource = new Map<string, boolean>();
 		loadingSingularitiesDestination = new Map<string, boolean>();
+		requestedSingularitiesSource = new Map<string, boolean>();
+		requestedSingularitiesDestination = new Map<string, boolean>();
 		errorsSource = new Map<string, string>();
 		errorsDestination = new Map<string, string>();
 		errorsSpectrumSource = new Map<string, string>();
@@ -212,12 +217,6 @@
 			summarySkeletonCount = Math.max(result.routers.length, 2);
 			applyDbDetails(result);
 			finishSummaryLoading();
-
-			const tasks = result.routers.flatMap((routerDetails) => [
-				loadSingularitiesData(token, slug, routerDetails.summary.router, true),
-				loadSingularitiesData(token, slug, routerDetails.summary.router, false)
-			]);
-			await Promise.all(tasks);
 		} catch (e) {
 			if (token !== loadToken) {
 				return;
@@ -254,6 +253,15 @@
 		router: string,
 		source: boolean
 	) {
+		const requestedMap = source ? requestedSingularitiesSource : requestedSingularitiesDestination;
+
+		requestedMap.set(router, true);
+		if (source) {
+			requestedSingularitiesSource = new Map(requestedMap);
+		} else {
+			requestedSingularitiesDestination = new Map(requestedMap);
+		}
+
 		// Set loading state
 		if (source) {
 			loadingSingularitiesSource.set(router, true);
@@ -271,21 +279,39 @@
 			const response = await fetch(
 				`/api/netflow/files/${slug}/singularities?dataset=${encodeURIComponent(data.dataset)}&router=${encodeURIComponent(router)}&source=${source}`
 			);
+			if (token !== loadToken) {
+				return;
+			}
+			if (response.status === 404 || response.status === 422) {
+				if (source) {
+					singularitiesDataSource.delete(router);
+					singularitiesDataSource = new Map(singularitiesDataSource);
+					errorsSingularitiesSource.delete(router);
+					errorsSingularitiesSource = new Map(errorsSingularitiesSource);
+				} else {
+					singularitiesDataDestination.delete(router);
+					singularitiesDataDestination = new Map(singularitiesDataDestination);
+					errorsSingularitiesDestination.delete(router);
+					errorsSingularitiesDestination = new Map(errorsSingularitiesDestination);
+				}
+				return;
+			}
 			if (!response.ok) {
 				throw new Error(`Failed to load singularities data: ${response.statusText}`);
 			}
 			const result = await response.json();
-			if (token !== loadToken) {
-				return;
-			}
 
 			// Store the result in the appropriate data map
 			if (source) {
 				singularitiesDataSource.set(router, result);
 				singularitiesDataSource = new Map(singularitiesDataSource);
+				errorsSingularitiesSource.delete(router);
+				errorsSingularitiesSource = new Map(errorsSingularitiesSource);
 			} else {
 				singularitiesDataDestination.set(router, result);
 				singularitiesDataDestination = new Map(singularitiesDataDestination);
+				errorsSingularitiesDestination.delete(router);
+				errorsSingularitiesDestination = new Map(errorsSingularitiesDestination);
 			}
 		} catch (e) {
 			const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
@@ -479,6 +505,12 @@
 	function reloadSingularities(router: string, source: boolean) {
 		void loadSingularitiesData(loadToken, data.slug, router, source);
 	}
+
+	function hasRequestedSingularities(router: string, source: boolean) {
+		return source
+			? requestedSingularitiesSource.get(router) === true
+			: requestedSingularitiesDestination.get(router) === true;
+	}
 </script>
 
 <div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
@@ -486,7 +518,9 @@
 		NetFlow File: {data.fileInfo.filename}
 		<a
 			class="w-24 rounded bg-blue-600 px-4 py-1 text-center text-sm text-white hover:bg-blue-700"
-			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
+			href={`${resolve('/netflow/files/[slug]', { slug: nextSlug })}?dataset=${encodeURIComponent(
+				data.dataset
+			)}`}
 		>
 			Next File
 		</a>
@@ -877,11 +911,29 @@
 											</div>
 										{:else if singularitiesDataSource.get(record.router)}
 											<SingularitiesList data={singularitiesDataSource.get(record.router)!} />
-										{:else}
+										{:else if hasRequestedSingularities(record.router, true)}
 											<div
 												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
 											>
 												No source singularities available.
+											</div>
+										{:else if record.file_exists_on_disk === false}
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
+												Source singularities unavailable because the original file is missing on disk.
+											</div>
+										{:else}
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
+												<p>Singularities analysis is available on demand.</p>
+												<button
+													class="mt-2 rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+													onclick={() => reloadSingularities(record.router, true)}
+												>
+													Load Source Singularities
+												</button>
 											</div>
 										{/if}
 									</div>
@@ -910,11 +962,29 @@
 											</div>
 										{:else if singularitiesDataDestination.get(record.router)}
 											<SingularitiesList data={singularitiesDataDestination.get(record.router)!} />
-										{:else}
+										{:else if hasRequestedSingularities(record.router, false)}
 											<div
 												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
 											>
 												No destination singularities available.
+											</div>
+										{:else if record.file_exists_on_disk === false}
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
+												Destination singularities unavailable because the original file is missing on disk.
+											</div>
+										{:else}
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
+												<p>Singularities analysis is available on demand.</p>
+												<button
+													class="mt-2 rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+													onclick={() => reloadSingularities(record.router, false)}
+												>
+													Load Destination Singularities
+												</button>
 											</div>
 										{/if}
 									</div>

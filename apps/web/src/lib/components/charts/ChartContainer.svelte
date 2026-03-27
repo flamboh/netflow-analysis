@@ -284,13 +284,6 @@
 		// Always get the canvas position and convert to data values
 		const canvasPosition = getRelativePosition(e, chart);
 		const dataX = chart.scales.x.getValueForPixel(canvasPosition.x);
-		const dataY = chart.scales.y.getValueForPixel(canvasPosition.y);
-
-		console.log('=== CHART CLICK DEBUG ===');
-		console.log('Canvas position:', canvasPosition);
-		console.log('Data coordinates:', { x: dataX, y: dataY });
-		console.log('Current groupBy:', groupBy);
-		console.log('Chart labels:', chart.data.labels);
 
 		// Convert the x-axis data value to the appropriate date based on current groupBy
 		let clickedDate: Date;
@@ -300,16 +293,11 @@
 			const labelIndex = Math.round(dataX);
 			const labels = chart.data.labels;
 
-			console.log('Calculated label index:', labelIndex);
-			console.log('Total labels:', labels?.length);
-
 			if (labels && labelIndex >= 0 && labelIndex < labels.length) {
 				const clickedLabel = labels[labelIndex] as string;
-				console.log('Clicked label:', clickedLabel);
 				clickedDate = parseClickedLabel(clickedLabel, groupBy);
 			} else {
 				// Handle clicks outside the data range
-				console.log('Click outside data range, using boundary logic');
 				if (labels && labels.length > 0) {
 					let targetLabel: string;
 					if (labelIndex < 0) {
@@ -319,64 +307,31 @@
 					}
 					clickedDate = parseClickedLabel(targetLabel, groupBy);
 				} else {
-					console.log('No labels available, cannot determine date');
 					return;
 				}
 			}
 		} else {
-			console.log('Unexpected dataX type:', typeof dataX, dataX);
 			return;
 		}
 
-		console.log('Parsed clicked date:', clickedDate);
-
 		const clickedElement = getClickedElement(activeElements);
-		if (clickedElement) {
-			console.log('Clicked on data point:', {
-				dataset: clickedElement.dataset.label,
-				label: clickedElement.label,
-				value: clickedElement.value,
-				datasetIndex: clickedElement.datasetIndex,
-				index: clickedElement.index
-			});
-		} else {
-			console.log('Clicked on empty space - will drill down based on calculated date');
-		}
-
-		// Handle drill-down logic using the calculated clickedDate
-		// This works regardless of whether there was a data point at the exact click location
-		console.log('=== DRILL DOWN LOGIC ===');
-		console.log('Current groupBy:', groupBy);
-		console.log('Using date for drill-down:', clickedDate);
 
 		if (groupBy === 'date') {
 			const startOfMonth = new Date(clickedDate.getTime() - 15 * 24 * 60 * 60 * 1000);
 			const endOfMonth = new Date(clickedDate.getTime() + 16 * 24 * 60 * 60 * 1000);
 			const startDateStr = formatDateAsPSTDateString(startOfMonth);
 			const endDateStr = formatDateAsPSTDateString(endOfMonth);
-			console.log('Drilling down to hour view with date range:', {
-				start: startDateStr,
-				end: endDateStr
-			});
 			onDrillDown?.('hour', startDateStr, endDateStr);
 		} else if (groupBy === 'hour') {
 			const startOfWeek = new Date(clickedDate.getTime() - 3 * 24 * 60 * 60 * 1000);
 			const endOfWeek = new Date(clickedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
 			const startDateStr = formatDateAsPSTDateString(startOfWeek);
 			const endDateStr = formatDateAsPSTDateString(endOfWeek);
-			console.log('Drilling down to 30min view with date range:', {
-				start: startDateStr,
-				end: endDateStr
-			});
 			onDrillDown?.('30min', startDateStr, endDateStr);
 		} else if (groupBy === '30min') {
 			const endDate = new Date(clickedDate.getTime() + 24 * 60 * 60 * 1000);
 			const startDateStr = formatDateAsPSTDateString(clickedDate);
 			const endDateStr = formatDateAsPSTDateString(endDate);
-			console.log('Drilling down to 5min view with date range:', {
-				start: startDateStr,
-				end: endDateStr
-			});
 			onDrillDown?.('5min', startDateStr, endDateStr);
 		} else if (groupBy === '5min') {
 			// For 5min level, we need to create a slug from the clicked date
@@ -396,15 +351,12 @@
 			}
 
 			const slug = generateSlugFromLabel(labelForSlug, groupBy);
-			console.log('Navigating to file with slug:', slug);
 			if (onNavigateToFile) {
 				onNavigateToFile(slug);
 			} else {
 				goto(resolve(`/netflow/files/${slug}`));
 			}
 		}
-
-		console.log('=== END CHART CLICK DEBUG ===');
 	}
 
 	function parseLabelToPST(label: string | undefined): PSTDateComponents | null {
@@ -506,6 +458,25 @@
 		// Check if all selected metrics are bytes
 		const selectedOptions = dataOptions.filter((o) => o.checked);
 		const allAreBytesMetrics = selectedOptions.every((o) => o.label.includes('Bytes'));
+		const formatAxisValue = (value: string | number) => {
+			const num = Number(value);
+
+			if (allAreBytesMetrics) {
+				if (num >= Math.pow(1024, 5)) return (num / Math.pow(1024, 5)).toFixed(1) + 'PB';
+				if (num >= Math.pow(1024, 4)) return (num / Math.pow(1024, 4)).toFixed(1) + 'TB';
+				if (num >= Math.pow(1024, 3)) return (num / Math.pow(1024, 3)).toFixed(1) + 'GB';
+				if (num >= Math.pow(1024, 2)) return (num / Math.pow(1024, 2)).toFixed(1) + 'MB';
+				if (num >= 1024) return (num / 1024).toFixed(1) + 'KB';
+				return num.toString() + ' bytes';
+			}
+
+			if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
+			if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
+			if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+			if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+			if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+			return num.toString();
+		};
 
 		// Original scales configuration
 		const scales: Record<string, object> = {
@@ -549,26 +520,7 @@
 						},
 						ticks: {
 							color: textColor,
-							callback: function (value: string | number) {
-								const num = Number(value);
-
-								// Use binary units for bytes, decimal for others
-								if (allAreBytesMetrics) {
-									if (num >= Math.pow(1024, 5)) return (num / Math.pow(1024, 5)).toFixed(1) + 'PB';
-									if (num >= Math.pow(1024, 4)) return (num / Math.pow(1024, 4)).toFixed(1) + 'TB';
-									if (num >= Math.pow(1024, 3)) return (num / Math.pow(1024, 3)).toFixed(1) + 'GB';
-									if (num >= Math.pow(1024, 2)) return (num / Math.pow(1024, 2)).toFixed(1) + 'MB';
-									if (num >= 1024) return (num / 1024).toFixed(1) + 'KB';
-									return num.toString() + ' bytes';
-								} else {
-									if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
-									if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
-									if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
-									if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
-									if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
-									return num.toString();
-								}
-							}
+							callback: formatAxisValue
 						},
 						grid: {
 							color: gridColor
@@ -576,28 +528,19 @@
 					}
 				: {
 						display: true,
-						type: 'logarithmic',
+						type: 'linear',
 						beginAtZero: true,
-						min: 1,
 						afterFit(axis: { width: number }) {
 							axis.width = Y_AXIS_WIDTH;
 						},
 						title: {
 							display: true,
-							text: 'Value (Log Scale)',
+							text: 'Value',
 							color: textColor
 						},
 						ticks: {
 							color: textColor,
-							callback: function (value: string | number) {
-								const num = Number(value);
-								if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
-								if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
-								if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
-								if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
-								if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
-								return num.toString();
-							}
+							callback: formatAxisValue
 						},
 						grid: {
 							color: gridColor
