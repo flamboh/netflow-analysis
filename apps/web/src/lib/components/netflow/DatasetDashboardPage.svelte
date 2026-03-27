@@ -323,7 +323,9 @@
 </svelte:head>
 
 <main class="mx-auto flex max-w-[90vw] flex-col gap-2 px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="px-1 text-2xl font-semibold text-gray-900">{props.title ?? props.dataset}</h1>
+	<h1 class="px-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+		{props.title ?? props.dataset}
+	</h1>
 
 	<PrimaryFilters
 		{startDate}

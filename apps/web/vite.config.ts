@@ -4,6 +4,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	server: {
+		fs: {
+			allow: ['/home/obo/projects/netflow-analysis']
+		}
+	},
 	test: {
 		environment: 'node',
 		include: ['tests/**/*.test.ts'],

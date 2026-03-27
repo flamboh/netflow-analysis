@@ -482,19 +482,19 @@
 </script>
 
 <div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
-	<h1 class="mb-2 flex items-center justify-between text-2xl text-black">
+	<h1 class="mb-2 flex items-center justify-between text-2xl text-gray-900 dark:text-gray-100">
 		NetFlow File: {data.fileInfo.filename}
 		<a
-			class="w-24 rounded bg-blue-600 px-4 py-1 text-sm text-white hover:bg-blue-700"
+			class="w-24 rounded bg-blue-600 px-4 py-1 text-center text-sm text-white hover:bg-blue-700"
 			href={`/netflow/files/${nextSlug}?dataset=${encodeURIComponent(data.dataset)}`}
 		>
 			Next File
 		</a>
 	</h1>
 
-	<div class="mb-2 rounded-lg border bg-blue-100 p-4">
-		<h2 class="mb-2 text-lg font-semibold">File Information</h2>
-		<div class="grid grid-cols-3 gap-2">
+	<div class="dark:border-dark-border dark:bg-dark-subtle mb-2 rounded-lg border bg-blue-100 p-4">
+		<h2 class="mb-2 text-lg font-semibold dark:text-gray-100">File Information</h2>
+		<div class="grid grid-cols-3 gap-2 dark:text-gray-300">
 			<div>Date: {data.fileInfo.year}-{data.fileInfo.month}-{data.fileInfo.day}</div>
 			<div>Time: {data.fileInfo.hour}:{data.fileInfo.minute}</div>
 			<div>
@@ -510,7 +510,9 @@
 	</div>
 
 	{#if summaryError}
-		<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+		<div
+			class="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+		>
 			<p>Failed to load file summary: {summaryError}</p>
 			<button
 				class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
@@ -522,8 +524,10 @@
 	{:else if summaryLoading && summarySkeletonVisible}
 		<div class="space-y-2">
 			{#each summarySkeletons as skeletonId (skeletonId)}
-				<div class="animate-pulse rounded-lg border bg-white shadow-sm">
-					<div class="bg-cisco-blue rounded-t-lg p-4">
+				<div
+					class="dark:border-dark-border dark:bg-dark-surface animate-pulse rounded-lg border bg-white shadow-sm"
+				>
+					<div class="bg-cisco-blue dark:bg-dark-subtle rounded-t-lg p-4">
 						<div class="mb-2 h-7 w-56 rounded bg-white/70"></div>
 						<div class="mb-4 h-5 w-[34rem] max-w-full rounded bg-white/60"></div>
 						<div class="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
@@ -551,39 +555,39 @@
 						</div>
 					</div>
 					<div class="space-y-4 p-4">
-						<div class="h-6 w-36 rounded bg-gray-200"></div>
+						<div class="dark:bg-dark-border h-6 w-36 rounded bg-gray-200"></div>
 						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<div class="space-y-3">
-								<div class="h-5 w-44 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-border h-5 w-44 rounded bg-gray-200"></div>
+								<div class="dark:bg-dark-subtle h-4 w-96 max-w-full rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-subtle h-96 rounded bg-gray-100"></div>
 							</div>
 							<div class="space-y-3">
-								<div class="h-5 w-52 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-border h-5 w-52 rounded bg-gray-200"></div>
+								<div class="dark:bg-dark-subtle h-4 w-96 max-w-full rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-subtle h-96 rounded bg-gray-100"></div>
 							</div>
 						</div>
 						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<div class="space-y-3">
-								<div class="h-5 w-44 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-border h-5 w-44 rounded bg-gray-200"></div>
+								<div class="dark:bg-dark-subtle h-4 w-96 max-w-full rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-subtle h-96 rounded bg-gray-100"></div>
 							</div>
 							<div class="space-y-3">
-								<div class="h-5 w-52 rounded bg-gray-200"></div>
-								<div class="h-4 w-96 max-w-full rounded bg-gray-100"></div>
-								<div class="h-96 rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-border h-5 w-52 rounded bg-gray-200"></div>
+								<div class="dark:bg-dark-subtle h-4 w-96 max-w-full rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-subtle h-96 rounded bg-gray-100"></div>
 							</div>
 						</div>
 						<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 							<div class="space-y-3">
-								<div class="h-5 w-48 rounded bg-gray-200"></div>
-								<div class="h-56 rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-border h-5 w-48 rounded bg-gray-200"></div>
+								<div class="dark:bg-dark-subtle h-56 rounded bg-gray-100"></div>
 							</div>
 							<div class="space-y-3">
-								<div class="h-5 w-56 rounded bg-gray-200"></div>
-								<div class="h-56 rounded bg-gray-100"></div>
+								<div class="dark:bg-dark-border h-5 w-56 rounded bg-gray-200"></div>
+								<div class="dark:bg-dark-subtle h-56 rounded bg-gray-100"></div>
 							</div>
 						</div>
 					</div>
@@ -591,19 +595,25 @@
 			{/each}
 		</div>
 	{:else if summaryLoading}
-		<div class="rounded-lg border bg-white p-4 text-gray-600 shadow-sm">
+		<div
+			class="dark:border-dark-border dark:bg-dark-surface rounded-lg border bg-white p-4 text-gray-600 shadow-sm dark:text-gray-400"
+		>
 			Loading file summary...
 		</div>
 	{:else if summaryRecords.length === 0}
-		<div class="rounded-lg border bg-white p-4 text-gray-600 shadow-sm">
+		<div
+			class="dark:border-dark-border dark:bg-dark-surface rounded-lg border bg-white p-4 text-gray-600 shadow-sm dark:text-gray-400"
+		>
 			No database summary is available for this file.
 		</div>
 	{:else}
 		<div class="space-y-2">
 			{#each summaryRecords as record (record.router)}
-				<div class="rounded-lg border bg-white shadow-sm">
+				<div
+					class="dark:border-dark-border dark:bg-dark-surface rounded-lg border bg-white shadow-sm"
+				>
 					<!-- Router Data Summary -->
-					<div class="bg-cisco-blue rounded-t-lg p-4">
+					<div class="bg-cisco-blue dark:bg-dark-subtle rounded-t-lg p-4">
 						<h3 class="mb-2 text-lg font-semibold">Router: {record.router}</h3>
 						<h3 class="text-md mb-2 font-semibold">
 							Absolute Path: <br />
@@ -676,31 +686,43 @@
 					<!-- Analysis for this Router -->
 					<div class="rounded-b-lg p-4">
 						{#if record.file_exists_on_disk === false}
-							<div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
+							<div
+								class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+							>
 								The original NetFlow file is missing on disk for this router. DB-backed stats can
 								still be shown, but on-demand MAAD analysis cannot run.
 							</div>
 						{/if}
-						<h4 class="text-md mb-4 font-semibold text-gray-800">MAAD Analysis</h4>
+						<h4 class="text-md mb-4 font-semibold text-gray-800 dark:text-gray-100">
+							MAAD Analysis
+						</h4>
 						<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">
+							<h5
+								class="dark:border-dark-border hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block dark:text-blue-400"
+							>
 								Source
 							</h5>
-							<h5 class="hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block">
+							<h5
+								class="dark:border-dark-border hidden border-b pb-2 text-base font-semibold text-blue-700 lg:block dark:text-blue-400"
+							>
 								Destination
 							</h5>
 						</div>
 						<div class="space-y-6">
 							<div class="space-y-3">
-								<h6 class="text-md font-medium text-gray-700">Structure</h6>
+								<h6 class="text-md font-medium text-gray-700 dark:text-gray-300">Structure</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingStructureSource.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading source structure...</div>
+												<div class="text-gray-600 dark:text-gray-400">
+													Loading source structure...
+												</div>
 											</div>
 										{:else if errorsSource.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+											<div
+												class="rounded border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+											>
 												<p>Error loading source structure: {errorsSource.get(record.router)}</p>
 												<button
 													class="mt-2 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
@@ -714,7 +736,9 @@
 												data={structureFunctionDataSource.get(record.router)!}
 											/>
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
 												No source structure available.
 											</div>
 										{/if}
@@ -722,10 +746,14 @@
 									<div>
 										{#if loadingStructureDestination.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading destination structure...</div>
+												<div class="text-gray-600 dark:text-gray-400">
+													Loading destination structure...
+												</div>
 											</div>
 										{:else if errorsDestination.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+											<div
+												class="rounded border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+											>
 												<p>
 													Error loading destination structure: {errorsDestination.get(
 														record.router
@@ -743,7 +771,9 @@
 												data={structureFunctionDataDestination.get(record.router)!}
 											/>
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
 												No destination structure available.
 											</div>
 										{/if}
@@ -751,15 +781,19 @@
 								</div>
 							</div>
 							<div class="space-y-3">
-								<h6 class="text-md font-medium text-gray-700">Spectrum</h6>
+								<h6 class="text-md font-medium text-gray-700 dark:text-gray-300">Spectrum</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingSpectrumSource.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading source spectrum...</div>
+												<div class="text-gray-600 dark:text-gray-400">
+													Loading source spectrum...
+												</div>
 											</div>
 										{:else if errorsSpectrumSource.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+											<div
+												class="rounded border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+											>
 												<p>
 													Error loading source spectrum: {errorsSpectrumSource.get(record.router)}
 												</p>
@@ -773,7 +807,9 @@
 										{:else if spectrumDataSource.get(record.router)}
 											<SpectrumChart data={spectrumDataSource.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
 												No source spectrum available.
 											</div>
 										{/if}
@@ -781,10 +817,14 @@
 									<div>
 										{#if loadingSpectrumDestination.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading destination spectrum...</div>
+												<div class="text-gray-600 dark:text-gray-400">
+													Loading destination spectrum...
+												</div>
 											</div>
 										{:else if errorsSpectrumDestination.get(record.router)}
-											<div class="rounded border border-red-200 bg-red-50 p-4 text-red-700">
+											<div
+												class="rounded border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+											>
 												<p>
 													Error loading destination spectrum: {errorsSpectrumDestination.get(
 														record.router
@@ -800,7 +840,9 @@
 										{:else if spectrumDataDestination.get(record.router)}
 											<SpectrumChart data={spectrumDataDestination.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
 												No destination spectrum available.
 											</div>
 										{/if}
@@ -808,16 +850,20 @@
 								</div>
 							</div>
 							<div class="space-y-3">
-								<h6 class="text-md font-medium text-gray-700">Singularities</h6>
+								<h6 class="text-md font-medium text-gray-700 dark:text-gray-300">Singularities</h6>
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 									<div>
 										{#if loadingSingularitiesSource.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading source singularities...</div>
+												<div class="text-gray-600 dark:text-gray-400">
+													Loading source singularities...
+												</div>
 											</div>
 										{:else if errorsSingularitiesSource.get(record.router)}
-											<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-												<p class="text-red-700">
+											<div
+												class="rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950"
+											>
+												<p class="text-red-700 dark:text-red-400">
 													Error loading source singularities: {errorsSingularitiesSource.get(
 														record.router
 													)}
@@ -832,7 +878,9 @@
 										{:else if singularitiesDataSource.get(record.router)}
 											<SingularitiesList data={singularitiesDataSource.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
 												No source singularities available.
 											</div>
 										{/if}
@@ -840,11 +888,15 @@
 									<div>
 										{#if loadingSingularitiesDestination.get(record.router)}
 											<div class="flex items-center justify-center py-6">
-												<div class="text-gray-600">Loading destination singularities...</div>
+												<div class="text-gray-600 dark:text-gray-400">
+													Loading destination singularities...
+												</div>
 											</div>
 										{:else if errorsSingularitiesDestination.get(record.router)}
-											<div class="rounded-lg border border-red-300 bg-red-50 p-4">
-												<p class="text-red-700">
+											<div
+												class="rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950"
+											>
+												<p class="text-red-700 dark:text-red-400">
 													Error loading destination singularities: {errorsSingularitiesDestination.get(
 														record.router
 													)}
@@ -859,7 +911,9 @@
 										{:else if singularitiesDataDestination.get(record.router)}
 											<SingularitiesList data={singularitiesDataDestination.get(record.router)!} />
 										{:else}
-											<div class="rounded border bg-gray-50 p-4 text-gray-600">
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
 												No destination singularities available.
 											</div>
 										{/if}

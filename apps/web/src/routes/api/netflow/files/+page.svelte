@@ -67,17 +67,19 @@
 </script>
 
 <div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
-	<h1 class="mb-4 text-2xl text-black">NetFlow Files</h1>
+	<h1 class="mb-4 text-2xl text-gray-900 dark:text-gray-100">NetFlow Files</h1>
 
-	<div class="mb-6 rounded-lg border bg-blue-50 p-4">
-		<h2 class="mb-3 text-lg font-semibold">Navigate to File by Timestamp</h2>
+	<div class="mb-6 rounded-lg border bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
+		<h2 class="mb-3 text-lg font-semibold dark:text-gray-100">Navigate to File by Timestamp</h2>
 		<div class="grid gap-3 lg:grid-cols-[14rem_minmax(0,1fr)_auto]">
 			<div>
-				<label for="dataset" class="mb-1 block text-sm font-medium text-gray-700">Dataset</label>
+				<label for="dataset" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+					>Dataset</label
+				>
 				<select
 					id="dataset"
 					bind:value={selectedDataset}
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					class="dark:border-dark-border dark:bg-dark-subtle w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:text-gray-100"
 				>
 					{#if !selectedDataset}
 						<option value="">Select a dataset</option>
@@ -88,7 +90,10 @@
 				</select>
 			</div>
 			<div class="min-w-0">
-				<label for="timestamp" class="mb-1 block text-sm font-medium text-gray-700">
+				<label
+					for="timestamp"
+					class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+				>
 					File Timestamp (YYYYMMDDHHmm)
 				</label>
 				<input
@@ -97,7 +102,7 @@
 					bind:value={timestamp}
 					onkeydown={handleKeydown}
 					placeholder="202601011200"
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					class="dark:border-dark-border dark:bg-dark-subtle w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:text-gray-100 dark:placeholder-gray-500"
 					maxlength="12"
 				/>
 				<div
@@ -116,7 +121,7 @@
 				</button>
 			</div>
 		</div>
-		<p class="mt-2 text-sm text-gray-600">
+		<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
 			Choose a dataset, then enter the exact 12-digit timestamp from NetFlow filenames (e.g.,
 			`nfcapd.202601011200`).
 		</p>

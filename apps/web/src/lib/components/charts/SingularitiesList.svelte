@@ -3,7 +3,6 @@
 
 	let { data }: { data: SingularitiesData } = $props();
 
-	// Separate top and bottom singularities
 	const topSingularities = $derived(
 		data ? data.singularities.filter((s) => s.rank.startsWith('top')) : []
 	);
@@ -15,23 +14,23 @@
 {#if data}
 	<div class="w-full space-y-4">
 		{#if topSingularities.length > 0}
-			<div class="rounded-lg border bg-green-50 p-4">
-				<h4 class="mb-2 font-semibold">Top Singularities (Most Anomalous)</h4>
+			<div class="rounded-lg border bg-green-50 p-4 dark:border-green-900 dark:bg-green-950">
+				<h4 class="mb-2 font-semibold dark:text-gray-100">Top Singularities (Most Anomalous)</h4>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
 						<thead>
-							<tr class="border-b border-green-200">
-								<th class="px-2 py-1 text-left">Rank</th>
-								<th class="px-2 py-1 text-left">IP Address</th>
-								<th class="px-2 py-1 text-left">α (Alpha)</th>
-								<th class="px-2 py-1 text-left">Intercept</th>
-								<th class="px-2 py-1 text-left">R²</th>
-								<th class="px-2 py-1 text-left">Points</th>
+							<tr class="border-b border-green-200 dark:border-green-800">
+								<th class="px-2 py-1 text-left dark:text-gray-300">Rank</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">IP Address</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">α (Alpha)</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">Intercept</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">R²</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">Points</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each topSingularities as singularity (singularity.rank)}
-								<tr class="border-b border-green-100">
+								<tr class="border-b border-green-100 dark:border-green-900 dark:text-gray-300">
 									<td class="px-2 py-1">{singularity.rank}</td>
 									<td class="px-2 py-1 font-mono">{singularity.address}</td>
 									<td class="px-2 py-1">{singularity.alpha.toFixed(4)}</td>
@@ -47,23 +46,25 @@
 		{/if}
 
 		{#if bottomSingularities.length > 0}
-			<div class="rounded-lg border bg-red-50 p-4">
-				<h4 class="mb-2 font-semibold">Bottom Singularities (Least Anomalous)</h4>
+			<div class="rounded-lg border bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
+				<h4 class="mb-2 font-semibold dark:text-gray-100">
+					Bottom Singularities (Least Anomalous)
+				</h4>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
 						<thead>
-							<tr class="border-b border-red-200">
-								<th class="px-2 py-1 text-left">Rank</th>
-								<th class="px-2 py-1 text-left">IP Address</th>
-								<th class="px-2 py-1 text-left">α (Alpha)</th>
-								<th class="px-2 py-1 text-left">Intercept</th>
-								<th class="px-2 py-1 text-left">R²</th>
-								<th class="px-2 py-1 text-left">Points</th>
+							<tr class="border-b border-red-200 dark:border-red-800">
+								<th class="px-2 py-1 text-left dark:text-gray-300">Rank</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">IP Address</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">α (Alpha)</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">Intercept</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">R²</th>
+								<th class="px-2 py-1 text-left dark:text-gray-300">Points</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each bottomSingularities as singularity (singularity.rank)}
-								<tr class="border-b border-red-100">
+								<tr class="border-b border-red-100 dark:border-red-900 dark:text-gray-300">
 									<td class="px-2 py-1">{singularity.rank}</td>
 									<td class="px-2 py-1 font-mono">{singularity.address}</td>
 									<td class="px-2 py-1">{singularity.alpha.toFixed(4)}</td>
@@ -79,15 +80,15 @@
 		{/if}
 
 		{#if topSingularities.length === 0 && bottomSingularities.length === 0}
-			<div class="rounded-lg border bg-gray-50 p-4">
-				<p class="text-gray-600">No singularities data available.</p>
+			<div class="dark:border-dark-border dark:bg-dark-subtle rounded-lg border bg-gray-50 p-4">
+				<p class="text-gray-600 dark:text-gray-400">No singularities data available.</p>
 			</div>
 		{/if}
 	</div>
 {:else}
 	<div class="w-full">
-		<div class="rounded-lg border bg-gray-50 p-4">
-			<p class="text-gray-600">Loading singularities data...</p>
+		<div class="dark:border-dark-border dark:bg-dark-subtle rounded-lg border bg-gray-50 p-4">
+			<p class="text-gray-600 dark:text-gray-400">Loading singularities data...</p>
 		</div>
 	</div>
 {/if}

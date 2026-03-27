@@ -8,6 +8,7 @@
 	import { verticalCrosshairPlugin } from './crosshair-plugin';
 	import { crosshairStore } from '$lib/stores/crosshair';
 	import { rangeSelectionStore, type RangeSelectionState } from '$lib/stores/rangeSelection';
+	import { theme } from '$lib/stores/theme.svelte';
 	import { NETFLOW_DATA_OPTION_FIELDS } from '$lib/components/netflow/constants';
 	import {
 		formatLabels,
@@ -411,6 +412,18 @@
 		return parseLabelToPSTComponents(label);
 	}
 
+	function getChartColors() {
+		const style = getComputedStyle(document.documentElement);
+		return {
+			textColor: style.getPropertyValue('--chart-text-color').trim(),
+			gridColor: style.getPropertyValue('--chart-grid-color').trim(),
+			gridHighlightColor: style.getPropertyValue('--chart-grid-highlight-color').trim(),
+			tooltipBackgroundColor: style.getPropertyValue('--chart-tooltip-bg').trim(),
+			tooltipTextColor: style.getPropertyValue('--chart-tooltip-text-color').trim(),
+			tooltipBorderColor: style.getPropertyValue('--chart-tooltip-border-color').trim()
+		};
+	}
+
 	function getLabelPSTFromLabels(
 		labels: (string | number | null | undefined)[],
 		idx: number
@@ -420,6 +433,14 @@
 	}
 
 	function createChartConfig(): ChartConfig {
+		const {
+			textColor,
+			gridColor,
+			gridHighlightColor,
+			tooltipBackgroundColor,
+			tooltipTextColor,
+			tooltipBorderColor
+		} = getChartColors();
 		const labels = formatLabels(results, groupBy);
 		const getLabelPST = (idx: number): PSTDateComponents | null =>
 			getLabelPSTFromLabels(labels, idx);
@@ -491,9 +512,11 @@
 			x: {
 				title: {
 					display: true,
-					text: xAxisTitle
+					text: xAxisTitle,
+					color: textColor
 				},
 				ticks: {
+					color: textColor,
 					autoSkip: false,
 					maxRotation: 45,
 					minRotation: 45,
@@ -505,8 +528,8 @@
 						const tickIndex = ctx.index ?? ctx.tick?.index ?? 0;
 						const safeIndex = Number.isFinite(Number(tickIndex)) ? Number(tickIndex) : 0;
 						return shouldHighlightTick(getLabelPST(safeIndex), groupBy, safeIndex)
-							? 'rgba(0,0,0,0.08)'
-							: 'rgba(0,0,0,0.02)';
+							? gridColor
+							: gridHighlightColor;
 					}
 				}
 			},
@@ -521,9 +544,11 @@
 						},
 						title: {
 							display: true,
-							text: 'Value'
+							text: 'Value',
+							color: textColor
 						},
 						ticks: {
+							color: textColor,
 							callback: function (value: string | number) {
 								const num = Number(value);
 
@@ -544,6 +569,9 @@
 									return num.toString();
 								}
 							}
+						},
+						grid: {
+							color: gridColor
 						}
 					}
 				: {
@@ -556,9 +584,11 @@
 						},
 						title: {
 							display: true,
-							text: 'Value (Log Scale)'
+							text: 'Value (Log Scale)',
+							color: textColor
 						},
 						ticks: {
+							color: textColor,
 							callback: function (value: string | number) {
 								const num = Number(value);
 								if (num >= 1e15) return (num / 1e15).toFixed(1) + 'Q';
@@ -568,6 +598,9 @@
 								if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
 								return num.toString();
 							}
+						},
+						grid: {
+							color: gridColor
 						}
 					}
 		};
@@ -590,11 +623,18 @@
 				plugins: {
 					legend: {
 						display: true,
-						position: 'top' as const
+						position: 'top' as const,
+						labels: { color: textColor }
 					},
 					tooltip: {
 						mode: 'index',
 						intersect: false,
+						backgroundColor: tooltipBackgroundColor,
+						titleColor: tooltipTextColor,
+						bodyColor: tooltipTextColor,
+						footerColor: tooltipTextColor,
+						borderColor: tooltipBorderColor,
+						borderWidth: 1,
 						callbacks: {
 							label: (context: TooltipItem<'line'>) => {
 								const family = getMetricFamily(context.dataset.label ?? '') ?? 'flows';
@@ -614,9 +654,9 @@
 						tooltip: {
 							enabled: true,
 							delay: 500,
-							backgroundColor: 'rgba(0, 0, 0, 0.85)',
-							textColor: 'white',
-							borderColor: 'rgba(100, 100, 100, 0.8)',
+							backgroundColor: tooltipBackgroundColor,
+							textColor: tooltipTextColor,
+							borderColor: tooltipBorderColor,
 							borderWidth: 1,
 							borderRadius: 4,
 							padding: 8,
@@ -634,6 +674,15 @@
 	}
 
 	onMount(() => {
+		const {
+			textColor,
+			gridColor,
+			gridHighlightColor,
+			tooltipBackgroundColor,
+			tooltipTextColor,
+			tooltipBorderColor
+		} = getChartColors();
+
 		// Register the crosshair plugin
 		Chart.register(verticalCrosshairPlugin);
 
@@ -656,9 +705,11 @@
 					x: {
 						title: {
 							display: true,
-							text: 'Date'
+							text: 'Date',
+							color: textColor
 						},
 						ticks: {
+							color: textColor,
 							autoSkip: false,
 							maxRotation: 45,
 							minRotation: 45,
@@ -686,21 +737,36 @@
 									groupBy,
 									safeIndex
 								)
-									? 'rgba(0,0,0,0.08)'
-									: 'rgba(0,0,0,0.02)';
+									? gridColor
+									: gridHighlightColor;
 							}
 						}
 					},
 					y: {
 						afterFit(axis: { width: number }) {
 							axis.width = Y_AXIS_WIDTH;
+						},
+						ticks: {
+							color: textColor
+						},
+						grid: {
+							color: gridColor
 						}
 					}
 				},
 				plugins: {
 					tooltip: {
 						mode: 'index',
-						intersect: false
+						intersect: false,
+						backgroundColor: tooltipBackgroundColor,
+						titleColor: tooltipTextColor,
+						bodyColor: tooltipTextColor,
+						footerColor: tooltipTextColor,
+						borderColor: tooltipBorderColor,
+						borderWidth: 1
+					},
+					legend: {
+						labels: { color: textColor }
 					},
 					verticalCrosshair: {
 						enabled: true,
@@ -712,9 +778,9 @@
 						tooltip: {
 							enabled: true,
 							delay: 500,
-							backgroundColor: 'rgba(0, 0, 0, 0.85)',
-							textColor: 'white',
-							borderColor: 'rgba(100, 100, 100, 0.8)',
+							backgroundColor: tooltipBackgroundColor,
+							textColor: tooltipTextColor,
+							borderColor: tooltipBorderColor,
 							borderWidth: 1,
 							borderRadius: 4,
 							padding: 8,
@@ -770,6 +836,16 @@
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			chart.options = config.options as any;
 			chart.update();
+		}
+	});
+
+	$effect(() => {
+		void theme.dark;
+		if (chart) {
+			const config = createChartConfig();
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			chart.options = config.options as any;
+			chart.update('none');
 		}
 	});
 </script>

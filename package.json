@@ -7,11 +7,13 @@
   ],
   "scripts": {
     "prepare": "husky",
+    "dev": "bun run dev:web",
     "dev:web": "cd apps/web && bun run dev",
     "build:web": "cd apps/web && bun run build",
     "check:web": "cd apps/web && bun run check",
     "lint:web": "cd apps/web && bun run lint",
     "typecheck": "cd apps/web && bun run typecheck",
+    "format": "bun run format:web",
     "format:repo": "cd apps/web && bunx prettier --write ../../package.json ../../README.md ../../AGENTS.md ../../.github/workflows/ci.yaml",
     "format:check:repo": "cd apps/web && bunx prettier --check ../../package.json ../../README.md ../../AGENTS.md ../../.github/workflows/ci.yaml",
     "format:web": "cd apps/web && bun run format",

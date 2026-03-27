@@ -3,36 +3,72 @@
 	import Chart from 'chart.js/auto';
 	import annotationPlugin from 'chartjs-plugin-annotation';
 	import type { SpectrumData } from '$lib/types/types';
+	import { theme } from '$lib/stores/theme.svelte';
+
+	Chart.register(annotationPlugin);
 
 	let { data }: { data: SpectrumData } = $props();
 	let chartCanvas: HTMLCanvasElement;
-	let chart: Chart;
+	let chart: Chart | null = null;
 
 	onMount(() => {
-		// Register the annotation plugin
-		Chart.register(annotationPlugin);
-
 		return () => {
-			if (chart) {
-				chart.destroy();
-			}
+			destroyChart();
 		};
 	});
 
-	// Watch for data changes and create/update chart
 	$effect(() => {
-		if (chartCanvas && data?.spectrum?.length > 0) {
-			if (chart) {
-				chart.destroy();
-			}
-			createChart();
+		if (!chartCanvas?.parentElement) {
+			return;
 		}
+
+		const observer = new ResizeObserver(() => {
+			chart?.resize();
+		});
+		observer.observe(chartCanvas.parentElement);
+
+		return () => {
+			observer.disconnect();
+		};
 	});
 
-	function createChart() {
-		const points = data.spectrum;
+	$effect(() => {
+		void theme.dark;
+		if (!chartCanvas) {
+			return;
+		}
 
-		// Calculate range for y=x reference line
+		if (data?.spectrum?.length > 0) {
+			updateChart();
+			return;
+		}
+
+		destroyChart();
+	});
+
+	function getChartColors() {
+		const style = getComputedStyle(document.documentElement);
+		return {
+			textColor: style.getPropertyValue('--chart-text-color').trim(),
+			gridColor: style.getPropertyValue('--chart-grid-color').trim(),
+			tooltipBackgroundColor: style.getPropertyValue('--chart-tooltip-bg').trim(),
+			tooltipTextColor: style.getPropertyValue('--chart-tooltip-text-color').trim(),
+			tooltipBorderColor: style.getPropertyValue('--chart-tooltip-border-color').trim()
+		};
+	}
+
+	function destroyChart() {
+		if (chart) {
+			chart.destroy();
+			chart = null;
+		}
+	}
+
+	function updateChart() {
+		const points = data.spectrum;
+		const { textColor, gridColor, tooltipBackgroundColor, tooltipTextColor, tooltipBorderColor } =
+			getChartColors();
+
 		const alphaValues = points.map((p) => p.alpha);
 		const minAlpha = Math.min(...alphaValues);
 		const maxAlpha = Math.max(...alphaValues);
@@ -82,6 +118,7 @@
 			options: {
 				responsive: true,
 				maintainAspectRatio: false,
+				animation: false as const,
 				scales: {
 					x: {
 						type: 'linear' as const,
@@ -89,26 +126,38 @@
 						max: maxAlpha + 0.02 * (maxAlpha - minAlpha),
 						title: {
 							display: true,
-							text: 'alpha'
-						}
+							text: 'alpha',
+							color: textColor
+						},
+						ticks: { color: textColor },
+						grid: { color: gridColor }
 					},
 					y: {
 						type: 'linear' as const,
 						title: {
 							display: true,
-							text: 'f(alpha)'
+							text: 'f(alpha)',
+							color: textColor
 						},
-						position: 'left' as const
+						position: 'left' as const,
+						ticks: { color: textColor },
+						grid: { color: gridColor }
 					}
 				},
 				plugins: {
 					legend: {
 						display: true,
-						position: 'top' as const
+						position: 'top' as const,
+						labels: { color: textColor }
 					},
 					tooltip: {
 						mode: 'index' as const,
 						intersect: false,
+						backgroundColor: tooltipBackgroundColor,
+						titleColor: tooltipTextColor,
+						bodyColor: tooltipTextColor,
+						borderColor: tooltipBorderColor,
+						borderWidth: 1,
 						callbacks: {
 							title: (items: { parsed: { x: number } }[]) =>
 								`alpha = ${items[0]?.parsed?.x?.toFixed(6)}`,
@@ -130,23 +179,33 @@
 			}
 		};
 
+		if (!chart) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			chart = new Chart(chartCanvas, config as any);
+			return;
+		}
+
+		chart.data = chartData;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		chart = new Chart(chartCanvas, config as any);
+		chart.options = config.options as any;
+		chart.update('none');
 	}
 </script>
 
 <div class="w-full">
-	<div class="mb-2 text-sm text-gray-600">
+	<div class="mb-2 text-sm text-gray-600 dark:text-gray-400">
 		{#if data.metadata.uniqueIPCount && data.metadata.uniqueIPCount > 0}
-			<p class="text-xs font-medium text-green-600">
+			<p class="text-xs font-medium text-green-600 dark:text-green-400">
 				✓ Real NetFlow Data Analysis - {data.metadata.uniqueIPCount.toLocaleString()} unique IP addresses
 				analyzed
 			</p>
 		{:else if data.metadata.uniqueIPCount !== -1}
-			<p class="text-xs text-amber-600">⚠ Using test data from MAAD sample set</p>
+			<p class="text-xs text-amber-600 dark:text-amber-400">
+				⚠ Using test data from MAAD sample set
+			</p>
 		{/if}
 	</div>
-	<div class="relative h-96 w-full">
+	<div class="relative h-72 w-full min-w-0 sm:h-96">
 		<canvas bind:this={chartCanvas}></canvas>
 	</div>
 </div>

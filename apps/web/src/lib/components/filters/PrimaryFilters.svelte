@@ -67,20 +67,22 @@
 	}
 </script>
 
-<div class="space-y-3 rounded-lg border bg-white p-3 shadow-sm">
+<div
+	class="dark:border-dark-border dark:bg-dark-surface space-y-3 rounded-lg border bg-white p-3 shadow-sm dark:shadow-none"
+>
 	<div class="flex items-center gap-2">
-		<h2 class="text-sm font-semibold text-gray-900">Controls</h2>
+		<h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Controls</h2>
 		<div class="group relative">
 			<button
 				type="button"
-				class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[11px] font-semibold text-gray-500 hover:border-blue-500 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+				class="dark:border-dark-border inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[11px] font-semibold text-gray-500 hover:border-blue-500 hover:text-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-gray-400"
 				aria-label="Show navigation tip"
 				title={navigationTip}
 			>
 				?
 			</button>
 			<div
-				class="pointer-events-none absolute left-0 z-10 mt-2 hidden w-64 rounded-md border border-gray-200 bg-white p-2 text-xs leading-5 text-gray-600 shadow-lg group-focus-within:block group-hover:block"
+				class="dark:border-dark-border dark:bg-dark-subtle pointer-events-none absolute left-0 z-10 mt-2 hidden w-64 rounded-md border border-gray-200 bg-white p-2 text-xs leading-5 text-gray-600 shadow-lg group-focus-within:block group-hover:block dark:text-gray-400"
 				role="tooltip"
 			>
 				{navigationTip}
@@ -96,10 +98,10 @@
 			onEndDateChange={handleEndDateChange}
 		/>
 
-		<div class="hidden h-6 w-px bg-gray-200 sm:block" aria-hidden="true"></div>
+		<div class="dark:bg-dark-border hidden h-6 w-px bg-gray-200 sm:block" aria-hidden="true"></div>
 
 		<div
-			class="relative inline-grid min-w-[17rem] grid-cols-4 rounded-md border border-gray-200 bg-gray-50 p-1"
+			class="dark:border-dark-border dark:bg-dark-subtle relative inline-grid min-w-[17rem] grid-cols-4 rounded-md border border-gray-200 bg-gray-50 p-1"
 		>
 			<div
 				class="pointer-events-none absolute top-1 bottom-1 rounded bg-blue-600 shadow-sm transition-transform duration-200 ease-out will-change-transform motion-reduce:transition-none"
@@ -120,7 +122,7 @@
 								? 'text-white'
 								: disabledReason
 									? 'text-gray-400'
-									: 'text-gray-600 hover:text-gray-900'
+									: 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
 						}`}
 						aria-pressed={props.groupBy === option.value}
 						aria-disabled={disabledReason ? 'true' : 'false'}
@@ -129,7 +131,7 @@
 					</button>
 					{#if disabledReason}
 						<div
-							class="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-44 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-2 text-xs leading-4 text-gray-600 shadow-lg group-focus-within:block group-hover:block"
+							class="dark:border-dark-border dark:bg-dark-subtle pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-44 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-2 text-xs leading-4 text-gray-600 shadow-lg group-focus-within:block group-hover:block dark:text-gray-400"
 							role="tooltip"
 						>
 							{disabledReason}
@@ -139,7 +141,7 @@
 			{/each}
 		</div>
 
-		<div class="hidden h-6 w-px bg-gray-200 sm:block" aria-hidden="true"></div>
+		<div class="dark:bg-dark-border hidden h-6 w-px bg-gray-200 sm:block" aria-hidden="true"></div>
 
 		<RouterFilter routers={props.routers} onRouterChange={handleRoutersChange} />
 

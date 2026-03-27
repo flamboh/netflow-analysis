@@ -3,10 +3,35 @@
 
 @import 'tw-animate-css';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
 	--font-body: 'Inter', sans-serif;
 
 	--color-cisco-blue: #009edc;
+
+	--color-dark-bg: #0a0a0a;
+	--color-dark-surface: #111111;
+	--color-dark-subtle: #1a1a1a;
+	--color-dark-border: #2d2d2d;
+}
+
+:root {
+	--chart-text-color: #374151;
+	--chart-grid-color: rgba(0, 0, 0, 0.08);
+	--chart-grid-highlight-color: rgba(0, 0, 0, 0.04);
+	--chart-tooltip-bg: rgba(17, 24, 39, 0.9);
+	--chart-tooltip-text-color: #f9fafb;
+	--chart-tooltip-border-color: rgba(107, 114, 128, 0.7);
+}
+
+.dark {
+	--chart-text-color: #9ca3af;
+	--chart-grid-color: rgba(255, 255, 255, 0.08);
+	--chart-grid-highlight-color: rgba(255, 255, 255, 0.04);
+	--chart-tooltip-bg: rgba(3, 7, 18, 0.92);
+	--chart-tooltip-text-color: #f3f4f6;
+	--chart-tooltip-border-color: rgba(75, 85, 99, 0.85);
 }
 
 html {
