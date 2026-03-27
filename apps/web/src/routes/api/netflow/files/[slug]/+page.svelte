@@ -917,6 +917,12 @@
 											>
 												No source singularities available.
 											</div>
+										{:else if record.file_exists_on_disk === false}
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
+												Source singularities unavailable because the original file is missing on disk.
+											</div>
 										{:else}
 											<div
 												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
@@ -961,6 +967,12 @@
 												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
 											>
 												No destination singularities available.
+											</div>
+										{:else if record.file_exists_on_disk === false}
+											<div
+												class="dark:border-dark-border dark:bg-dark-subtle rounded border bg-gray-50 p-4 text-gray-600 dark:text-gray-400"
+											>
+												Destination singularities unavailable because the original file is missing on disk.
 											</div>
 										{:else}
 											<div
