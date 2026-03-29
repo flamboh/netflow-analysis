@@ -37,7 +37,7 @@ from discovery import (
 # Structure function binary path (Zig binary in burstify)
 STRUCTURE_FUNCTION_BIN = get_optional_env(
     'STRUCTURE_FUNCTION_BIN',
-    str(Path(__file__).parent.parent / 'burstify' / 'zig-out' / 'bin' / 'StructureFunction')
+    str(Path(__file__).parent.parent / 'vendor' / 'burstify' / 'zig-out' / 'bin' / 'StructureFunction')
 )
 MIN_IPS_FOR_STRUCTURE = 100
 

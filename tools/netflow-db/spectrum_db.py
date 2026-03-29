@@ -37,7 +37,7 @@ from discovery import (
 # Spectrum binary path
 SPECTRUM_BIN = get_optional_env(
     'SPECTRUM_BIN',
-    str(Path(__file__).parent.parent / 'maad' / 'Spectrum')
+    str(Path(__file__).parent.parent / 'vendor' / 'maad' / 'Spectrum')
 )
 MIN_IPS_FOR_SPECTRUM = 100
 
