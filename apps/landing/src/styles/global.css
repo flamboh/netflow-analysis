@@ -14,17 +14,26 @@
 }
 
 @layer base {
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    min-height: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    font-family: var(--font-body);
+    background-color: var(--color-dark-bg);
+    color: #e5e7eb;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .fade-in {
       animation: none !important;
       opacity: 1 !important;
     }
-  }
-
-  body {
-    font-family: var(--font-body);
-    background-color: var(--color-dark-bg);
-    color: #e5e7eb;
   }
 
   ::selection {
@@ -33,19 +42,17 @@
   }
 }
 
-@keyframes fade-up {
+@keyframes fade-in-entrance {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .fade-in {
-  animation: fade-up 0.55s ease forwards;
+  animation: fade-in-entrance 0.55s ease forwards;
   opacity: 0;
 }
 

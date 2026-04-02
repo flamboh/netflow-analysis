@@ -7,8 +7,9 @@
   ],
   "scripts": {
     "prepare": "husky",
-    "dev": "bun run dev:web",
+    "dev": "concurrently -n web,landing -c 'blue,magenta' \"bun run dev:web\" \"bun run dev:landing\"",
     "dev:web": "bun run --cwd apps/web dev",
+    "dev:landing": "bun run --cwd apps/landing dev",
     "build:web": "bun run --cwd apps/web build",
     "check:web": "bun run --cwd apps/web check",
     "lint": "bun run --cwd apps/web lint",
@@ -24,6 +25,7 @@
     "check:db": "sh -c 'if command -v python >/dev/null 2>&1; then exec python -m compileall tools/netflow-db; else exec python3 -m compileall tools/netflow-db; fi'"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "husky": "^9.1.7"
   }
 }
