@@ -1,0 +1,54 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const title = "ATLANTIS";
+const description =
+	"ATLANTIS — NetFlow telemetry visualization from the Oregon Networking Research Group. Links to the lab and source repository.";
+
+const links = {
+	onrg: "https://onrg.gitlab.io/",
+	github: "https://github.com/flamboh/netflow-analysis",
+} as const;
+
+const externalRel = "noopener noreferrer";
+
+const destinations = [
+	{ label: "ONRG", href: links.onrg, title: "Oregon Networking Research Group" },
+	{
+		label: "GitHub",
+		href: links.github,
+		title: "Source code, documentation, and issues",
+	},
+] as const;
+---
+
+<BaseLayout {title} {description}>
+	<main
+		class="fade-in mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6 py-16 sm:px-8"
+	>
+		<h1 class="font-display text-3xl font-semibold tracking-tight text-gray-100 sm:text-4xl">
+			ATLANTIS
+		</h1>
+		<p class="mt-4 text-muted leading-relaxed">
+			Network telemetry visualization · Oregon Networking Research Group
+		</p>
+		<nav class="mt-12" aria-label="External links">
+			<ul class="space-y-3 text-sm sm:text-base">
+				{destinations.map((item) => (
+					<li>
+						<a
+							href={item.href}
+							class="external-link"
+							target="_blank"
+							rel={externalRel}
+							title={item.title}
+						>
+							{item.label}
+							<span class="ml-1 inline text-cisco-blue" aria-hidden="true">↗</span>
+						</a>
+					</li>
+				))}
+			</ul>
+		</nav>
+	</main>
+</BaseLayout>

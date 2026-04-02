@@ -1,0 +1,75 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Sora:wght@500;600;700&display=swap");
+
+@import "tailwindcss";
+
+/* Align with apps/web app.css theme tokens */
+@theme {
+  --font-display: "Sora", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+
+  --color-cisco-blue: #009edc;
+  --color-dark-bg: #0a0a0a;
+  --color-dark-border: #2d2d2d;
+  --color-muted: #9ca3af;
+}
+
+@layer base {
+  @media (prefers-reduced-motion: reduce) {
+    .fade-in {
+      animation: none !important;
+      opacity: 1 !important;
+    }
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-dark-bg);
+    color: #e5e7eb;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-cisco-blue) 35%, transparent);
+    color: #f9fafb;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fade-up 0.55s ease forwards;
+  opacity: 0;
+}
+
+.external-link {
+  color: #e5e7eb;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--color-cisco-blue) 45%,
+    transparent
+  );
+  text-underline-offset: 0.2em;
+  transition:
+    color 0.15s ease,
+    text-decoration-color 0.15s ease;
+}
+
+.external-link:hover {
+  color: #f9fafb;
+  text-decoration-color: var(--color-cisco-blue);
+}
+
+.external-link:focus-visible {
+  outline: 2px solid var(--color-cisco-blue);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
