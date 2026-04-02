@@ -26,6 +26,12 @@ With the multi-dataset setup:
 - if you do not pass `--dataset`, the pipeline uses `DEFAULT_DATASET` from `.env`
 - each dataset writes to its own SQLite database, typically `./data/<dataset>/netflow.sqlite`
 
+`structure_stats` requires a compiled burstify `StructureFunction` binary.
+Build it with `./vendor/scripts/compile-burstify.sh`.
+
+`spectrum_stats` requires a compiled MAAD `Spectrum` binary.
+Build it with `./vendor/scripts/compile-maad.sh`.
+
 ```bash
 python tools/netflow-db/pipeline.py
 ```

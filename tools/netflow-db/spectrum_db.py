@@ -15,6 +15,7 @@ from pathlib import Path
 from collections import defaultdict
 
 from common import (
+    REPO_ROOT,
     NETFLOW_DATA_PATH,
     AVAILABLE_ROUTERS,
     DATABASE_PATH,
@@ -37,7 +38,7 @@ from discovery import (
 # Spectrum binary path
 SPECTRUM_BIN = get_optional_env(
     'SPECTRUM_BIN',
-    str(Path(__file__).parent.parent / 'vendor' / 'maad' / 'Spectrum')
+    str(REPO_ROOT / 'vendor' / 'maad' / 'Spectrum')
 )
 MIN_IPS_FOR_SPECTRUM = 100
 

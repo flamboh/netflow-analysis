@@ -1,6 +1,6 @@
 [submodule "maad"]
 	path = vendor/maad
-	url = git@github.com:chris-misa/maad.git
+	url = https://github.com/chris-misa/maad.git
 [submodule "burstify"]
 	path = vendor/burstify
-	url = git@github.com:chris-misa/burstify.git
+	url = https://github.com/chris-misa/burstify.git
