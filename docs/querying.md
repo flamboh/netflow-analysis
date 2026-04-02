@@ -18,16 +18,19 @@ Useful SQLite commands:
 
 ## Schema Overview
 
-**`netflow_stats`** — per-router flow/packet/byte counts, bucketed by time:
+**`netflow_stats`** — per-router flow/packet/byte counts, bucketed by file timestamp:
 
-- `time_start` (Unix timestamp), `router`
-- `flows_total`, `flows_tcp`, `flows_udp`, `flows_icmp`, `flows_other`
-- `packets_*`, `bytes_*` (same protocol breakdown)
-- Indexed for efficient time-range queries
+- `file_path`, `router`, `timestamp` (Unix timestamp)
+- `flows`, `flows_tcp`, `flows_udp`, `flows_icmp`, `flows_other`
+- `packets`, `packets_tcp`, `packets_udp`, `packets_icmp`, `packets_other`
+- `bytes`, `bytes_tcp`, `bytes_udp`, `bytes_icmp`, `bytes_other`
+- `first_timestamp`, `last_timestamp`, `msec_first`, `msec_last`
+- Indexed for efficient router/time-range queries
 
-**`ip_stats`** — unique source/destination IP counts per router per hour:
+**`ip_stats`** — unique source/destination IP counts per router per time bucket:
 
-- `router`, `bucket_start`, `granularity`
+- `router`, `granularity`, `bucket_start`, `bucket_end`
+- `granularity` is one of `5m`, `30m`, `1h`, `1d`
 - `sa_ipv4_count`, `da_ipv4_count`, `sa_ipv6_count`, `da_ipv6_count`
 
 ## Example Queries
@@ -36,14 +39,14 @@ Daily flow/packet summary for a time window:
 
 ```sql
 SELECT
-    DATE(time_start, 'unixepoch') AS day,
+    DATE(timestamp, 'unixepoch') AS day,
     router,
-    SUM(flows_total) AS flows,
-    SUM(packets_total) AS packets,
-    SUM(bytes_total) AS bytes
+    SUM(flows) AS flows,
+    SUM(packets) AS packets,
+    SUM(bytes) AS bytes
 FROM netflow_stats
 WHERE router IN ('router1', 'router2')
-  AND time_start BETWEEN strftime('%s', '2025-01-01') AND strftime('%s', '2025-01-08')
+  AND timestamp BETWEEN strftime('%s', '2025-01-01') AND strftime('%s', '2025-01-08')
 GROUP BY day, router
 ORDER BY day, router;
 ```
@@ -52,13 +55,13 @@ ORDER BY day, router;
 
 ```sql
 SELECT
-    strftime('%Y-%m-%d %H:%M', time_start, 'unixepoch') AS bucket,
+    strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch') AS bucket,
     SUM(flows_tcp) AS flows_tcp,
     SUM(flows_udp) AS flows_udp,
     SUM(flows_icmp) AS flows_icmp
 FROM netflow_stats
 WHERE router = 'router1'
-  AND time_start BETWEEN strftime('%s', '2025-01-03') AND strftime('%s', '2025-01-04')
+  AND timestamp BETWEEN strftime('%s', '2025-01-03') AND strftime('%s', '2025-01-04')
 GROUP BY bucket
 ORDER BY bucket;
 ```

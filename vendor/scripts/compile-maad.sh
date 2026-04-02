@@ -33,14 +33,20 @@ done
 
 ghc_version="$(ghc --numeric-version)"
 store_dir="$(cabal path --store-dir)"
+shopt -s nullglob
 package_db_candidates=("$store_dir"/ghc-"$ghc_version"-*/package.db)
+shopt -u nullglob
 
-if [ ! -e "${package_db_candidates[0]}" ]; then
+if [ ${#package_db_candidates[@]} -eq 0 ]; then
 	echo "missing cabal package db for ghc $ghc_version; run cabal install --lib ${required_packages[*]}" >&2
 	exit 1
 fi
 
 package_db="${package_db_candidates[0]}"
+ghc_path="$(command -v ghc)"
+printf -v ghc_path_escaped '%q' "$ghc_path"
+printf -v package_db_escaped '%q' "$package_db"
+printf -v package_args_escaped '%q ' "${package_args[@]}"
 
 if ! env GHC_ENVIRONMENT=- ghc -package-db "$package_db" "${package_args[@]}" -e 'putStrLn "ok"' >/dev/null 2>&1; then
 	echo "missing ghc packages: ${required_packages[*]}" >&2
@@ -97,7 +103,7 @@ PY
 
 cat >"$temp_dir/ghc" <<EOF
 #!/usr/bin/env bash
-exec "$(command -v ghc)" -package-db "$package_db" ${package_args[*]} "\$@"
+exec $ghc_path_escaped -package-db $package_db_escaped $package_args_escaped "\$@"
 EOF
 
 chmod +x "$temp_dir/ghc"

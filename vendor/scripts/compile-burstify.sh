@@ -39,14 +39,15 @@ pub fn main() !void {
 
     const stdin = std.fs.File.stdin();
     const stdout = std.fs.File.stdout();
-    var buffer: [1024]u8 = undefined;
+    var stdin_buffer: [1024]u8 = undefined;
+    var stdout_buffer: [1024]u8 = undefined;
 
     var pfxs = try addr.AddrAnalyzer.init(allocator);
     defer pfxs.deinit();
 
-    const reader = stdin.deprecatedReader();
+    var reader = stdin.reader(&stdin_buffer);
     while (true) {
-        if (try nextLine(reader, &buffer)) |line| {
+        if (try nextLine(&reader)) |line| {
             const ipv4 = try addr.string_to_ipv4(line);
             try pfxs.addAddr(ipv4);
         } else {
@@ -57,15 +58,16 @@ pub fn main() !void {
     const structure_function = try pfxs.structure_function(allocator);
     defer allocator.free(structure_function);
 
-    const writer = stdout.deprecatedWriter();
-    try writer.print("q,tau,sd\n", .{});
+    var writer = stdout.writer(&stdout_buffer);
+    try writer.interface.print("q,tau,sd\n", .{});
     for (structure_function) |elem| {
-        try writer.print("{d},{d},{d}\n", .{ elem.@"0", elem.@"1", elem.@"2" });
+        try writer.interface.print("{d},{d},{d}\n", .{ elem.@"0", elem.@"1", elem.@"2" });
     }
+    try writer.interface.flush();
 }
 
-fn nextLine(reader: anytype, buffer: []u8) !?[]const u8 {
-    const line = (try reader.readUntilDelimiterOrEof(buffer, '\n')) orelse return null;
+fn nextLine(reader: anytype) !?[]const u8 {
+    const line = (try reader.interface.takeDelimiter('\n')) orelse return null;
     if (@import("builtin").os.tag == .windows) {
         return std.mem.trimRight(u8, line, "\r");
     }
@@ -76,7 +78,9 @@ EOF
 zig build-exe "$temp_source" -O ReleaseFast -femit-bin="$structure_output"
 
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libpcap; then
-	exec zig build
+	zig build
+	echo "Built $structure_output and full burstify toolchain."
+	exit 0
 fi
 
 echo "Built $structure_output"
