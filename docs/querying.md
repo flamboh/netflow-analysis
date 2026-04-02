@@ -10,7 +10,7 @@ sqlite3 data/<dataset>/netflow.sqlite
 
 Useful SQLite commands:
 
-```
+```text
 .tables
 .schema netflow_stats
 .schema ip_stats
@@ -55,15 +55,15 @@ ORDER BY day, router;
 
 ```sql
 SELECT
-    strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch') AS bucket,
+    strftime('%Y-%m-%d %H:%M', timestamp - (timestamp % 1800), 'unixepoch') AS bucket,
     SUM(flows_tcp) AS flows_tcp,
     SUM(flows_udp) AS flows_udp,
     SUM(flows_icmp) AS flows_icmp
 FROM netflow_stats
 WHERE router = 'router1'
   AND timestamp BETWEEN strftime('%s', '2025-01-03') AND strftime('%s', '2025-01-04')
-GROUP BY bucket
-ORDER BY bucket;
+GROUP BY timestamp - (timestamp % 1800)
+ORDER BY timestamp - (timestamp % 1800);
 ```
 
 Per-router IP counts:
