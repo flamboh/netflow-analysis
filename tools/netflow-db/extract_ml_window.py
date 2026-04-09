@@ -8,11 +8,11 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-
-from common import get_dataset_db_path
 
 
 TABLE_CONFIG = {
@@ -29,13 +29,27 @@ DEFAULT_OUTPUT_DIR = "data/uoregon/ml-2025-03-30-to-2025-06-07"
 SQLITE_FILENAME = "netflow_window.sqlite"
 
 
-def parse_args() -> argparse.Namespace:
+def resolve_default_source_db() -> str:
+    try:
+        from common import get_dataset_db_path
+    except Exception as error:
+        raise SystemExit(f"Could not resolve default source DB: {error}") from error
+
+    return str(get_dataset_db_path("uoregon"))
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
         description="Extract a fixed NetFlow window for ML workflows.",
     )
     parser.add_argument(
+        "--router",
+        help="Only extract rows for a single router.",
+    )
+    parser.add_argument(
         "--source-db",
-        default=str(get_dataset_db_path("uoregon")),
+        default=None,
         help="Path to the source SQLite database.",
     )
     parser.add_argument(
@@ -74,7 +88,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include non-5m rows from derived tables.",
     )
-    return parser.parse_args()
+
+    if not argv:
+        parser.print_help()
+        raise SystemExit(0)
+
+    args = parser.parse_args(argv)
+    if args.source_db is None:
+        args.source_db = resolve_default_source_db()
+    return args
 
 
 def parse_date(date_str: str) -> datetime:
@@ -101,6 +123,30 @@ def connect_db(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def build_table_filters(
+    *,
+    router: str | None,
+    all_granularities: bool,
+    config: dict[str, Any],
+) -> tuple[str, tuple[Any, ...]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+
+    if not all_granularities and config["extra_where"]:
+        clauses.append(str(config["extra_where"]).removeprefix("AND ").strip())
+        params.extend(config["extra_params"])
+
+    if router is not None:
+        clauses.append("router = ?")
+        params.append(router)
+
+    extra_where = ""
+    if clauses:
+        extra_where = "AND " + " AND ".join(clauses)
+
+    return extra_where, tuple(params)
 
 
 def get_table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
@@ -336,8 +382,14 @@ def main() -> None:
 
             for table, config in TABLE_CONFIG.items():
                 time_column = str(config["time_column"])
-                extra_where = "" if args.all_granularities else str(config["extra_where"])
-                extra_params = () if args.all_granularities else tuple(config["extra_params"])
+                extra_where, extra_params = build_table_filters(
+                    router=args.router,
+                    all_granularities=args.all_granularities,
+                    config=config,
+                )
+                granularity_filter = None
+                if not args.all_granularities and config["extra_params"]:
+                    granularity_filter = config["extra_params"][0]
                 summary = collect_table_summary(
                     source_conn,
                     table,
@@ -350,7 +402,8 @@ def main() -> None:
 
                 table_manifest = {
                     "time_column": time_column,
-                    "granularity_filter": None if not extra_params else extra_params[0],
+                    "router_filter": args.router,
+                    "granularity_filter": granularity_filter,
                     "source_row_count": summary["row_count"],
                     "source_min_time": summary["min_time"],
                     "source_max_time": summary["max_time"],
