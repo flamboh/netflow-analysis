@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
+	import { navigateToNetflowFile } from '$lib/utils/netflow-file-navigation';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -32,7 +32,7 @@
 			return;
 		}
 
-		goto(resolve(`/netflow/files/${timestamp}?dataset=${encodeURIComponent(selectedDataset)}`));
+		void navigateToNetflowFile(goto, timestamp, selectedDataset);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
