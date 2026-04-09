@@ -32,14 +32,12 @@ SQLITE_FILENAME = "netflow_window.sqlite"
 def resolve_default_source_db() -> str:
     try:
         from common import get_dataset_db_path
+        return str(get_dataset_db_path("uoregon"))
     except Exception as error:
         raise SystemExit(f"Could not resolve default source DB: {error}") from error
 
-    return str(get_dataset_db_path("uoregon"))
-
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(
         description="Extract a fixed NetFlow window for ML workflows.",
     )
@@ -88,11 +86,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Include non-5m rows from derived tables.",
     )
-
-    if not argv:
-        parser.print_help()
-        raise SystemExit(0)
-
     args = parser.parse_args(argv)
     if args.source_db is None:
         args.source_db = resolve_default_source_db()
@@ -354,6 +347,10 @@ def write_manifest(output_dir: Path, manifest: dict[str, Any]) -> Path:
 
 
 def main() -> None:
+    if len(sys.argv) == 1:
+        parse_args(["--help"])
+        return
+
     args = parse_args()
     if args.skip_sqlite and args.skip_parquet:
         raise SystemExit("At least one output must be enabled.")
