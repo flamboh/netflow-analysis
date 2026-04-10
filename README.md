@@ -1,4 +1,4 @@
-# NetFlow Analysis
+# ATLANTIS
 
 Network telemetry visualization platform for analyzing large-scale NetFlow data. SvelteKit frontend, SQLite backend, Python ingestion pipeline.
 
@@ -23,3 +23,10 @@ For real NetFlow ingest, initialize the optional analyzer submodules, then run
 - [Project Structure](docs/structure.md) — packages, stack, and dev commands
 - [Pipeline Usage](docs/pipeline-usage.md) — ingestion pipeline flags and scheduling
 - [datasets.json](docs/datasets-json.md) — dataset configuration reference
+
+
+# Acknowledgement
+
+Developed by Oliver Boorstein under support by NSF Research Experiences for Undergraduates with the Oregon Networking Research Group. 
+
+Advised by Reza Rejaie and Chris Misa.
