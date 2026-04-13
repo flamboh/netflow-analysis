@@ -5,14 +5,9 @@
 
 	let { data }: PageProps = $props();
 	let timestamp = $state('');
-	let selectedDataset = $state('');
+	let selectedDatasetOverride = $state<string | null>(null);
+	const selectedDataset = $derived(selectedDatasetOverride ?? data.selectedDataset);
 	let error = $state('');
-
-	$effect(() => {
-		if (selectedDataset !== data.selectedDataset) {
-			selectedDataset = data.selectedDataset;
-		}
-	});
 
 	function navigateToFile() {
 		error = '';
@@ -54,7 +49,10 @@
 				>
 				<select
 					id="dataset"
-					bind:value={selectedDataset}
+					value={selectedDataset}
+					onchange={(event) => {
+						selectedDatasetOverride = event.currentTarget.value;
+					}}
 					class="dark:border-dark-border dark:bg-dark-subtle w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:text-gray-100"
 				>
 					{#if !selectedDataset}

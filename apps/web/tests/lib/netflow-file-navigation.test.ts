@@ -9,6 +9,8 @@ describe('buildNetflowFileHref', () => {
 		const { buildNetflowFileSearch } = await import('$lib/utils/netflow-file-navigation');
 
 		expect(buildNetflowFileSearch('uoregon')).toBe('?dataset=uoregon');
+		expect(buildNetflowFileSearch(' uoregon ')).toBe('?dataset=uoregon');
+		expect(buildNetflowFileSearch('my dataset')).toBe('?dataset=my%20dataset');
 	});
 
 	it('includes dataset query when provided', async () => {
@@ -16,6 +18,12 @@ describe('buildNetflowFileHref', () => {
 
 		expect(buildNetflowFileHref('202506192010', 'uoregon')).toBe(
 			'/netflow/files/202506192010?dataset=uoregon'
+		);
+		expect(buildNetflowFileHref('202506192010', ' uoregon ')).toBe(
+			'/netflow/files/202506192010?dataset=uoregon'
+		);
+		expect(buildNetflowFileHref('202506192010', 'my dataset')).toBe(
+			'/netflow/files/202506192010?dataset=my%20dataset'
 		);
 	});
 
@@ -25,6 +33,7 @@ describe('buildNetflowFileHref', () => {
 
 		expect(buildNetflowFileHref('202506192010', '')).toBe('/netflow/files/202506192010');
 		expect(buildNetflowFileSearch('')).toBe('');
+		expect(buildNetflowFileSearch('   ')).toBe('');
 	});
 
 	it('delegates navigation to the built href', async () => {
@@ -34,5 +43,9 @@ describe('buildNetflowFileHref', () => {
 		await navigateToNetflowFile(navigate, '202506192010', 'uoregon');
 
 		expect(navigate).toHaveBeenCalledWith('/netflow/files/202506192010?dataset=uoregon');
+
+		await navigateToNetflowFile(navigate, '202506192010', 'my dataset');
+
+		expect(navigate).toHaveBeenLastCalledWith('/netflow/files/202506192010?dataset=my%20dataset');
 	});
 });

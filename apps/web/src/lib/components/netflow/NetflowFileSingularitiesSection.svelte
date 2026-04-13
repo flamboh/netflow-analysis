@@ -63,7 +63,7 @@
 
 		try {
 			const response = await fetch(
-				`/api/netflow/files/${slug}/singularities?${new URLSearchParams({
+				`/api/netflow/files/${encodeURIComponent(slug)}/singularities?${new URLSearchParams({
 					dataset,
 					router,
 					source: String(source)

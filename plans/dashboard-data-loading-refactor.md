@@ -120,6 +120,12 @@ Fix data-loading churn, chart re-render churn, and heavy eager work with increme
 
 ## PR4: Chart architecture consolidation + singularities capability decoupling
 
+### Status
+
+- Not executed
+- Prior attempt abandoned; regressions in render lifecycle / chart interaction
+- Keep this as future work, not current branch scope
+
 ### Scope
 
 - Extract shared chart controller/helpers for:
