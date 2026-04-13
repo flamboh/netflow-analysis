@@ -24,9 +24,8 @@ For real NetFlow ingest, initialize the optional analyzer submodules, then run
 - [Pipeline Usage](docs/pipeline-usage.md) — ingestion pipeline flags and scheduling
 - [datasets.json](docs/datasets-json.md) — dataset configuration reference
 
-
 # Acknowledgement
 
-Developed by Oliver Boorstein under support by NSF Research Experiences for Undergraduates with the Oregon Networking Research Group. 
+Developed by Oliver Boorstein under support by NSF Research Experiences for Undergraduates with the Oregon Networking Research Group.
 
 Advised by Reza Rejaie and Chris Misa.
