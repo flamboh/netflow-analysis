@@ -2,11 +2,11 @@
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { Chart } from 'chart.js/auto';
 	import { getRelativePosition } from 'chart.js/helpers';
 	import type { ActiveElement, ChartEvent } from 'chart.js';
 	import type { GroupByOption, RouterConfig } from '$lib/components/netflow/types.ts';
+	import { navigateToNetflowFile } from '$lib/utils/netflow-file-navigation';
 	import {
 		IP_METRIC_OPTIONS,
 		type IpGranularity,
@@ -434,7 +434,7 @@
 			const labelForSlug = activeLabel ?? label;
 			const slug = generateSlugFromLabel(labelForSlug, '5min');
 			if (slug) {
-				goto(resolve(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset ?? '')}`));
+				void navigateToNetflowFile(goto, slug, props.dataset);
 			}
 			return;
 		}

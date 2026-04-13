@@ -4,8 +4,10 @@
 	import annotationPlugin from 'chartjs-plugin-annotation';
 	import type { SpectrumData } from '$lib/types/types';
 	import { theme } from '$lib/stores/theme.svelte';
+	import { verticalCrosshairPlugin } from './crosshair-plugin';
 
 	Chart.register(annotationPlugin);
+	Chart.register(verticalCrosshairPlugin);
 
 	let { data }: { data: SpectrumData } = $props();
 	let chartCanvas: HTMLCanvasElement;
@@ -169,6 +171,12 @@
 								const value = item.parsed.y.toFixed(6);
 								return `${item.dataset.label}: ${value}`;
 							}
+						}
+					},
+					verticalCrosshair: {
+						enabled: true,
+						tooltip: {
+							enabled: false
 						}
 					}
 				},

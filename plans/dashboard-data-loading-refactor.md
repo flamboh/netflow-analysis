@@ -83,11 +83,15 @@ Fix data-loading churn, chart re-render churn, and heavy eager work with increme
 
 ### Scope
 
-- Introduce shared keyed resource loaders for file-detail/dashboard client data
-- Deduplicate fetch/cache/state handling now spread across components
-- Start with file-detail data first, since that page is currently the most state-dense
-- Replace destroy-and-rebuild loading behavior on partial cache misses
-- Keep stale chart data rendered while fetching missing window segments
+- Introduce a shared keyed client loader for file-detail data first
+- Deduplicate fetch/cache/state handling now spread across the file-detail page and router cards
+- Build the file-detail loader on a small reusable resource primitive, not a fully generic framework
+- Keep `/details` as the eager bootstrap for summary + seeded structure/spectrum/IP-count data
+- Normalize loader state internally, then derive router row view models from that cache
+- Use a module-level keyed cache (`dataset + slug`) with a simple bounded eviction policy
+- Keep stale structure/spectrum data visible while targeted refetches run
+- Break the file-detail page and router card into smaller components while moving fetch ownership out of the page shell
+- Leave singularities out of the new core loader model for now
 
 ### Candidate resources
 
@@ -100,19 +104,27 @@ Fix data-loading churn, chart re-render churn, and heavy eager work with increme
 
 ### Implementation direction
 
-- Resource shape: `{ data, loading, error, refresh }`
-- Keys based on dataset + routers + range + granularity
+- File-detail loader owns fetch orchestration and cache updates; page composes derived row models only
+- Row model exposes summary, per-side resource slots, and narrow actions such as `refreshStructure(source)` and `refreshSpectrum(source)`
+- Resource shape stays explicit: `{ data, loading, error, refresh }`
 - Components consume derived resource state; do not own fetch lifecycle
-- Break file-detail page into smaller view components while moving resource state out of the page shell
+- Router cards become presentational; prop surface collapses to row models + formatting helpers
 
 ### Acceptance
 
 - File-detail page state surface is materially smaller
+- File-detail route owns a single loader API instead of page-local fetch/map orchestration
 - Partial range extensions do not blank charts
 - Shared cache/resource logic replaces bespoke per-chart fetch logic
 - Reduced duplicate request/state code across chart components
 
-## PR4: Chart architecture consolidation
+## PR4: Chart architecture consolidation + singularities capability decoupling
+
+### Status
+
+- Not executed
+- Prior attempt abandoned; regressions in render lifecycle / chart interaction
+- Keep this as future work, not current branch scope
 
 ### Scope
 
@@ -125,12 +137,17 @@ Fix data-loading churn, chart re-render churn, and heavy eager work with increme
 - Reduce duplicated logic across NetFlow/IP/Protocol/Spectrum charts
 - Replace avoidable `$effect`-driven state syncing with `$derived` where possible
 - Fetch only current router for `SpectrumStatsChart`
+- Remove filesystem-awareness from the web UI for singularities
+- Stop treating singularities as a normal file-detail resource slot
+- Gate singularities behind backend-declared capability/config if it remains user-accessible
+- Prefer a future DB-backed or precomputed path over direct local-file/runtime assumptions
 
 ### Acceptance
 
 - Shared chart lifecycle path used by core charts
 - Fewer imperative effects; clearer reactive graph
 - Spectrum fetch scope matches visible router selection
+- File-detail UI no longer depends on per-file disk checks or direct local-system assumptions for singularities
 
 ## Success signals
 

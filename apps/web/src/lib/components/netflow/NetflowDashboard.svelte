@@ -2,10 +2,10 @@
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
 	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
 	import { dateStringToEpochPST } from '$lib/utils/timezone';
+	import { navigateToNetflowFile } from '$lib/utils/netflow-file-navigation';
 	import {
 		ensureCachedWindow,
 		getMissingWindowRanges,
@@ -153,7 +153,7 @@
 	}
 
 	function handleNavigateToFile(slug: string) {
-		goto(resolve(`/netflow/files/${slug}?dataset=${encodeURIComponent(props.dataset)}`));
+		void navigateToNetflowFile(goto, slug, props.dataset);
 	}
 
 	function handleChartTypeChange(newChartType: ChartTypeOption) {
