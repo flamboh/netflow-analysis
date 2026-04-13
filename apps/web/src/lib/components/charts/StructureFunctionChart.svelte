@@ -4,8 +4,10 @@
 	import annotationPlugin from 'chartjs-plugin-annotation';
 	import type { StructureFunctionData } from '$lib/types/types';
 	import { theme } from '$lib/stores/theme.svelte';
+	import { verticalCrosshairPlugin } from './crosshair-plugin';
 
 	Chart.register(annotationPlugin);
+	Chart.register(verticalCrosshairPlugin);
 
 	let { data }: { data: StructureFunctionData } = $props();
 	let chartCanvas: HTMLCanvasElement;
@@ -201,6 +203,12 @@
 					},
 					annotation: {
 						annotations: errorBarAnnotations
+					},
+					verticalCrosshair: {
+						enabled: true,
+						tooltip: {
+							enabled: false
+						}
 					}
 				},
 				interaction: {

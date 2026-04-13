@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { buildNetflowFileHref } from '$lib/utils/netflow-file-navigation';
 
 	let {
 		dataset,
@@ -26,8 +26,7 @@
 
 <div class="mb-2 flex items-center justify-between text-2xl text-gray-900 dark:text-gray-100">
 	<h1>NetFlow File: {filename}</h1>
-	<form method="GET" action={resolve('/netflow/files/[slug]', { slug: nextSlug })}>
-		<input type="hidden" name="dataset" value={dataset} />
+	<form method="GET" action={buildNetflowFileHref(nextSlug, dataset)}>
 		<button
 			type="submit"
 			class="w-24 rounded bg-blue-600 px-4 py-1 text-center text-sm text-white hover:bg-blue-700"
