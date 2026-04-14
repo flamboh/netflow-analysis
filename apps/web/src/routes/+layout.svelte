@@ -22,7 +22,7 @@
 			<div class="flex items-center justify-between py-6">
 				<div>
 					<h1 class="text-3xl font-bold text-gray-900 hover:underline dark:text-gray-100">
-						<a href={resolve('/')}>NetFlow Analysis</a>
+						<a href={resolve('/')}>ATLANTIS</a>
 					</h1>
 					<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
 						An Oregon Networking Research Group Project

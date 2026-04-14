@@ -19,8 +19,8 @@ Only needed if you want the vendor analyzer binaries:
 ## Install
 
 ```bash
-git clone https://github.com/flamboh/netflow-analysis.git
-cd netflow-analysis
+git clone https://github.com/flamboh/atlantis.git
+cd atlantis
 bun install
 ```
 

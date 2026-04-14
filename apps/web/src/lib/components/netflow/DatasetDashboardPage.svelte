@@ -321,7 +321,7 @@
 </script>
 
 <svelte:head>
-	<title>{props.title ?? `NetFlow Analysis - ${props.dataset}`}</title>
+	<title>{props.title ?? `ATLANTIS - ${props.dataset}`}</title>
 	<meta name="description" content="NetFlow analysis and visualization tool" />
 </svelte:head>
 

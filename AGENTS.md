@@ -9,7 +9,7 @@ Generally speaking, you should browse the codebase to figure out what is going o
 
 ## Project Snapshot
 
-NetFlow Analysis is a large-scale network telemetry visualization platform.
+ATLANTIS is a large-scale network telemetry visualization platform.
 
 This repository is WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
 

@@ -11,8 +11,8 @@
 </script>
 
 <svelte:head>
-	<title>NetFlow Datasets</title>
-	<meta name="description" content="Select a NetFlow dataset dashboard" />
+	<title>ATLANTIS Datasets</title>
+	<meta name="description" content="Select an ATLANTIS dataset dashboard" />
 </svelte:head>
 
 <main class="mx-auto flex max-w-[90vw] flex-col gap-4 px-4 py-8 sm:px-2 lg:px-4">

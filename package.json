@@ -1,5 +1,5 @@
 {
-  "name": "netflow-analysis",
+  "name": "atlantis",
   "private": true,
   "packageManager": "bun@1.2.16",
   "workspaces": [

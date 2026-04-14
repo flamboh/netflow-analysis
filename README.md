@@ -28,4 +28,4 @@ For real NetFlow ingest, initialize the optional analyzer submodules, then run
 
 Developed by Oliver Boorstein under support by NSF Research Experiences for Undergraduates with the Oregon Networking Research Group.
 
-Advised by Reza Rejaie and Chris Misa.
+Advised by Chris Misa and Reza Rejaie.
