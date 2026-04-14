@@ -15,18 +15,13 @@
 <div
 	class="font-body dark:bg-dark-bg flex h-dvh flex-col overflow-hidden bg-gray-100 text-gray-900 dark:text-gray-100"
 >
-	<header
-		class="dark:border-dark-border dark:bg-dark-surface shrink-0 border-b bg-white shadow-sm dark:shadow-none"
-	>
-		<div class="mx-auto max-w-[90vw] px-4 sm:px-2 lg:px-4">
-			<div class="flex items-center justify-between py-6">
+	<header class="dark:border-dark-border dark:bg-dark-surface shrink-0 border-b bg-white">
+		<div class="mx-auto max-w-[95vw] px-4 sm:px-2 lg:px-4">
+			<div class="flex items-center justify-between py-4">
 				<div>
 					<h1 class="text-3xl font-bold text-gray-900 hover:underline dark:text-gray-100">
 						<a href={resolve('/')}>ATLANTIS</a>
 					</h1>
-					<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-						An Oregon Networking Research Group Project
-					</p>
 				</div>
 				<div class="flex items-center gap-4">
 					<a
@@ -58,5 +53,30 @@
 
 	<main class="app-shell__main min-h-0 flex-1 overflow-y-auto">
 		{@render children()}
+		<footer
+			class="flex flex-col items-center justify-center gap-1 py-8 text-[10px] text-gray-400 dark:text-gray-500"
+		>
+			<div class="flex flex-wrap items-center justify-center gap-x-2 text-[14px]">
+				<a
+					href="https://onrg.gitlab.io"
+					class="hover:underline"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					ONRG
+				</a>
+				<span>&middot;</span>
+				<a
+					href="https://github.com/flamboh/atlantis"
+					class="hover:underline"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					GitHub
+				</a>
+			</div>
+			<div>Built as part of an NSF REU with the Oregon Networking Research Group</div>
+			<div>&copy; 2025 Oliver Boorstein &middot; MIT License</div>
+		</footer>
 	</main>
 </div>

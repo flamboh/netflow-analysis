@@ -37,7 +37,7 @@
 	}
 </script>
 
-<div class="mx-auto max-w-[90vw] px-4 py-8 sm:px-2 lg:px-4">
+<div class="mx-auto max-w-[95vw] px-4 py-8 sm:px-2 lg:px-4">
 	<h1 class="mb-4 text-2xl text-gray-900 dark:text-gray-100">NetFlow Files</h1>
 
 	<div class="mb-6 rounded-lg border bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">

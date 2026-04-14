@@ -67,7 +67,7 @@
 	});
 </script>
 
-<div class="mx-auto max-w-[90vw] px-2 py-2 sm:px-2 lg:px-4">
+<div class="mx-auto max-w-[95vw] px-2 py-2 sm:px-2 lg:px-4">
 	<NetflowFileHeader
 		dataset={data.dataset}
 		{nextSlug}

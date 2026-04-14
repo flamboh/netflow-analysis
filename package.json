@@ -1,10 +1,11 @@
 {
   "name": "atlantis",
-  "private": true,
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7"
+  },
   "packageManager": "bun@1.2.16",
-  "workspaces": [
-    "apps/*"
-  ],
+  "private": true,
   "scripts": {
     "prepare": "husky",
     "dev": "concurrently -n web,landing -c 'blue,magenta' \"bun run dev:web\" \"bun run dev:landing\"",
@@ -24,8 +25,7 @@
     "test:e2e:headed": "./scripts/run-with-nix-if-available.sh env PLAYWRIGHT_WEB_SERVER=1 bun run --cwd apps/web test:e2e:headed",
     "check:db": "sh -c 'if command -v python >/dev/null 2>&1; then exec python -m compileall tools/netflow-db; else exec python3 -m compileall tools/netflow-db; fi'"
   },
-  "devDependencies": {
-    "concurrently": "^9.2.1",
-    "husky": "^9.1.7"
-  }
+  "workspaces": [
+    "apps/*"
+  ]
 }

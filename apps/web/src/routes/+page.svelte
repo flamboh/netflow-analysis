@@ -15,7 +15,7 @@
 	<meta name="description" content="Select an ATLANTIS dataset dashboard" />
 </svelte:head>
 
-<main class="mx-auto flex max-w-[90vw] flex-col gap-4 px-4 py-8 sm:px-2 lg:px-4">
+<main class="mx-auto flex max-w-[95vw] flex-col gap-4 px-4 py-8 sm:px-2 lg:px-4">
 	{#if data.datasets.length === 0}
 		<section
 			class="dark:border-dark-border dark:bg-dark-surface rounded-lg border bg-white p-6 text-gray-500 shadow-sm dark:text-gray-400 dark:shadow-none"
