@@ -15,6 +15,7 @@
 	type NetflowFileDetailData = {
 		dataset: string;
 		slug: string;
+		showSingularities: boolean;
 		fileInfo: {
 			year: string;
 			month: string;
@@ -112,6 +113,7 @@
 					{row}
 					dataset={data.dataset}
 					slug={data.slug}
+					showSingularities={data.showSingularities}
 					{formatCount}
 					{formatTimestampAsPST}
 				/>

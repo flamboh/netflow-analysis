@@ -247,25 +247,57 @@ describe('netflow file helpers and routes', () => {
 	});
 
 	it('handles singularities validation and missing-file failures', async () => {
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare: vi.fn().mockReturnValue({
-				get: vi.fn().mockReturnValue({ file_path: '/captures/r1/nfcapd.202503010005' })
-			})
-		} as never);
-		vi.mocked(getMaadDir).mockReturnValue('/tmp/maad');
-		vi.mocked(fs.existsSync).mockReturnValue(false);
+		const originalShowSingularities = process.env.SHOW_SINGULARITIES;
 
-		const badResponse = await getSingularities({
-			params: { slug: '202503010005' },
-			url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=maybe')
-		} as never);
-		const missingFileResponse = await getSingularities({
-			params: { slug: '202503010005' },
-			url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=true')
-		} as never);
+		try {
+			process.env.SHOW_SINGULARITIES = 'true';
+			vi.mocked(getRequestedDataset).mockReturnValue('alpha');
+			vi.mocked(getDatasetDb).mockReturnValue({
+				prepare: vi.fn().mockReturnValue({
+					get: vi.fn().mockReturnValue({ file_path: '/captures/r1/nfcapd.202503010005' })
+				})
+			} as never);
+			vi.mocked(getMaadDir).mockReturnValue('/tmp/maad');
+			vi.mocked(fs.existsSync).mockReturnValue(false);
 
-		expect(badResponse.status).toBe(400);
-		expect(missingFileResponse.status).toBe(404);
+			const badResponse = await getSingularities({
+				params: { slug: '202503010005' },
+				url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=maybe')
+			} as never);
+			const missingFileResponse = await getSingularities({
+				params: { slug: '202503010005' },
+				url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=true')
+			} as never);
+
+			expect(badResponse.status).toBe(400);
+			expect(missingFileResponse.status).toBe(404);
+		} finally {
+			if (originalShowSingularities === undefined) {
+				delete process.env.SHOW_SINGULARITIES;
+			} else {
+				process.env.SHOW_SINGULARITIES = originalShowSingularities;
+			}
+		}
+	});
+
+	it('hides singularities route unless SHOW_SINGULARITIES is true', async () => {
+		const originalShowSingularities = process.env.SHOW_SINGULARITIES;
+
+		try {
+			process.env.SHOW_SINGULARITIES = 'false';
+
+			const response = await getSingularities({
+				params: { slug: '202503010005' },
+				url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=true')
+			} as never);
+
+			expect(response.status).toBe(404);
+		} finally {
+			if (originalShowSingularities === undefined) {
+				delete process.env.SHOW_SINGULARITIES;
+			} else {
+				process.env.SHOW_SINGULARITIES = originalShowSingularities;
+			}
+		}
 	});
 });

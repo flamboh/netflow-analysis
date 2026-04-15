@@ -1,8 +1,9 @@
 import { error } from '@sveltejs/kit';
-import type { PageLoad } from './$types';
+import type { PageServerLoad } from './$types';
 import { loadDatasetSummariesFromFetch, resolveDefaultDatasetId } from '$lib/datasets';
+import { shouldShowSingularities } from '$lib/server/singularities';
 
-export const load: PageLoad = async ({ params, url, fetch }) => {
+export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	const { slug } = params;
 	let dataset = url.searchParams.get('dataset')?.trim() || '';
 
@@ -23,18 +24,18 @@ export const load: PageLoad = async ({ params, url, fetch }) => {
 	const day = slug.slice(6, 8);
 	const hour = slug.slice(8, 10);
 	const minute = slug.slice(10, 12);
-	const filePattern = `nfcapd.${slug}`;
 
 	return {
 		dataset,
 		slug,
+		showSingularities: shouldShowSingularities(),
 		fileInfo: {
 			year,
 			month,
 			day,
 			hour,
 			minute,
-			filename: filePattern
+			filename: `nfcapd.${slug}`
 		}
 	};
 };

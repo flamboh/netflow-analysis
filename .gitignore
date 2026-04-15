@@ -39,3 +39,4 @@ datasets.json
 .husky/_/
 **/playwright-mcp
 data/**
+.codex

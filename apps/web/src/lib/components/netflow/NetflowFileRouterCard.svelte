@@ -8,12 +8,14 @@
 		row,
 		dataset,
 		slug,
+		showSingularities,
 		formatCount,
 		formatTimestampAsPST
 	}: {
 		row: NetflowFileRouterRow;
 		dataset: string;
 		slug: string;
+		showSingularities: boolean;
 		formatCount: (value: number | null | undefined) => string;
 		formatTimestampAsPST: (timestamp: number) => string;
 	} = $props();
@@ -49,7 +51,9 @@
 				source={row.source.spectrum}
 				destination={row.destination.spectrum}
 			/>
-			<NetflowFileSingularitiesSection {dataset} {slug} router={row.router} />
+			{#if showSingularities}
+				<NetflowFileSingularitiesSection {dataset} {slug} router={row.router} />
+			{/if}
 		</div>
 	</div>
 </div>

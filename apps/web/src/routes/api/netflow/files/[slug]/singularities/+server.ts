@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatasetFromRequest, getNetflowFilePath } from '../utils';
 import { getMaadDir } from '$lib/server/paths';
+import { shouldShowSingularities } from '$lib/server/singularities';
 
 const execAsync = promisify(exec);
 
@@ -76,6 +77,10 @@ async function runSingularitiesAnalysis(
 }
 
 export const GET: RequestHandler = async ({ params, url }) => {
+	if (!shouldShowSingularities()) {
+		return json({ error: 'Not found' }, { status: 404 });
+	}
+
 	const { slug } = params;
 	const dataset = getDatasetFromRequest(url);
 	const router = url.searchParams.get('router');
