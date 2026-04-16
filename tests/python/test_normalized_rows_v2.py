@@ -1,0 +1,150 @@
+import importlib
+from pathlib import Path
+
+
+def load_modules():
+    csv_ingest_v2 = importlib.import_module('csv_ingest_v2')
+    normalized_rows_v2 = importlib.import_module('normalized_rows_v2')
+    return importlib.reload(csv_ingest_v2), importlib.reload(normalized_rows_v2)
+
+
+def test_normalize_csv_row_uses_time_received_and_infers_ipv4(tmp_path: Path) -> None:
+    csv_ingest_v2, normalized_rows_v2 = load_modules()
+    config_path = tmp_path / 'mapping.json'
+    config_path.write_text(
+        """
+        {
+          "timestamp_format": "unix",
+          "columns": {
+            "time_received": "received_at",
+            "time_end": "ended_at",
+            "time_start": "started_at",
+            "src_ip": "src",
+            "dst_ip": "dst",
+            "src_port": "sp",
+            "dst_port": "dp",
+            "protocol": "pr",
+            "packets": "pkt",
+            "bytes": "byt",
+            "src_tos": "stos",
+            "dst_tos": "dtos"
+          },
+          "source_id": { "value": "uo-feed" }
+        }
+        """,
+        encoding='utf-8',
+    )
+    config = csv_ingest_v2.load_csv_source_config(config_path)
+
+    row = normalized_rows_v2.normalize_csv_row(
+        {
+            'received_at': '1744733279',
+            'ended_at': '1744733000',
+            'started_at': '1744732700',
+            'src': '192.0.2.1',
+            'dst': '198.51.100.9',
+            'sp': '443',
+            'dp': '55000',
+            'pr': '6',
+            'pkt': '10',
+            'byt': '2048',
+            'stos': '2',
+            'dtos': '0',
+        },
+        config,
+    )
+
+    assert row.source_id == 'uo-feed'
+    assert row.bucket_start == 1744733100
+    assert row.bucket_end == 1744733400
+    assert row.ip_version == 4
+    assert row.src_port == 443
+    assert row.dst_port == 55000
+    assert row.protocol == 6
+    assert row.packets == 10
+    assert row.bytes == 2048
+    assert row.src_tos == 2
+    assert row.dst_tos == 0
+
+
+def test_normalize_csv_row_infers_ipv6_and_defaults_optional_fields(tmp_path: Path) -> None:
+    csv_ingest_v2, normalized_rows_v2 = load_modules()
+    config_path = tmp_path / 'mapping.json'
+    config_path.write_text(
+        """
+        {
+          "timestamp_format": "unix",
+          "columns": {
+            "time_end": "ended_at",
+            "src_ip": "src",
+            "dst_ip": "dst"
+          },
+          "source_id": { "column": "source_name" }
+        }
+        """,
+        encoding='utf-8',
+    )
+    config = csv_ingest_v2.load_csv_source_config(config_path)
+
+    row = normalized_rows_v2.normalize_csv_row(
+        {
+            'ended_at': '1744733000',
+            'src': '2001:db8::1',
+            'dst': '2001:db8::2',
+            'source_name': 'oh_ir1_gw',
+        },
+        config,
+    )
+
+    assert row.source_id == 'oh_ir1_gw'
+    assert row.ip_version == 6
+    assert row.bucket_start == 1744732800
+    assert row.src_port == 0
+    assert row.dst_port == 0
+    assert row.protocol == 0
+    assert row.packets == 0
+    assert row.bytes == 0
+    assert row.src_tos == 0
+    assert row.dst_tos == 0
+
+
+def test_build_nfdump_csv_command_uses_time_received_and_family_filter() -> None:
+    _, normalized_rows_v2 = load_modules()
+
+    command = normalized_rows_v2.build_nfdump_csv_command(
+        '/captures/r1/2025/04/15/nfcapd.202504150000',
+        ip_version=6,
+    )
+
+    assert command[:4] == ['nfdump', '-r', '/captures/r1/2025/04/15/nfcapd.202504150000', '-q']
+    assert command[4:6] == ['-o', 'csv:%tr,%te,%ts,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos']
+    assert command[-2:] == ['ipv6', '-6']
+
+
+def test_normalize_nfdump_csv_values_maps_expected_column_order() -> None:
+    _, normalized_rows_v2 = load_modules()
+
+    row = normalized_rows_v2.normalize_nfdump_csv_values(
+        [
+            '1744733279',
+            '1744733000',
+            '1744732700',
+            '192.0.2.1',
+            '198.51.100.9',
+            '443',
+            '55000',
+            '6',
+            '10',
+            '2048',
+            '2',
+            '0',
+        ],
+        source_id='oh_ir1_gw',
+    )
+
+    assert row.source_id == 'oh_ir1_gw'
+    assert row.bucket_start == 1744733100
+    assert row.time_received == 1744733279
+    assert row.time_end == 1744733000
+    assert row.time_start == 1744732700
+    assert row.ip_version == 4
