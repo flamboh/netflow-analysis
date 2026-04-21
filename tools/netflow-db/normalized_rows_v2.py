@@ -14,7 +14,7 @@ from typing import Any, Mapping, Sequence
 from csv_ingest_v2 import CsvSourceConfig, CsvSourceConfigError, parse_timestamp, resolve_bucket_start, resolve_source_id
 
 
-NFDUMP_CSV_FORMAT = 'csv:%tr,%te,%ts,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos'
+NFDUMP_CSV_FORMAT = 'csv:%trr,%ter,%tsr,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos'
 
 
 @dataclass(frozen=True)

@@ -133,15 +133,18 @@ The chosen timestamp is floored to the start of the 5-minute bucket.
 The current `nfcapd` adapter calls `nfdump` with a fixed csv order:
 
 ```bash
-nfdump -r <file> -q -o 'csv:%tr,%te,%ts,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos' ipv4
-nfdump -r <file> -q -o 'csv:%tr,%te,%ts,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos' ipv6 -6
+nfdump -r <file> -q -o 'csv:%trr,%ter,%tsr,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos' ipv4
+nfdump -r <file> -q -o 'csv:%trr,%ter,%tsr,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos' ipv6 -6
 ```
 
 The v2 adapter treats these fields as:
 
-- `time_received = %tr`
-- `time_end = %te`
-- `time_start = %ts`
+- `time_received = %trr`
+- `time_end = %ter`
+- `time_start = %tsr`
+
+The raw epoch forms are required because `%tr`, `%te`, and `%ts` emit formatted
+timestamps in nfdump CSV output.
 
 ## MAAD Contract
 

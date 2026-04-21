@@ -142,14 +142,14 @@ def resolve_bucket_start(
 def parse_timestamp(raw_value: Any, timestamp_format: str) -> int:
     """Parse the configured timestamp value into unix seconds."""
     try:
-        numeric = int(str(raw_value).strip())
+        numeric = float(str(raw_value).strip())
     except ValueError as error:
         raise CsvSourceConfigError(f"Invalid timestamp value '{raw_value}'.") from error
 
     if timestamp_format == 'unix':
-        return numeric
+        return int(numeric)
     if timestamp_format == 'unix_ms':
-        return numeric // 1000
+        return int(numeric) // 1000
     raise CsvSourceConfigError(f"Unsupported timestamp_format '{timestamp_format}'.")
 
 

@@ -117,7 +117,7 @@ def test_build_nfdump_csv_command_uses_time_received_and_family_filter() -> None
     )
 
     assert command[:4] == ['nfdump', '-r', '/captures/r1/2025/04/15/nfcapd.202504150000', '-q']
-    assert command[4:6] == ['-o', 'csv:%tr,%te,%ts,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos']
+    assert command[4:6] == ['-o', 'csv:%trr,%ter,%tsr,%sa,%da,%sp,%dp,%pr,%pkt,%byt,%stos,%dtos']
     assert command[-2:] == ['ipv6', '-6']
 
 
@@ -126,9 +126,9 @@ def test_normalize_nfdump_csv_values_maps_expected_column_order() -> None:
 
     row = normalized_rows_v2.normalize_nfdump_csv_values(
         [
-            '1744733279',
-            '1744733000',
-            '1744732700',
+            '1744733279.999',
+            '1744733000.001',
+            '1744732700.500',
             '192.0.2.1',
             '198.51.100.9',
             '443',
