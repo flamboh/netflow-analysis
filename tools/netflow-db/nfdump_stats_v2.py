@@ -223,5 +223,7 @@ def parse_nfcapd_bucket_start(path: str) -> int:
     if not name.startswith('nfcapd.'):
         raise ValueError(f'Invalid nfcapd filename: {name}')
     timestamp = name.split('.', 1)[1]
-    dt = datetime.strptime(timestamp, '%Y%m%d%H%M').replace(tzinfo=PIPELINE_TIMEZONE)
-    return int(dt.timestamp())
+    local_time = datetime.strptime(timestamp, '%Y%m%d%H%M')
+    # Ambiguous fall-back labels cannot distinguish both folds. Canonical nfcapd
+    # paths contain one file per local 5m label, so use the first fold.
+    return int(local_time.replace(tzinfo=PIPELINE_TIMEZONE).timestamp())
