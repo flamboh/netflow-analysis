@@ -1,6 +1,8 @@
 import importlib
 import subprocess
 
+import pytest
+
 
 def load_module():
     nfdump_stats_v2 = importlib.import_module('nfdump_stats_v2')
@@ -8,6 +10,7 @@ def load_module():
 
 
 def test_build_nfcapd_bucket_payload_uses_grouped_nfdump_outputs(monkeypatch) -> None:
+    monkeypatch.setenv('NETFLOW_TIMEZONE', 'America/Los_Angeles')
     module = load_module()
 
     def fake_run(command, capture_output, text, timeout):
@@ -114,3 +117,11 @@ def test_build_nfcapd_bucket_payload_uses_grouped_nfdump_outputs(monkeypatch) ->
     assert payload['ip_row']['da_ipv6_count'] == 1
     assert payload['protocol_row']['protocols_list_ipv4'] == '17,6'
     assert payload['raw_bucket']['maad_source_ipv4'] == ['192.0.2.1', '192.0.2.2']
+
+
+def test_parse_nfcapd_bucket_start_rejects_ambiguous_local_fall_back(monkeypatch) -> None:
+    monkeypatch.setenv('NETFLOW_TIMEZONE', 'America/Los_Angeles')
+    module = load_module()
+
+    with pytest.raises(ValueError, match='Ambiguous nfcapd local timestamp'):
+        module.parse_nfcapd_bucket_start('/captures/oh_ir1_gw/2025/11/02/nfcapd.202511020100')

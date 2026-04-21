@@ -23,7 +23,7 @@ import sqlite3
 import subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterable
@@ -334,7 +334,7 @@ def build_aggregate_ip_rows(raw_buckets: list[dict]) -> list[dict]:
                 'source_id': source_id,
                 'granularity': granularity,
                 'bucket_start': bucket_start,
-                'bucket_end': bucket_start + bucket_seconds,
+                'bucket_end': next_bucket_start(bucket_start, bucket_seconds),
                 'sa_ipv4_count': len(bucket['source_ipv4']),
                 'da_ipv4_count': len(bucket['destination_ipv4']),
                 'sa_ipv6_count': len(bucket['source_ipv6']),
@@ -363,7 +363,7 @@ def build_aggregate_protocol_rows(raw_buckets: list[dict]) -> list[dict]:
                 'source_id': source_id,
                 'granularity': granularity,
                 'bucket_start': bucket_start,
-                'bucket_end': bucket_start + bucket_seconds,
+                'bucket_end': next_bucket_start(bucket_start, bucket_seconds),
                 'unique_protocols_count_ipv4': len(bucket['ipv4']),
                 'unique_protocols_count_ipv6': len(bucket['ipv6']),
                 'protocols_list_ipv4': ','.join(sorted(bucket['ipv4'])),
@@ -406,7 +406,7 @@ def build_aggregate_maad_tasks(raw_buckets: list[dict], maad_bin: str | Path) ->
                 'source_id': source_id,
                 'granularity': granularity,
                 'bucket_start': bucket_start,
-                'bucket_end': bucket_start + bucket_seconds,
+                'bucket_end': next_bucket_start(bucket_start, bucket_seconds),
                 'source_addresses': sorted(bucket['source']),
                 'destination_addresses': sorted(bucket['destination']),
             }
@@ -438,7 +438,7 @@ def build_maad_rows_for_raw_bucket(raw_bucket: dict, granularity: str, maad_bin:
             'source_id': raw_bucket['source_id'],
             'granularity': granularity,
             'bucket_start': raw_bucket['bucket_start'],
-            'bucket_end': raw_bucket['bucket_start'] + bucket_seconds,
+            'bucket_end': next_bucket_start(raw_bucket['bucket_start'], bucket_seconds),
             'source_addresses': raw_bucket['maad_source_ipv4'],
             'destination_addresses': raw_bucket['maad_destination_ipv4'],
         }
@@ -462,6 +462,27 @@ def floor_bucket_start(bucket_start: int, bucket_seconds: int) -> int:
         floored = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
         return int(floored.timestamp())
     raise ValueError(f'Unsupported aggregate bucket size: {bucket_seconds}')
+
+
+def next_bucket_start(bucket_start: int, bucket_seconds: int) -> int:
+    """Return the next local-time bucket boundary after bucket_start."""
+    timestamp = datetime.fromtimestamp(bucket_start, PIPELINE_TIMEZONE)
+    if bucket_seconds == 300:
+        return int((timestamp + timedelta(minutes=5)).timestamp())
+    if bucket_seconds == 1800:
+        boundary = timestamp.replace(
+            minute=(timestamp.minute // 30) * 30,
+            second=0,
+            microsecond=0,
+        )
+        return int((boundary + timedelta(minutes=30)).timestamp())
+    if bucket_seconds == 3600:
+        boundary = timestamp.replace(minute=0, second=0, microsecond=0)
+        return int((boundary + timedelta(hours=1)).timestamp())
+    if bucket_seconds == 86400:
+        boundary = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        return int((boundary + timedelta(days=1)).timestamp())
+    raise ValueError(f'Unsupported bucket size: {bucket_seconds}')
 
 
 def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:

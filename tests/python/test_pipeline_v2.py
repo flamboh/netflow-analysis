@@ -1,7 +1,9 @@
 import importlib
 import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -587,3 +589,44 @@ def test_process_input_specs_writes_v1_granularity_aggregates_for_csv(monkeypatc
         ('5m', 1744733100, 1, '17'),
     ]
     assert maad_30m == (2, 2)
+
+
+def test_aggregate_day_bucket_end_uses_local_midnight_across_dst(monkeypatch) -> None:
+    monkeypatch.setenv('NETFLOW_TIMEZONE', 'America/Los_Angeles')
+    pipeline_v2, _ = load_modules()
+    timezone = ZoneInfo('America/Los_Angeles')
+    spring_start = int(datetime(2025, 3, 9, 1, 0, tzinfo=timezone).timestamp())
+    spring_day_start = int(datetime(2025, 3, 9, 0, 0, tzinfo=timezone).timestamp())
+    spring_next_day = int(datetime(2025, 3, 10, 0, 0, tzinfo=timezone).timestamp())
+    fall_start = int(datetime(2025, 11, 2, 0, 30, tzinfo=timezone).timestamp())
+    fall_day_start = int(datetime(2025, 11, 2, 0, 0, tzinfo=timezone).timestamp())
+    fall_next_day = int(datetime(2025, 11, 3, 0, 0, tzinfo=timezone).timestamp())
+
+    rows = pipeline_v2.build_aggregate_ip_rows(
+        [
+            {
+                'source_id': 'feed-a',
+                'bucket_start': spring_start,
+                'source_ipv4': ['192.0.2.1'],
+                'destination_ipv4': ['198.51.100.1'],
+                'source_ipv6': [],
+                'destination_ipv6': [],
+            },
+            {
+                'source_id': 'feed-a',
+                'bucket_start': fall_start,
+                'source_ipv4': ['192.0.2.2'],
+                'destination_ipv4': ['198.51.100.2'],
+                'source_ipv6': [],
+                'destination_ipv6': [],
+            },
+        ]
+    )
+    day_bounds = {
+        row['bucket_start']: row['bucket_end'] for row in rows if row['granularity'] == '1d'
+    }
+
+    assert day_bounds == {
+        spring_day_start: spring_next_day,
+        fall_day_start: fall_next_day,
+    }

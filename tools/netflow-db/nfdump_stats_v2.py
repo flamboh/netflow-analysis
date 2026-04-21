@@ -223,5 +223,18 @@ def parse_nfcapd_bucket_start(path: str) -> int:
     if not name.startswith('nfcapd.'):
         raise ValueError(f'Invalid nfcapd filename: {name}')
     timestamp = name.split('.', 1)[1]
-    dt = datetime.strptime(timestamp, '%Y%m%d%H%M').replace(tzinfo=PIPELINE_TIMEZONE)
-    return int(dt.timestamp())
+    local_time = datetime.strptime(timestamp, '%Y%m%d%H%M')
+    if is_ambiguous_local_time(local_time):
+        raise ValueError(f'Ambiguous nfcapd local timestamp: {timestamp}')
+    return int(local_time.replace(tzinfo=PIPELINE_TIMEZONE).timestamp())
+
+
+def is_ambiguous_local_time(local_time: datetime) -> bool:
+    """Return true when a naive local timestamp maps to both DST folds."""
+    first = local_time.replace(tzinfo=PIPELINE_TIMEZONE, fold=0)
+    second = local_time.replace(tzinfo=PIPELINE_TIMEZONE, fold=1)
+    if first.utcoffset() == second.utcoffset():
+        return False
+    first_roundtrip = datetime.fromtimestamp(first.timestamp(), PIPELINE_TIMEZONE).replace(tzinfo=None)
+    second_roundtrip = datetime.fromtimestamp(second.timestamp(), PIPELINE_TIMEZONE).replace(tzinfo=None)
+    return first_roundtrip == local_time and second_roundtrip == local_time
