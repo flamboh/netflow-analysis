@@ -186,3 +186,5 @@ and `*_json_da` columns. MAAD currently runs for IPv4 address buckets.
 - Pipeline v2 currently works on explicit inputs; it does not yet replace the
   legacy discovery flow
 - MAAD is mandatory and assumes the JSON stdout contract shown above
+- Real uoregon correctness checks live in `tests/local_only/uoregon_v2_validation.py`.
+  They are not part of default pytest discovery and require `RUN_LOCAL_NETFLOW_V2=1`.
