@@ -1,6 +1,8 @@
 import importlib
 from pathlib import Path
 
+import pytest
+
 
 def load_modules():
     csv_ingest_v2 = importlib.import_module('csv_ingest_v2')
@@ -106,6 +108,66 @@ def test_normalize_csv_row_infers_ipv6_and_defaults_optional_fields(tmp_path: Pa
     assert row.bytes == 0
     assert row.src_tos == 0
     assert row.dst_tos == 0
+
+
+def test_normalize_csv_row_wraps_invalid_ip_as_config_error(tmp_path: Path) -> None:
+    csv_ingest_v2, normalized_rows_v2 = load_modules()
+    config_path = tmp_path / 'mapping.json'
+    config_path.write_text(
+        """
+        {
+          "timestamp_format": "unix",
+          "columns": {
+            "time_received": "received_at",
+            "src_ip": "src",
+            "dst_ip": "dst"
+          },
+          "source_id": { "value": "uo-feed" }
+        }
+        """,
+        encoding='utf-8',
+    )
+    config = csv_ingest_v2.load_csv_source_config(config_path)
+
+    with pytest.raises(csv_ingest_v2.CsvSourceConfigError, match='Invalid IP address'):
+        normalized_rows_v2.normalize_csv_row(
+            {
+                'received_at': '1744733279',
+                'src': 'not-an-ip',
+                'dst': '198.51.100.9',
+            },
+            config,
+        )
+
+
+def test_normalize_csv_row_rejects_whitespace_required_values(tmp_path: Path) -> None:
+    csv_ingest_v2, normalized_rows_v2 = load_modules()
+    config_path = tmp_path / 'mapping.json'
+    config_path.write_text(
+        """
+        {
+          "timestamp_format": "unix",
+          "columns": {
+            "time_received": "received_at",
+            "src_ip": "src",
+            "dst_ip": "dst"
+          },
+          "source_id": { "value": "uo-feed" }
+        }
+        """,
+        encoding='utf-8',
+    )
+    config = csv_ingest_v2.load_csv_source_config(config_path)
+
+    with pytest.raises(csv_ingest_v2.CsvSourceConfigError, match='src'):
+        normalized_rows_v2.normalize_csv_row(
+            {
+                'received_at': '1744733279',
+                'src': '   ',
+                'dst': '198.51.100.9',
+            },
+            config,
+        )
 
 
 def test_build_nfdump_csv_command_uses_time_received_and_family_filter() -> None:

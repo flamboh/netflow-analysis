@@ -132,8 +132,13 @@ def normalize_csv_row(row: Mapping[str, Any], config: CsvSourceConfig) -> Normal
 
 def infer_ip_version(src_ip: str, dst_ip: str) -> int:
     """Infer a shared IP family from the parsed source and destination addresses."""
-    src = ipaddress.ip_address(src_ip)
-    dst = ipaddress.ip_address(dst_ip)
+    try:
+        src = ipaddress.ip_address(src_ip)
+        dst = ipaddress.ip_address(dst_ip)
+    except ValueError as error:
+        raise CsvSourceConfigError(
+            f'Invalid IP address value in row: {src_ip} -> {dst_ip}.'
+        ) from error
     if src.version != dst.version:
         raise CsvSourceConfigError(
             f'Mixed IP versions in one row are not supported: {src_ip} -> {dst_ip}.'
@@ -144,9 +149,12 @@ def infer_ip_version(src_ip: str, dst_ip: str) -> int:
 def require_value(row: Mapping[str, Any], column_name: str) -> str:
     """Load a required string value from the row."""
     raw = row.get(column_name)
-    if raw in (None, ''):
+    if raw is None:
         raise CsvSourceConfigError(f"CSV row is missing required value for column '{column_name}'.")
-    return str(raw).strip()
+    value = str(raw).strip()
+    if value == '':
+        raise CsvSourceConfigError(f"CSV row is missing required value for column '{column_name}'.")
+    return value
 
 
 def extract_timestamp(row: Mapping[str, Any], config: CsvSourceConfig, logical_key: str) -> int | None:

@@ -88,16 +88,19 @@ def init_protocol_stats_v2_table(conn: sqlite3.Connection) -> None:
 
 def build_netflow_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
     """Aggregate normalized rows into netflow_stats_v2 rows."""
-    buckets: dict[tuple[str, int, int, int], dict] = {}
+    buckets: dict[tuple[str, int, int], dict] = {}
+    bucket_bounds: dict[tuple[str, int, int], int] = {}
     for row in rows:
-        key = (row.source_id, row.bucket_start, row.bucket_end, row.ip_version)
+        ip_version = validate_ip_version(row.ip_version)
+        key = (row.source_id, row.bucket_start, ip_version)
+        assert_bucket_end_consistent(bucket_bounds, key, row.bucket_end)
         bucket = buckets.setdefault(
             key,
             {
                 'source_id': row.source_id,
                 'bucket_start': row.bucket_start,
                 'bucket_end': row.bucket_end,
-                'ip_version': row.ip_version,
+                'ip_version': ip_version,
                 'flows': 0,
                 'flows_tcp': 0,
                 'flows_udp': 0,
@@ -138,14 +141,16 @@ def build_ip_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
     bucket_bounds: dict[tuple[str, int], int] = {}
     for row in rows:
         key = (row.source_id, row.bucket_start)
-        bucket_bounds[key] = row.bucket_end
+        assert_bucket_end_consistent(bucket_bounds, key, row.bucket_end)
         bucket = buckets[key]
         if row.ip_version == 4:
             bucket['sa_ipv4'].add(row.src_ip)
             bucket['da_ipv4'].add(row.dst_ip)
-        else:
+        elif row.ip_version == 6:
             bucket['sa_ipv6'].add(row.src_ip)
             bucket['da_ipv6'].add(row.dst_ip)
+        else:
+            raise ValueError(f'Unsupported ip_version: {row.ip_version}')
     result = []
     for (source_id, bucket_start), bucket in sorted(buckets.items()):
         result.append(
@@ -169,8 +174,13 @@ def build_protocol_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
     bucket_bounds: dict[tuple[str, int], int] = {}
     for row in rows:
         key = (row.source_id, row.bucket_start)
-        bucket_bounds[key] = row.bucket_end
-        family_key = 'ipv4' if row.ip_version == 4 else 'ipv6'
+        assert_bucket_end_consistent(bucket_bounds, key, row.bucket_end)
+        if row.ip_version == 4:
+            family_key = 'ipv4'
+        elif row.ip_version == 6:
+            family_key = 'ipv6'
+        else:
+            raise ValueError(f'Unsupported ip_version: {row.ip_version}')
         buckets[key][family_key].add(str(row.protocol))
     result = []
     for (source_id, bucket_start), bucket in sorted(buckets.items()):
@@ -190,7 +200,7 @@ def build_protocol_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
 
 
 def insert_netflow_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
-    """Insert or replace netflow_stats_v2 rows."""
+    """Insert or replace netflow_stats_v2 rows without committing."""
     conn.executemany(
         """
         INSERT OR REPLACE INTO netflow_stats_v2 (
@@ -225,11 +235,10 @@ def insert_netflow_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> 
             for row in rows
         ],
     )
-    conn.commit()
 
 
 def insert_ip_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
-    """Insert or replace ip_stats_v2 rows."""
+    """Insert or replace ip_stats_v2 rows without committing."""
     conn.executemany(
         """
         INSERT OR REPLACE INTO ip_stats_v2 (
@@ -251,11 +260,10 @@ def insert_ip_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
             for row in rows
         ],
     )
-    conn.commit()
 
 
 def insert_protocol_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
-    """Insert or replace protocol_stats_v2 rows."""
+    """Insert or replace protocol_stats_v2 rows without committing."""
     conn.executemany(
         """
         INSERT OR REPLACE INTO protocol_stats_v2 (
@@ -278,7 +286,6 @@ def insert_protocol_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) ->
             for row in rows
         ],
     )
-    conn.commit()
 
 
 def protocol_metric_keys(protocol: int) -> tuple[str, str, str]:
@@ -290,3 +297,18 @@ def protocol_metric_keys(protocol: int) -> tuple[str, str, str]:
     if protocol in {1, 58}:
         return ('flows_icmp', 'packets_icmp', 'bytes_icmp')
     return ('flows_other', 'packets_other', 'bytes_other')
+
+
+def validate_ip_version(ip_version: int) -> int:
+    """Return a supported IP version or fail fast."""
+    if ip_version not in (4, 6):
+        raise ValueError(f'Unsupported ip_version: {ip_version}')
+    return ip_version
+
+
+def assert_bucket_end_consistent(bucket_bounds: dict[tuple, int], key: tuple, bucket_end: int) -> None:
+    """Reject conflicting bucket bounds for a logical aggregate key."""
+    prior = bucket_bounds.get(key)
+    if prior is not None and prior != bucket_end:
+        raise ValueError(f'Inconsistent bucket_end for {key}: saw {prior} and {bucket_end}')
+    bucket_bounds[key] = bucket_end

@@ -10,9 +10,17 @@ def load_module():
     return importlib.reload(module)
 
 
-def write_config(path: Path, payload: dict) -> Path:
+def write_config(path: Path, payload) -> Path:
     path.write_text(json.dumps(payload), encoding='utf-8')
     return path
+
+
+def test_load_csv_source_config_requires_object_root(tmp_path: Path) -> None:
+    module = load_module()
+    config_path = write_config(tmp_path / 'mapping.json', ['not', 'an', 'object'])
+
+    with pytest.raises(module.CsvSourceConfigError, match='JSON object'):
+        module.load_csv_source_config(config_path)
 
 
 def test_load_csv_source_config_requires_timestamp_column(tmp_path: Path) -> None:
@@ -160,9 +168,20 @@ def test_resolve_source_id_uses_constant_or_row_column(tmp_path: Path) -> None:
                 'received_at': '1744733279',
                 'src': '192.0.2.1',
                 'dst': '198.51.100.1',
-                'router_name': 'oh_ir1_gw',
+                'router_name': ' oh_ir1_gw ',
             },
             column_config,
         )
         == 'oh_ir1_gw'
     )
+
+    with pytest.raises(module.CsvSourceConfigError, match='source_id column'):
+        module.resolve_source_id(
+            {
+                'received_at': '1744733279',
+                'src': '192.0.2.1',
+                'dst': '198.51.100.1',
+                'router_name': '   ',
+            },
+            column_config,
+        )

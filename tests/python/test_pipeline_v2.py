@@ -3,6 +3,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 
 def load_modules():
     pipeline_v2 = importlib.import_module('pipeline_v2')
@@ -318,7 +320,72 @@ def test_fractional_nfdump_timestamp_rows_are_not_headers() -> None:
     pipeline_v2, _ = load_modules()
 
     assert not pipeline_v2.looks_like_nfdump_header(['1741075200.000'])
-    assert pipeline_v2.looks_like_nfdump_header(['received'])
+    assert pipeline_v2.looks_like_nfdump_header(['trr', 'ter', 'tsr'])
+
+
+def test_unexpected_nfdump_text_rows_are_not_treated_as_headers(caplog) -> None:
+    pipeline_v2, _ = load_modules()
+
+    assert not pipeline_v2.looks_like_nfdump_header(['not-a-timestamp'])
+    assert 'Malformed nfdump CSV row' in caplog.text
+
+
+def test_write_input_payload_rolls_back_stats_on_failure(monkeypatch) -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    pipeline_v2.init_processed_inputs_v2_table(conn)
+    pipeline_v2.init_netflow_stats_v2_table(conn)
+    pipeline_v2.init_ip_stats_v2_table(conn)
+    pipeline_v2.init_protocol_stats_v2_table(conn)
+
+    payload = {
+        'processed_buckets': [
+            {
+                'input_kind': 'csv',
+                'input_locator': '/tmp/flows.csv',
+                'source_id': 'feed-a',
+                'bucket_start': 1744732800,
+                'bucket_end': 1744733100,
+            }
+        ],
+        'netflow_rows': [
+            {
+                'source_id': 'feed-a',
+                'bucket_start': 1744732800,
+                'bucket_end': 1744733100,
+                'ip_version': 4,
+                'flows': 1,
+                'flows_tcp': 1,
+                'flows_udp': 0,
+                'flows_icmp': 0,
+                'flows_other': 0,
+                'packets': 1,
+                'packets_tcp': 1,
+                'packets_udp': 0,
+                'packets_icmp': 0,
+                'packets_other': 0,
+                'bytes': 1,
+                'bytes_tcp': 1,
+                'bytes_udp': 0,
+                'bytes_icmp': 0,
+                'bytes_other': 0,
+            }
+        ],
+        'ip_rows': [],
+        'protocol_rows': [],
+        'maad_rows': [],
+    }
+
+    def fail_ip_insert(conn, rows):
+        raise RuntimeError('ip insert failed')
+
+    monkeypatch.setattr(pipeline_v2, 'insert_ip_stats_v2_rows', fail_ip_insert)
+
+    with pytest.raises(RuntimeError, match='ip insert failed'):
+        pipeline_v2.write_input_payload(conn, payload)
+
+    assert conn.execute('SELECT COUNT(*) FROM processed_inputs_v2').fetchone()[0] == 0
+    assert conn.execute('SELECT COUNT(*) FROM netflow_stats_v2').fetchone()[0] == 0
 
 
 def test_process_input_specs_can_write_parallel_worker_payloads(monkeypatch) -> None:

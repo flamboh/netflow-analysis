@@ -1,6 +1,8 @@
 import importlib
 import sqlite3
 
+import pytest
+
 
 def load_modules():
     processed_inputs_v2 = importlib.import_module('processed_inputs_v2')
@@ -169,6 +171,31 @@ def test_stats_v2_aggregates_rows_by_bucket_and_family() -> None:
             'protocols_list_ipv6': '58',
         }
     ]
+
+
+def test_stats_v2_rejects_inconsistent_bucket_bounds() -> None:
+    _, stats_v2, normalized_rows_v2 = load_modules()
+    rows = [
+        make_row(normalized_rows_v2),
+        make_row(normalized_rows_v2, bucket_end=1744733700),
+    ]
+
+    with pytest.raises(ValueError, match='Inconsistent bucket_end'):
+        stats_v2.build_ip_stats_v2_rows(rows)
+
+    with pytest.raises(ValueError, match='Inconsistent bucket_end'):
+        stats_v2.build_protocol_stats_v2_rows(rows)
+
+
+def test_stats_v2_rejects_invalid_ip_version() -> None:
+    _, stats_v2, normalized_rows_v2 = load_modules()
+    rows = [make_row(normalized_rows_v2, ip_version=5)]
+
+    with pytest.raises(ValueError, match='Unsupported ip_version'):
+        stats_v2.build_ip_stats_v2_rows(rows)
+
+    with pytest.raises(ValueError, match='Unsupported ip_version'):
+        stats_v2.build_protocol_stats_v2_rows(rows)
 
 
 def test_stats_v2_insert_persists_aggregates() -> None:

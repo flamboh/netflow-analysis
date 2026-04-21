@@ -70,7 +70,7 @@ def upsert_input_bucket(
     bucket_start: int,
     bucket_end: int,
 ) -> None:
-    """Insert or replace an input bucket record while preserving status columns."""
+    """Insert or replace an input bucket record without committing."""
     init_processed_inputs_v2_table(conn)
     conn.execute(
         """
@@ -82,7 +82,6 @@ def upsert_input_bucket(
         """,
         (input_kind, input_locator, source_id, bucket_start, bucket_end),
     )
-    conn.commit()
 
 
 def get_pending_inputs(conn: sqlite3.Connection, table_name: str) -> list[dict]:
@@ -118,7 +117,7 @@ def mark_input_bucket_processed(
     bucket_start: int,
     success: bool,
 ) -> None:
-    """Mark the input bucket processed for one v2 table."""
+    """Mark the input bucket processed for one v2 table without committing."""
     status_column = get_status_column(table_name)
     conn.execute(
         f"""
@@ -128,11 +127,10 @@ def mark_input_bucket_processed(
         """,
         (1 if success else 0, input_kind, input_locator, source_id, bucket_start),
     )
-    conn.commit()
 
 
 def get_status_column(table_name: str) -> str:
     """Return the processed_inputs_v2 status column for the given table."""
     if table_name not in VALID_STATUS_TABLES:
         raise ValueError(f'Unsupported v2 status table: {table_name}')
-    return table_name + '_status' if not table_name.endswith('_status') else table_name
+    return f'{table_name}_status'

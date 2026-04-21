@@ -227,14 +227,14 @@ def build_maad_v2_rows(
 
 
 def insert_maad_v2_rows(conn: sqlite3.Connection, rows: dict[str, dict]) -> None:
-    """Insert one bucket's MAAD v2 table rows."""
+    """Insert one bucket's MAAD v2 table rows without committing."""
     insert_structure_stats_v2_row(conn, rows['structure'])
     insert_spectrum_stats_v2_row(conn, rows['spectrum'])
     insert_dimension_stats_v2_row(conn, rows['dimensions'])
 
 
 def insert_structure_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
-    """Insert one structure_stats_v2 row."""
+    """Insert one structure_stats_v2 row without committing."""
     conn.execute(
         """
         INSERT OR REPLACE INTO structure_stats_v2 (
@@ -254,11 +254,10 @@ def insert_structure_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
             row['metadata_json_da'],
         ),
     )
-    conn.commit()
 
 
 def insert_spectrum_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
-    """Insert one spectrum_stats_v2 row."""
+    """Insert one spectrum_stats_v2 row without committing."""
     conn.execute(
         """
         INSERT OR REPLACE INTO spectrum_stats_v2 (
@@ -278,11 +277,10 @@ def insert_spectrum_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
             row['metadata_json_da'],
         ),
     )
-    conn.commit()
 
 
 def insert_dimension_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
-    """Insert one dimension_stats_v2 row."""
+    """Insert one dimension_stats_v2 row without committing."""
     conn.execute(
         """
         INSERT OR REPLACE INTO dimension_stats_v2 (
@@ -302,4 +300,3 @@ def insert_dimension_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
             row['metadata_json_da'],
         ),
     )
-    conn.commit()

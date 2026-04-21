@@ -41,6 +41,9 @@ def load_csv_source_config(path: str | Path) -> CsvSourceConfig:
 
 def validate_csv_source_config(payload: Mapping[str, Any]) -> CsvSourceConfig:
     """Validate a raw mapping payload and return the normalized config."""
+    if not isinstance(payload, Mapping):
+        raise CsvSourceConfigError('CSV config root must be a JSON object.')
+
     columns_raw = payload.get('columns')
     if not isinstance(columns_raw, Mapping):
         raise CsvSourceConfigError("CSV config must include a 'columns' object.")
@@ -111,11 +114,16 @@ def resolve_source_id(row: Mapping[str, Any], config: CsvSourceConfig) -> str:
         return config.source_id_value
     assert config.source_id_column is not None
     raw_value = row.get(config.source_id_column)
-    if raw_value in (None, ''):
+    if raw_value is None:
         raise CsvSourceConfigError(
             f"CSV row is missing source_id column '{config.source_id_column}'."
         )
-    return str(raw_value)
+    source_id = str(raw_value).strip()
+    if source_id == '':
+        raise CsvSourceConfigError(
+            f"CSV row is missing source_id column '{config.source_id_column}'."
+        )
+    return source_id
 
 
 def resolve_bucket_start(

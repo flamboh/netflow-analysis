@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import os
 import sqlite3
 import subprocess
@@ -51,16 +52,27 @@ from stats_v2 import (
     insert_netflow_stats_v2_rows,
     insert_protocol_stats_v2_rows,
     protocol_metric_keys,
+    validate_ip_version,
 )
 
 
 DEFAULT_MAAD_BIN = Path(__file__).resolve().parents[2] / 'vendor' / 'maad' / 'MAAD'
 DEFAULT_MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
 PIPELINE_TIMEZONE = ZoneInfo(os.environ.get('NETFLOW_TIMEZONE', 'America/Los_Angeles'))
+LOGGER = logging.getLogger(__name__)
 
 STATS_TABLE_NAMES = ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2')
 MAAD_TABLE_NAMES = ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2')
 AGGREGATE_GRANULARITY_SECONDS = (('30m', 1800), ('1h', 3600), ('1d', 86400))
+NFDUMP_HEADER_FIRST_VALUES = {
+    'trr',
+    'ter',
+    'tsr',
+    'ts',
+    'time_received',
+    'time received',
+    'received',
+}
 
 
 @dataclass
@@ -82,7 +94,8 @@ class BucketAccumulator:
 
     def add(self, row: NormalizedRow) -> None:
         """Accumulate one normalized row."""
-        netflow = self.netflow_by_version.setdefault(row.ip_version, new_netflow_bucket(row))
+        ip_version = validate_ip_version(row.ip_version)
+        netflow = self.netflow_by_version.setdefault(ip_version, new_netflow_bucket(row))
         netflow['flows'] += 1
         netflow['packets'] += row.packets
         netflow['bytes'] += row.bytes
@@ -91,13 +104,13 @@ class BucketAccumulator:
         netflow[packets_key] += row.packets
         netflow[bytes_key] += row.bytes
 
-        if row.ip_version == 4:
+        if ip_version == 4:
             self.source_ipv4.add(row.src_ip)
             self.destination_ipv4.add(row.dst_ip)
             self.protocols_ipv4.add(str(row.protocol))
             self.maad_source_ipv4.add(row.src_ip)
             self.maad_destination_ipv4.add(row.dst_ip)
-        else:
+        elif ip_version == 6:
             self.source_ipv6.add(row.src_ip)
             self.destination_ipv6.add(row.dst_ip)
             self.protocols_ipv6.add(str(row.protocol))
@@ -184,7 +197,8 @@ def process_input_specs(
         raw_buckets.extend(payload.get('raw_buckets', []))
 
     write_aggregate_rows(conn, raw_buckets, maad_bin, max_workers)
-    mark_processed_buckets(conn, processed_buckets)
+    with conn:
+        mark_processed_buckets(conn, processed_buckets)
 
 
 def iter_input_payloads(tasks: list[tuple[dict, str]], max_workers: int) -> Iterable[dict]:
@@ -247,18 +261,19 @@ def write_input_payload(conn: sqlite3.Connection, payload: dict, *, mark_process
     if not processed_buckets:
         return
 
-    for bucket in processed_buckets:
-        upsert_input_bucket(conn, **bucket)
+    with conn:
+        for bucket in processed_buckets:
+            upsert_input_bucket(conn, **bucket)
 
-    insert_netflow_stats_v2_rows(conn, payload['netflow_rows'])
-    insert_ip_stats_v2_rows(conn, payload['ip_rows'])
-    insert_protocol_stats_v2_rows(conn, payload['protocol_rows'])
+        insert_netflow_stats_v2_rows(conn, payload['netflow_rows'])
+        insert_ip_stats_v2_rows(conn, payload['ip_rows'])
+        insert_protocol_stats_v2_rows(conn, payload['protocol_rows'])
 
-    for rows in payload['maad_rows']:
-        insert_maad_v2_rows(conn, rows)
+        for rows in payload['maad_rows']:
+            insert_maad_v2_rows(conn, rows)
 
-    if mark_processed:
-        mark_processed_buckets(conn, processed_buckets)
+        if mark_processed:
+            mark_processed_buckets(conn, processed_buckets)
 
 
 def mark_processed_buckets(conn: sqlite3.Connection, processed_buckets: list[dict]) -> None:
@@ -285,10 +300,14 @@ def write_aggregate_rows(
     """Write 30m, 1h, and 1d aggregate rows from raw bucket sets."""
     if not raw_buckets:
         return
-    insert_ip_stats_v2_rows(conn, build_aggregate_ip_rows(raw_buckets))
-    insert_protocol_stats_v2_rows(conn, build_aggregate_protocol_rows(raw_buckets))
-    for rows in build_aggregate_maad_rows(raw_buckets, maad_bin, max_workers):
-        insert_maad_v2_rows(conn, rows)
+    ip_rows = build_aggregate_ip_rows(raw_buckets)
+    protocol_rows = build_aggregate_protocol_rows(raw_buckets)
+    maad_rows = build_aggregate_maad_rows(raw_buckets, maad_bin, max_workers)
+    with conn:
+        insert_ip_stats_v2_rows(conn, ip_rows)
+        insert_protocol_stats_v2_rows(conn, protocol_rows)
+        for rows in maad_rows:
+            insert_maad_v2_rows(conn, rows)
 
 
 def build_aggregate_ip_rows(raw_buckets: list[dict]) -> list[dict]:
@@ -557,16 +576,15 @@ def iter_nfdump_rows(path: str, source_id: str) -> Iterable[NormalizedRow]:
 
 def looks_like_nfdump_header(values: list[str]) -> bool:
     """Return true when the csv row looks like a textual header."""
+    first_value = values[0].strip().lower()
+    if first_value in NFDUMP_HEADER_FIRST_VALUES:
+        return True
     try:
-        float(values[0])
+        float(first_value)
         return False
     except ValueError:
-        return True
-
-
-def unique_input_buckets(rows: list[NormalizedRow]) -> list[tuple[str, int, int]]:
-    """Return unique (source_id, bucket_start, bucket_end) tuples for the input."""
-    return sorted({(row.source_id, row.bucket_start, row.bucket_end) for row in rows})
+        LOGGER.warning('Malformed nfdump CSV row with non-numeric timestamp: %s', values)
+        return False
 
 
 def main() -> None:
