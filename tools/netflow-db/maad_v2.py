@@ -127,6 +127,7 @@ def init_structure_stats_v2_table(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS structure_stats_v2 (
             source_id TEXT NOT NULL,
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
             bucket_start INTEGER NOT NULL,
             bucket_end INTEGER NOT NULL,
             ip_version INTEGER NOT NULL CHECK (ip_version IN (4, 6)),
@@ -135,7 +136,7 @@ def init_structure_stats_v2_table(conn: sqlite3.Connection) -> None:
             metadata_json_sa TEXT NOT NULL,
             metadata_json_da TEXT NOT NULL,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_id, bucket_start, ip_version)
+            PRIMARY KEY (source_id, granularity, bucket_start, ip_version)
         ) WITHOUT ROWID
         """
     )
@@ -148,6 +149,7 @@ def init_spectrum_stats_v2_table(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS spectrum_stats_v2 (
             source_id TEXT NOT NULL,
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
             bucket_start INTEGER NOT NULL,
             bucket_end INTEGER NOT NULL,
             ip_version INTEGER NOT NULL CHECK (ip_version IN (4, 6)),
@@ -156,7 +158,7 @@ def init_spectrum_stats_v2_table(conn: sqlite3.Connection) -> None:
             metadata_json_sa TEXT NOT NULL,
             metadata_json_da TEXT NOT NULL,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_id, bucket_start, ip_version)
+            PRIMARY KEY (source_id, granularity, bucket_start, ip_version)
         ) WITHOUT ROWID
         """
     )
@@ -169,6 +171,7 @@ def init_dimension_stats_v2_table(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS dimension_stats_v2 (
             source_id TEXT NOT NULL,
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
             bucket_start INTEGER NOT NULL,
             bucket_end INTEGER NOT NULL,
             ip_version INTEGER NOT NULL CHECK (ip_version IN (4, 6)),
@@ -177,7 +180,7 @@ def init_dimension_stats_v2_table(conn: sqlite3.Connection) -> None:
             metadata_json_sa TEXT NOT NULL,
             metadata_json_da TEXT NOT NULL,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_id, bucket_start, ip_version)
+            PRIMARY KEY (source_id, granularity, bucket_start, ip_version)
         ) WITHOUT ROWID
         """
     )
@@ -187,6 +190,7 @@ def init_dimension_stats_v2_table(conn: sqlite3.Connection) -> None:
 def build_maad_v2_rows(
     *,
     source_id: str,
+    granularity: str,
     bucket_start: int,
     bucket_end: int,
     ip_version: int,
@@ -196,6 +200,7 @@ def build_maad_v2_rows(
     """Build insert payloads for MAAD v2 tables."""
     base = {
         'source_id': source_id,
+        'granularity': granularity,
         'bucket_start': bucket_start,
         'bucket_end': bucket_end,
         'ip_version': ip_version,
@@ -233,12 +238,13 @@ def insert_structure_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
     conn.execute(
         """
         INSERT OR REPLACE INTO structure_stats_v2 (
-            source_id, bucket_start, bucket_end, ip_version,
+            source_id, granularity, bucket_start, bucket_end, ip_version,
             structure_json_sa, structure_json_da, metadata_json_sa, metadata_json_da
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             row['source_id'],
+            row['granularity'],
             row['bucket_start'],
             row['bucket_end'],
             row['ip_version'],
@@ -256,12 +262,13 @@ def insert_spectrum_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
     conn.execute(
         """
         INSERT OR REPLACE INTO spectrum_stats_v2 (
-            source_id, bucket_start, bucket_end, ip_version,
+            source_id, granularity, bucket_start, bucket_end, ip_version,
             spectrum_json_sa, spectrum_json_da, metadata_json_sa, metadata_json_da
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             row['source_id'],
+            row['granularity'],
             row['bucket_start'],
             row['bucket_end'],
             row['ip_version'],
@@ -279,12 +286,13 @@ def insert_dimension_stats_v2_row(conn: sqlite3.Connection, row: dict) -> None:
     conn.execute(
         """
         INSERT OR REPLACE INTO dimension_stats_v2 (
-            source_id, bucket_start, bucket_end, ip_version,
+            source_id, granularity, bucket_start, bucket_end, ip_version,
             dimensions_json_sa, dimensions_json_da, metadata_json_sa, metadata_json_da
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             row['source_id'],
+            row['granularity'],
             row['bucket_start'],
             row['bucket_end'],
             row['ip_version'],

@@ -289,9 +289,10 @@ def test_process_input_specs_can_write_parallel_worker_payloads(monkeypatch) -> 
             ],
             'netflow_rows': [],
             'ip_rows': [
-                {
-                    'source_id': 'feed-a',
-                    'bucket_start': 1744732800,
+                    {
+                        'source_id': 'feed-a',
+                        'granularity': '5m',
+                        'bucket_start': 1744732800,
                     'bucket_end': 1744733100,
                     'sa_ipv4_count': 1,
                     'da_ipv4_count': 1,
@@ -314,9 +315,10 @@ def test_process_input_specs_can_write_parallel_worker_payloads(monkeypatch) -> 
             ],
             'netflow_rows': [],
             'ip_rows': [
-                {
-                    'source_id': 'feed-b',
-                    'bucket_start': 1744733100,
+                    {
+                        'source_id': 'feed-b',
+                        'granularity': '5m',
+                        'bucket_start': 1744733100,
                     'bucket_end': 1744733400,
                     'sa_ipv4_count': 2,
                     'da_ipv4_count': 2,

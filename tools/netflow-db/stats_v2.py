@@ -50,6 +50,7 @@ def init_ip_stats_v2_table(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS ip_stats_v2 (
             source_id TEXT NOT NULL,
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
             bucket_start INTEGER NOT NULL,
             bucket_end INTEGER NOT NULL,
             sa_ipv4_count INTEGER NOT NULL,
@@ -57,7 +58,7 @@ def init_ip_stats_v2_table(conn: sqlite3.Connection) -> None:
             sa_ipv6_count INTEGER NOT NULL,
             da_ipv6_count INTEGER NOT NULL,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_id, bucket_start)
+            PRIMARY KEY (source_id, granularity, bucket_start)
         ) WITHOUT ROWID
         """
     )
@@ -70,6 +71,7 @@ def init_protocol_stats_v2_table(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS protocol_stats_v2 (
             source_id TEXT NOT NULL,
+            granularity TEXT NOT NULL CHECK (granularity IN ('5m', '30m', '1h', '1d')),
             bucket_start INTEGER NOT NULL,
             bucket_end INTEGER NOT NULL,
             unique_protocols_count_ipv4 INTEGER NOT NULL,
@@ -77,7 +79,7 @@ def init_protocol_stats_v2_table(conn: sqlite3.Connection) -> None:
             protocols_list_ipv4 TEXT NOT NULL,
             protocols_list_ipv6 TEXT NOT NULL,
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (source_id, bucket_start)
+            PRIMARY KEY (source_id, granularity, bucket_start)
         ) WITHOUT ROWID
         """
     )
@@ -149,6 +151,7 @@ def build_ip_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
         result.append(
             {
                 'source_id': source_id,
+                'granularity': '5m',
                 'bucket_start': bucket_start,
                 'bucket_end': bucket_bounds[(source_id, bucket_start)],
                 'sa_ipv4_count': len(bucket['sa_ipv4']),
@@ -174,6 +177,7 @@ def build_protocol_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
         result.append(
             {
                 'source_id': source_id,
+                'granularity': '5m',
                 'bucket_start': bucket_start,
                 'bucket_end': bucket_bounds[(source_id, bucket_start)],
                 'unique_protocols_count_ipv4': len(bucket['ipv4']),
@@ -229,13 +233,14 @@ def insert_ip_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
     conn.executemany(
         """
         INSERT OR REPLACE INTO ip_stats_v2 (
-            source_id, bucket_start, bucket_end,
+            source_id, granularity, bucket_start, bucket_end,
             sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
                 row['source_id'],
+                row['granularity'],
                 row['bucket_start'],
                 row['bucket_end'],
                 row['sa_ipv4_count'],
@@ -254,14 +259,15 @@ def insert_protocol_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) ->
     conn.executemany(
         """
         INSERT OR REPLACE INTO protocol_stats_v2 (
-            source_id, bucket_start, bucket_end,
+            source_id, granularity, bucket_start, bucket_end,
             unique_protocols_count_ipv4, unique_protocols_count_ipv6,
             protocols_list_ipv4, protocols_list_ipv6
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
                 row['source_id'],
+                row['granularity'],
                 row['bucket_start'],
                 row['bucket_end'],
                 row['unique_protocols_count_ipv4'],

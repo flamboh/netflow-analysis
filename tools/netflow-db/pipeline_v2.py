@@ -104,6 +104,7 @@ class BucketAccumulator:
         """Return one ip_stats_v2 row for this bucket."""
         return {
             'source_id': self.source_id,
+            'granularity': '5m',
             'bucket_start': self.bucket_start,
             'bucket_end': self.bucket_end,
             'sa_ipv4_count': len(self.source_ipv4),
@@ -116,6 +117,7 @@ class BucketAccumulator:
         """Return one protocol_stats_v2 row for this bucket."""
         return {
             'source_id': self.source_id,
+            'granularity': '5m',
             'bucket_start': self.bucket_start,
             'bucket_end': self.bucket_end,
             'unique_protocols_count_ipv4': len(self.protocols_ipv4),
@@ -292,6 +294,7 @@ def build_maad_payload_rows(
         rows.append(
             build_maad_v2_rows(
                 source_id=bucket.source_id,
+                granularity='5m',
                 bucket_start=bucket.bucket_start,
                 bucket_end=bucket.bucket_end,
                 ip_version=4,

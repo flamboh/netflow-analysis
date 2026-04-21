@@ -148,6 +148,7 @@ def test_stats_v2_aggregates_rows_by_bucket_and_family() -> None:
     assert ip_rows == [
         {
             'source_id': 'oh_ir1_gw',
+            'granularity': '5m',
             'bucket_start': 1744733100,
             'bucket_end': 1744733400,
             'sa_ipv4_count': 2,
@@ -159,6 +160,7 @@ def test_stats_v2_aggregates_rows_by_bucket_and_family() -> None:
     assert protocol_rows == [
         {
             'source_id': 'oh_ir1_gw',
+            'granularity': '5m',
             'bucket_start': 1744733100,
             'bucket_end': 1744733400,
             'unique_protocols_count_ipv4': 2,
@@ -197,15 +199,15 @@ def test_stats_v2_insert_persists_aggregates() -> None:
         'SELECT source_id, bucket_start, ip_version, flows, packets, bytes FROM netflow_stats_v2 ORDER BY ip_version'
     ).fetchall()
     ip_stats = conn.execute(
-        'SELECT source_id, bucket_start, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count FROM ip_stats_v2'
+        'SELECT source_id, granularity, bucket_start, sa_ipv4_count, da_ipv4_count, sa_ipv6_count, da_ipv6_count FROM ip_stats_v2'
     ).fetchall()
     protocol_stats = conn.execute(
-        'SELECT source_id, bucket_start, unique_protocols_count_ipv4, unique_protocols_count_ipv6, protocols_list_ipv4, protocols_list_ipv6 FROM protocol_stats_v2'
+        'SELECT source_id, granularity, bucket_start, unique_protocols_count_ipv4, unique_protocols_count_ipv6, protocols_list_ipv4, protocols_list_ipv6 FROM protocol_stats_v2'
     ).fetchall()
 
     assert netflow == [
         ('oh_ir1_gw', 1744733100, 4, 1, 10, 1000),
         ('oh_ir1_gw', 1744733100, 6, 1, 3, 300),
     ]
-    assert ip_stats == [('oh_ir1_gw', 1744733100, 1, 1, 1, 1)]
-    assert protocol_stats == [('oh_ir1_gw', 1744733100, 1, 1, '6', '58')]
+    assert ip_stats == [('oh_ir1_gw', '5m', 1744733100, 1, 1, 1, 1)]
+    assert protocol_stats == [('oh_ir1_gw', '5m', 1744733100, 1, 1, '6', '58')]
