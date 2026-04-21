@@ -9,14 +9,17 @@ from __future__ import annotations
 
 import csv
 import ipaddress
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from stats_v2 import protocol_metric_keys
 
 
 NFDUMP_TIMEOUT_SECONDS = 300
+PIPELINE_TIMEZONE = ZoneInfo(os.environ.get('NETFLOW_TIMEZONE', 'America/Los_Angeles'))
 
 
 def build_nfcapd_bucket_payload(path: str, source_id: str) -> dict:
@@ -220,5 +223,5 @@ def parse_nfcapd_bucket_start(path: str) -> int:
     if not name.startswith('nfcapd.'):
         raise ValueError(f'Invalid nfcapd filename: {name}')
     timestamp = name.split('.', 1)[1]
-    dt = datetime.strptime(timestamp, '%Y%m%d%H%M')
+    dt = datetime.strptime(timestamp, '%Y%m%d%H%M').replace(tzinfo=PIPELINE_TIMEZONE)
     return int(dt.timestamp())

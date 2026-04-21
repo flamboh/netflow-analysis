@@ -128,6 +128,10 @@ Bucket assignment uses this precedence:
 
 The chosen timestamp is floored to the start of the 5-minute bucket.
 
+Pipeline v2 uses `NETFLOW_TIMEZONE` for local-time filename and aggregate
+bucket boundaries. The default is `America/Los_Angeles`, matching the current
+uoregon dataset convention.
+
 ## NFDUMP Contract
 
 The current `nfcapd` adapter calls `nfdump` with a fixed csv order:

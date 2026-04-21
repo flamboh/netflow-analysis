@@ -26,6 +26,7 @@ from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterable
+from zoneinfo import ZoneInfo
 
 from csv_ingest_v2 import load_csv_source_config
 from maad_v2 import (
@@ -55,6 +56,7 @@ from stats_v2 import (
 
 DEFAULT_MAAD_BIN = Path(__file__).resolve().parents[2] / 'vendor' / 'maad' / 'MAAD'
 DEFAULT_MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
+PIPELINE_TIMEZONE = ZoneInfo(os.environ.get('NETFLOW_TIMEZONE', 'America/Los_Angeles'))
 
 STATS_TABLE_NAMES = ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2')
 MAAD_TABLE_NAMES = ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2')
@@ -430,7 +432,7 @@ def build_maad_rows_for_raw_bucket(raw_bucket: dict, granularity: str, maad_bin:
 
 def floor_bucket_start(bucket_start: int, bucket_seconds: int) -> int:
     """Floor a 5m bucket start to a local-time aggregate bucket."""
-    timestamp = datetime.fromtimestamp(bucket_start)
+    timestamp = datetime.fromtimestamp(bucket_start, PIPELINE_TIMEZONE)
     if bucket_seconds == 1800:
         floored = timestamp.replace(
             minute=(timestamp.minute // 30) * 30,
