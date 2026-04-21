@@ -88,54 +88,99 @@ def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None
 
 
 def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None:
-    pipeline_v2, normalized_rows_v2 = load_modules()
+    pipeline_v2, _ = load_modules()
     conn = sqlite3.connect(':memory:')
 
-    def fake_iter_nfdump_rows(path: str, source_id: str):
+    def fake_build_nfcapd_bucket_payload(path: str, source_id: str):
         assert path == '/captures/oh_ir1_gw/2025/04/15/nfcapd.202504150005'
         assert source_id == 'oh_ir1_gw'
-        return iter(
-            [
-                normalized_rows_v2.NormalizedRow(
-                    source_id='oh_ir1_gw',
-                    bucket_start=1744733100,
-                    bucket_end=1744733400,
-                    time_received=1744733279,
-                    time_end=1744733000,
-                    time_start=1744732700,
-                    src_ip='192.0.2.1',
-                    dst_ip='198.51.100.9',
-                    ip_version=4,
-                    src_port=443,
-                    dst_port=55000,
-                    protocol=6,
-                    packets=10,
-                    bytes=1000,
-                    src_tos=2,
-                    dst_tos=0,
-                ),
-                normalized_rows_v2.NormalizedRow(
-                    source_id='oh_ir1_gw',
-                    bucket_start=1744733100,
-                    bucket_end=1744733400,
-                    time_received=1744733279,
-                    time_end=1744733000,
-                    time_start=1744732700,
-                    src_ip='2001:db8::1',
-                    dst_ip='2001:db8::2',
-                    ip_version=6,
-                    src_port=0,
-                    dst_port=0,
-                    protocol=58,
-                    packets=3,
-                    bytes=300,
-                    src_tos=1,
-                    dst_tos=0,
-                ),
-            ]
-        )
+        return {
+            'processed_bucket': {
+                'input_kind': 'nfcapd',
+                'input_locator': path,
+                'source_id': source_id,
+                'bucket_start': 1744733100,
+                'bucket_end': 1744733400,
+            },
+            'netflow_rows': [
+                {
+                    'source_id': 'oh_ir1_gw',
+                    'bucket_start': 1744733100,
+                    'bucket_end': 1744733400,
+                    'ip_version': 4,
+                    'flows': 1,
+                    'flows_tcp': 1,
+                    'flows_udp': 0,
+                    'flows_icmp': 0,
+                    'flows_other': 0,
+                    'packets': 10,
+                    'packets_tcp': 10,
+                    'packets_udp': 0,
+                    'packets_icmp': 0,
+                    'packets_other': 0,
+                    'bytes': 1000,
+                    'bytes_tcp': 1000,
+                    'bytes_udp': 0,
+                    'bytes_icmp': 0,
+                    'bytes_other': 0,
+                },
+                {
+                    'source_id': 'oh_ir1_gw',
+                    'bucket_start': 1744733100,
+                    'bucket_end': 1744733400,
+                    'ip_version': 6,
+                    'flows': 1,
+                    'flows_tcp': 0,
+                    'flows_udp': 0,
+                    'flows_icmp': 1,
+                    'flows_other': 0,
+                    'packets': 3,
+                    'packets_tcp': 0,
+                    'packets_udp': 0,
+                    'packets_icmp': 3,
+                    'packets_other': 0,
+                    'bytes': 300,
+                    'bytes_tcp': 0,
+                    'bytes_udp': 0,
+                    'bytes_icmp': 300,
+                    'bytes_other': 0,
+                },
+            ],
+            'ip_row': {
+                'source_id': 'oh_ir1_gw',
+                'granularity': '5m',
+                'bucket_start': 1744733100,
+                'bucket_end': 1744733400,
+                'sa_ipv4_count': 1,
+                'da_ipv4_count': 1,
+                'sa_ipv6_count': 1,
+                'da_ipv6_count': 1,
+            },
+            'protocol_row': {
+                'source_id': 'oh_ir1_gw',
+                'granularity': '5m',
+                'bucket_start': 1744733100,
+                'bucket_end': 1744733400,
+                'unique_protocols_count_ipv4': 1,
+                'unique_protocols_count_ipv6': 1,
+                'protocols_list_ipv4': '6',
+                'protocols_list_ipv6': '58',
+            },
+            'raw_bucket': {
+                'source_id': 'oh_ir1_gw',
+                'bucket_start': 1744733100,
+                'source_ipv4': ['192.0.2.1'],
+                'destination_ipv4': ['198.51.100.9'],
+                'source_ipv6': ['2001:db8::1'],
+                'destination_ipv6': ['2001:db8::2'],
+                'protocols_ipv4': ['6'],
+                'protocols_ipv6': ['58'],
+                'maad_source_ipv4': ['192.0.2.1'],
+                'maad_destination_ipv4': ['198.51.100.9'],
+            },
+        }
 
-    monkeypatch.setattr(pipeline_v2, 'iter_nfdump_rows', fake_iter_nfdump_rows)
+    monkeypatch.setattr(pipeline_v2, 'build_nfcapd_bucket_payload', fake_build_nfcapd_bucket_payload)
 
     pipeline_v2.process_input_specs(
         conn,
@@ -177,7 +222,9 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
     pipeline_v2, normalized_rows_v2 = load_modules()
     conn = sqlite3.connect(':memory:')
 
-    def fake_iter_nfdump_rows(path: str, source_id: str):
+    def fake_iter_csv_rows(path: str, mapping_path: str):
+        assert path == '/captures/flows.csv'
+        assert mapping_path == '/captures/mapping.json'
         return iter(
             [
                 normalized_rows_v2.NormalizedRow(
@@ -236,17 +283,17 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
             dimensions=[{'q': 1, 'dim': 0.48}],
         )
 
-    monkeypatch.setattr(pipeline_v2, 'iter_nfdump_rows', fake_iter_nfdump_rows)
+    monkeypatch.setattr(pipeline_v2, 'iter_csv_rows', fake_iter_csv_rows)
     monkeypatch.setattr(pipeline_v2, 'run_maad_json', fake_run_maad_json)
 
     pipeline_v2.process_input_specs(
         conn,
         [
-            {
-                'input_kind': 'nfcapd',
-                'path': '/captures/oh_ir1_gw/2025/04/15/nfcapd.202504150005',
-                'source_id': 'oh_ir1_gw',
-            }
+                {
+                    'input_kind': 'csv',
+                    'path': '/captures/flows.csv',
+                    'mapping_path': '/captures/mapping.json',
+                }
         ],
         maad_bin='/tmp/MAAD',
         max_workers=1,

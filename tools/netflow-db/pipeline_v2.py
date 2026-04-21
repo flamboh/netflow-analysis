@@ -34,6 +34,7 @@ from maad_v2 import (
     insert_maad_v2_rows,
     run_maad_json,
 )
+from nfdump_stats_v2 import build_nfcapd_bucket_payload
 from normalized_rows_v2 import NormalizedRow, build_nfdump_csv_command, normalize_csv_row, normalize_nfdump_csv_values
 from processed_inputs_v2 import (
     init_processed_inputs_v2_table,
@@ -204,6 +205,17 @@ def build_input_payload(spec: dict, maad_bin: str | Path) -> dict:
     """Build all DB insert payloads for one input spec."""
     input_kind = str(spec['input_kind'])
     input_locator = str(spec['path'])
+    if input_kind == 'nfcapd':
+        nfcapd_payload = build_nfcapd_bucket_payload(input_locator, str(spec['source_id']))
+        return {
+            'processed_buckets': [nfcapd_payload['processed_bucket']],
+            'netflow_rows': nfcapd_payload['netflow_rows'],
+            'ip_rows': [nfcapd_payload['ip_row']],
+            'protocol_rows': [nfcapd_payload['protocol_row']],
+            'maad_rows': [build_maad_rows_for_raw_bucket(nfcapd_payload['raw_bucket'], '5m', maad_bin)],
+            'raw_buckets': [nfcapd_payload['raw_bucket']],
+        }
+
     buckets = accumulate_input_buckets(iter_input_rows(spec))
     bucket_values = [buckets[key] for key in sorted(buckets)]
 
@@ -396,6 +408,22 @@ def process_maad_row_task(task: dict) -> dict[str, dict]:
         ip_version=4,
         source_result=source_result,
         destination_result=destination_result,
+    )
+
+
+def build_maad_rows_for_raw_bucket(raw_bucket: dict, granularity: str, maad_bin: str | Path) -> dict[str, dict]:
+    """Run MAAD for one raw bucket payload."""
+    bucket_seconds = 300 if granularity == '5m' else dict(AGGREGATE_GRANULARITY_SECONDS)[granularity]
+    return process_maad_row_task(
+        {
+            'maad_bin': str(maad_bin),
+            'source_id': raw_bucket['source_id'],
+            'granularity': granularity,
+            'bucket_start': raw_bucket['bucket_start'],
+            'bucket_end': raw_bucket['bucket_start'] + bucket_seconds,
+            'source_addresses': raw_bucket['maad_source_ipv4'],
+            'destination_addresses': raw_bucket['maad_destination_ipv4'],
+        }
     )
 
 
