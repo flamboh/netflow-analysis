@@ -124,6 +124,10 @@ First slice:
 
 `netflow_stats_v2` should include `ip_version` in its primary key shape instead of collapsing families together.
 
+`processed_inputs_v2` tracks one status per logical input bucket. Pipeline v2
+writes the bucket payload transactionally; it does not maintain per-output-table
+status columns.
+
 ## First Slice
 
 Implement in this order:

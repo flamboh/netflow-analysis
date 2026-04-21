@@ -41,7 +41,7 @@ from nfdump_stats_v2 import build_nfcapd_bucket_payload
 from normalized_rows_v2 import NormalizedRow, build_nfdump_csv_command, normalize_csv_row, normalize_nfdump_csv_values
 from processed_inputs_v2 import (
     init_processed_inputs_v2_table,
-    mark_input_bucket_processed,
+    mark_input_bucket_status,
     upsert_input_bucket,
 )
 from stats_v2 import (
@@ -61,8 +61,6 @@ DEFAULT_MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
 PIPELINE_TIMEZONE = ZoneInfo(os.environ.get('NETFLOW_TIMEZONE', 'America/Los_Angeles'))
 LOGGER = logging.getLogger(__name__)
 
-STATS_TABLE_NAMES = ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2')
-MAAD_TABLE_NAMES = ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2')
 AGGREGATE_GRANULARITY_SECONDS = (('30m', 1800), ('1h', 3600), ('1d', 86400))
 NFDUMP_HEADER_FIRST_VALUES = {
     'trr',
@@ -277,18 +275,16 @@ def write_input_payload(conn: sqlite3.Connection, payload: dict, *, mark_process
 
 
 def mark_processed_buckets(conn: sqlite3.Connection, processed_buckets: list[dict]) -> None:
-    """Mark all v2 output tables processed for each input bucket."""
+    """Mark input buckets processed after all v2 outputs are written."""
     for bucket in processed_buckets:
-        for table_name in (*STATS_TABLE_NAMES, *MAAD_TABLE_NAMES):
-            mark_input_bucket_processed(
-                conn,
-                table_name=table_name,
-                input_kind=bucket['input_kind'],
-                input_locator=bucket['input_locator'],
-                source_id=bucket['source_id'],
-                bucket_start=bucket['bucket_start'],
-                success=True,
-            )
+        mark_input_bucket_status(
+            conn,
+            input_kind=bucket['input_kind'],
+            input_locator=bucket['input_locator'],
+            source_id=bucket['source_id'],
+            bucket_start=bucket['bucket_start'],
+            status='processed',
+        )
 
 
 def write_aggregate_rows(

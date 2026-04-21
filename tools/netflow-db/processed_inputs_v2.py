@@ -9,14 +9,7 @@ from __future__ import annotations
 import sqlite3
 
 
-VALID_STATUS_TABLES = {
-    'netflow_stats_v2',
-    'ip_stats_v2',
-    'protocol_stats_v2',
-    'structure_stats_v2',
-    'spectrum_stats_v2',
-    'dimension_stats_v2',
-}
+VALID_INPUT_STATUSES = {'pending', 'processed', 'failed'}
 
 
 def init_processed_inputs_v2_table(conn: sqlite3.Connection) -> None:
@@ -29,19 +22,17 @@ def init_processed_inputs_v2_table(conn: sqlite3.Connection) -> None:
             source_id TEXT NOT NULL,
             bucket_start INTEGER NOT NULL,
             bucket_end INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processed', 'failed')),
+            error_message TEXT,
             discovered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            netflow_stats_v2_status INTEGER,
-            ip_stats_v2_status INTEGER,
-            protocol_stats_v2_status INTEGER,
-            structure_stats_v2_status INTEGER,
-            spectrum_stats_v2_status INTEGER,
-            dimension_stats_v2_status INTEGER,
+            processed_at DATETIME,
             PRIMARY KEY (input_kind, input_locator, source_id, bucket_start)
         ) WITHOUT ROWID
         """
     )
-    for column in ('structure_stats_v2_status', 'spectrum_stats_v2_status', 'dimension_stats_v2_status'):
-        ensure_column(conn, 'processed_inputs_v2', column, 'INTEGER')
+    ensure_column(conn, 'processed_inputs_v2', 'status', "TEXT NOT NULL DEFAULT 'pending'")
+    ensure_column(conn, 'processed_inputs_v2', 'error_message', 'TEXT')
+    ensure_column(conn, 'processed_inputs_v2', 'processed_at', 'DATETIME')
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_processed_inputs_v2_source_bucket
@@ -75,23 +66,26 @@ def upsert_input_bucket(
     conn.execute(
         """
         INSERT INTO processed_inputs_v2 (
-            input_kind, input_locator, source_id, bucket_start, bucket_end
-        ) VALUES (?, ?, ?, ?, ?)
+            input_kind, input_locator, source_id, bucket_start, bucket_end, status
+        ) VALUES (?, ?, ?, ?, ?, 'pending')
         ON CONFLICT(input_kind, input_locator, source_id, bucket_start)
-        DO UPDATE SET bucket_end = excluded.bucket_end
+        DO UPDATE SET
+            bucket_end = excluded.bucket_end,
+            status = 'pending',
+            error_message = NULL,
+            processed_at = NULL
         """,
         (input_kind, input_locator, source_id, bucket_start, bucket_end),
     )
 
 
-def get_pending_inputs(conn: sqlite3.Connection, table_name: str) -> list[dict]:
-    """Return bucket inputs that have not been marked processed for the given v2 table."""
-    status_column = get_status_column(table_name)
+def get_pending_inputs(conn: sqlite3.Connection) -> list[dict]:
+    """Return bucket inputs that have not completed processing."""
     rows = conn.execute(
-        f"""
+        """
         SELECT input_kind, input_locator, source_id, bucket_start, bucket_end
         FROM processed_inputs_v2
-        WHERE {status_column} IS NULL
+        WHERE status != 'processed'
         ORDER BY bucket_start, source_id, input_locator
         """
     ).fetchall()
@@ -107,30 +101,26 @@ def get_pending_inputs(conn: sqlite3.Connection, table_name: str) -> list[dict]:
     ]
 
 
-def mark_input_bucket_processed(
+def mark_input_bucket_status(
     conn: sqlite3.Connection,
     *,
-    table_name: str,
     input_kind: str,
     input_locator: str,
     source_id: str,
     bucket_start: int,
-    success: bool,
+    status: str,
+    error_message: str | None = None,
 ) -> None:
-    """Mark the input bucket processed for one v2 table without committing."""
-    status_column = get_status_column(table_name)
+    """Mark one input bucket status without committing."""
+    if status not in VALID_INPUT_STATUSES:
+        raise ValueError(f'Unsupported v2 input status: {status}')
     conn.execute(
-        f"""
+        """
         UPDATE processed_inputs_v2
-        SET {status_column} = ?
+        SET status = ?,
+            error_message = ?,
+            processed_at = CURRENT_TIMESTAMP
         WHERE input_kind = ? AND input_locator = ? AND source_id = ? AND bucket_start = ?
         """,
-        (1 if success else 0, input_kind, input_locator, source_id, bucket_start),
+        (status, error_message, input_kind, input_locator, source_id, bucket_start),
     )
-
-
-def get_status_column(table_name: str) -> str:
-    """Return the processed_inputs_v2 status column for the given table."""
-    if table_name not in VALID_STATUS_TABLES:
-        raise ValueError(f'Unsupported v2 status table: {table_name}')
-    return f'{table_name}_status'

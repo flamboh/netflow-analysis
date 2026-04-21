@@ -52,7 +52,7 @@ def test_processed_inputs_v2_tracks_pending_and_processed_status() -> None:
         bucket_end=1744733400,
     )
 
-    pending = processed_inputs_v2.get_pending_inputs(conn, 'netflow_stats_v2')
+    pending = processed_inputs_v2.get_pending_inputs(conn)
     assert pending == [
         {
             'input_kind': 'nfcapd',
@@ -63,17 +63,33 @@ def test_processed_inputs_v2_tracks_pending_and_processed_status() -> None:
         }
     ]
 
-    processed_inputs_v2.mark_input_bucket_processed(
+    processed_inputs_v2.mark_input_bucket_status(
         conn,
-        table_name='netflow_stats_v2',
         input_kind='nfcapd',
         input_locator='/captures/oh_ir1_gw/2025/04/15/nfcapd.202504150005',
         source_id='oh_ir1_gw',
         bucket_start=1744733100,
-        success=True,
+        status='processed',
     )
 
-    assert processed_inputs_v2.get_pending_inputs(conn, 'netflow_stats_v2') == []
+    assert processed_inputs_v2.get_pending_inputs(conn) == []
+
+    processed_inputs_v2.mark_input_bucket_status(
+        conn,
+        input_kind='nfcapd',
+        input_locator='/captures/oh_ir1_gw/2025/04/15/nfcapd.202504150005',
+        source_id='oh_ir1_gw',
+        bucket_start=1744733100,
+        status='failed',
+        error_message='worker failed',
+    )
+
+    row = conn.execute(
+        'SELECT status, error_message, processed_at FROM processed_inputs_v2'
+    ).fetchone()
+    assert row[0:2] == ('failed', 'worker failed')
+    assert row[2] is not None
+    assert processed_inputs_v2.get_pending_inputs(conn) == pending
 
 
 def test_stats_v2_aggregates_rows_by_bucket_and_family() -> None:

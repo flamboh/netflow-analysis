@@ -59,7 +59,7 @@ def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None
     )
 
     processed_inputs = conn.execute(
-        'SELECT input_kind, input_locator, source_id, bucket_start FROM processed_inputs_v2 ORDER BY bucket_start'
+        'SELECT input_kind, input_locator, source_id, bucket_start, status FROM processed_inputs_v2 ORDER BY bucket_start'
     ).fetchall()
     netflow = conn.execute(
         'SELECT source_id, bucket_start, ip_version, flows, packets, bytes FROM netflow_stats_v2 ORDER BY bucket_start, ip_version'
@@ -72,8 +72,8 @@ def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None
     ).fetchall()
 
     assert processed_inputs == [
-        ('csv', str(csv_path), 'uo-feed', 1744732800),
-        ('csv', str(csv_path), 'uo-feed', 1744733100),
+        ('csv', str(csv_path), 'uo-feed', 1744732800, 'processed'),
+        ('csv', str(csv_path), 'uo-feed', 1744733100, 'processed'),
     ]
     assert netflow == [
         ('uo-feed', 1744732800, 6, 1, 3, 300),
@@ -200,7 +200,7 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
         'SELECT source_id, bucket_start, ip_version, flows FROM netflow_stats_v2 ORDER BY ip_version'
     ).fetchall()
     processed_inputs = conn.execute(
-        'SELECT input_kind, input_locator, source_id, bucket_start, netflow_stats_v2_status, ip_stats_v2_status, protocol_stats_v2_status FROM processed_inputs_v2'
+        'SELECT input_kind, input_locator, source_id, bucket_start, status FROM processed_inputs_v2'
     ).fetchall()
 
     assert netflow == [
@@ -213,9 +213,7 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
             '/captures/oh_ir1_gw/2025/04/15/nfcapd.202504150005',
             'oh_ir1_gw',
             1744733100,
-            1,
-            1,
-            1,
+            'processed',
         )
     ]
 
@@ -305,7 +303,7 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
         "SELECT source_id, bucket_start, ip_version, structure_json_sa, structure_json_da FROM structure_stats_v2 WHERE granularity = '5m'"
     ).fetchone()
     processed_inputs = conn.execute(
-        'SELECT structure_stats_v2_status, spectrum_stats_v2_status, dimension_stats_v2_status FROM processed_inputs_v2'
+        'SELECT status FROM processed_inputs_v2'
     ).fetchone()
 
     assert maad_calls[:2] == [
@@ -313,7 +311,7 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
         ('/tmp/MAAD', ['198.51.100.10', '198.51.100.9']),
     ]
     assert structure[:3] == ('oh_ir1_gw', 1744733100, 4)
-    assert processed_inputs == (1, 1, 1)
+    assert processed_inputs == ('processed',)
 
 
 def test_fractional_nfdump_timestamp_rows_are_not_headers() -> None:

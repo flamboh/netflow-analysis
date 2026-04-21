@@ -22,6 +22,11 @@ Pipeline v2 currently writes:
 
 MAAD is always part of pipeline v2.
 
+`processed_inputs_v2` tracks processing at the input-bucket level. A complete
+bucket payload is written transactionally, so the ledger has one `status` value
+per `(input_kind, input_locator, source_id, bucket_start)` instead of per-table
+status columns.
+
 ## Input Config
 
 `pipeline_v2.py` takes an explicit json config:
