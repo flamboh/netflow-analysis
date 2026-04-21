@@ -42,7 +42,7 @@ Important columns:
 - `source_id`
 - `bucket_start`
 - `bucket_end`
-- per-table status columns like `netflow_stats_v2_status`
+- `status`: `pending`, `processed`, or `failed`
 
 Use this for bucket/file detail lookup. For nfcapd, `input_locator` is the capture file path. For csv, it is the source csv path, so file-detail UI should be treated as bucket details.
 
