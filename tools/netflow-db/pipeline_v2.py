@@ -20,6 +20,7 @@ import json
 import os
 import sqlite3
 import subprocess
+from collections import defaultdict
 from dataclasses import dataclass, field
 from multiprocessing import Pool
 from pathlib import Path
@@ -55,6 +56,7 @@ DEFAULT_MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
 
 STATS_TABLE_NAMES = ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2')
 MAAD_TABLE_NAMES = ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2')
+AGGREGATE_GRANULARITY_SECONDS = (('30m', 1800), ('1h', 3600), ('1d', 86400))
 
 
 @dataclass
@@ -122,8 +124,23 @@ class BucketAccumulator:
             'bucket_end': self.bucket_end,
             'unique_protocols_count_ipv4': len(self.protocols_ipv4),
             'unique_protocols_count_ipv6': len(self.protocols_ipv6),
-            'protocols_list_ipv4': ','.join(sorted(self.protocols_ipv4, key=int)),
-            'protocols_list_ipv6': ','.join(sorted(self.protocols_ipv6, key=int)),
+            'protocols_list_ipv4': ','.join(sorted(self.protocols_ipv4)),
+            'protocols_list_ipv6': ','.join(sorted(self.protocols_ipv6)),
+        }
+
+    def raw_bucket_row(self) -> dict:
+        """Return raw set payloads needed for cross-bucket aggregate rows."""
+        return {
+            'source_id': self.source_id,
+            'bucket_start': self.bucket_start,
+            'source_ipv4': sorted(self.source_ipv4),
+            'destination_ipv4': sorted(self.destination_ipv4),
+            'source_ipv6': sorted(self.source_ipv6),
+            'destination_ipv6': sorted(self.destination_ipv6),
+            'protocols_ipv4': sorted(self.protocols_ipv4),
+            'protocols_ipv6': sorted(self.protocols_ipv6),
+            'maad_source_ipv4': sorted(self.maad_source_ipv4),
+            'maad_destination_ipv4': sorted(self.maad_destination_ipv4),
         }
 
 
@@ -154,15 +171,27 @@ def process_input_specs(
     init_maad_v2_tables(conn)
 
     tasks = [(spec, str(maad_bin)) for spec in input_specs]
+    processed_buckets = []
+    raw_buckets = []
+
+    for payload in iter_input_payloads(tasks, max_workers):
+        write_input_payload(conn, payload, mark_processed=False)
+        processed_buckets.extend(payload['processed_buckets'])
+        raw_buckets.extend(payload.get('raw_buckets', []))
+
+    write_aggregate_rows(conn, raw_buckets, maad_bin, max_workers)
+    mark_processed_buckets(conn, processed_buckets)
+
+
+def iter_input_payloads(tasks: list[tuple[dict, str]], max_workers: int) -> Iterable[dict]:
+    """Yield worker payloads serially or through a process pool."""
     if max_workers > 1 and len(tasks) > 1:
         with Pool(processes=max_workers) as pool:
-            payloads = pool.imap_unordered(process_input_spec_worker, tasks, chunksize=1)
-            for payload in payloads:
-                write_input_payload(conn, payload)
+            yield from pool.imap_unordered(process_input_spec_worker, tasks, chunksize=1)
         return
 
     for task in tasks:
-        write_input_payload(conn, process_input_spec_worker(task))
+        yield process_input_spec_worker(task)
 
 
 def process_input_spec_worker(task: tuple[dict, str]) -> dict:
@@ -193,10 +222,11 @@ def build_input_payload(spec: dict, maad_bin: str | Path) -> dict:
         'ip_rows': [bucket.ip_row() for bucket in bucket_values],
         'protocol_rows': [bucket.protocol_row() for bucket in bucket_values],
         'maad_rows': build_maad_payload_rows(buckets, maad_bin),
+        'raw_buckets': [bucket.raw_bucket_row() for bucket in bucket_values],
     }
 
 
-def write_input_payload(conn: sqlite3.Connection, payload: dict) -> None:
+def write_input_payload(conn: sqlite3.Connection, payload: dict, *, mark_processed: bool = True) -> None:
     """Persist a worker payload. SQLite writes remain in the parent process."""
     processed_buckets = payload['processed_buckets']
     if not processed_buckets:
@@ -212,6 +242,12 @@ def write_input_payload(conn: sqlite3.Connection, payload: dict) -> None:
     for rows in payload['maad_rows']:
         insert_maad_v2_rows(conn, rows)
 
+    if mark_processed:
+        mark_processed_buckets(conn, processed_buckets)
+
+
+def mark_processed_buckets(conn: sqlite3.Connection, processed_buckets: list[dict]) -> None:
+    """Mark all v2 output tables processed for each input bucket."""
     for bucket in processed_buckets:
         for table_name in (*STATS_TABLE_NAMES, *MAAD_TABLE_NAMES):
             mark_input_bucket_processed(
@@ -223,6 +259,149 @@ def write_input_payload(conn: sqlite3.Connection, payload: dict) -> None:
                 bucket_start=bucket['bucket_start'],
                 success=True,
             )
+
+
+def write_aggregate_rows(
+    conn: sqlite3.Connection,
+    raw_buckets: list[dict],
+    maad_bin: str | Path,
+    max_workers: int,
+) -> None:
+    """Write 30m, 1h, and 1d aggregate rows from raw bucket sets."""
+    if not raw_buckets:
+        return
+    insert_ip_stats_v2_rows(conn, build_aggregate_ip_rows(raw_buckets))
+    insert_protocol_stats_v2_rows(conn, build_aggregate_protocol_rows(raw_buckets))
+    for rows in build_aggregate_maad_rows(raw_buckets, maad_bin, max_workers):
+        insert_maad_v2_rows(conn, rows)
+
+
+def build_aggregate_ip_rows(raw_buckets: list[dict]) -> list[dict]:
+    """Build v1-parity IP aggregate rows from raw 5m bucket sets."""
+    buckets = defaultdict(
+        lambda: {
+            'source_ipv4': set(),
+            'destination_ipv4': set(),
+            'source_ipv6': set(),
+            'destination_ipv6': set(),
+        }
+    )
+
+    for raw in raw_buckets:
+        for granularity, seconds in AGGREGATE_GRANULARITY_SECONDS:
+            bucket_start = floor_bucket_start(raw['bucket_start'], seconds)
+            bucket = buckets[(raw['source_id'], granularity, bucket_start)]
+            bucket['source_ipv4'].update(raw['source_ipv4'])
+            bucket['destination_ipv4'].update(raw['destination_ipv4'])
+            bucket['source_ipv6'].update(raw['source_ipv6'])
+            bucket['destination_ipv6'].update(raw['destination_ipv6'])
+
+    rows = []
+    for (source_id, granularity, bucket_start), bucket in sorted(buckets.items()):
+        bucket_seconds = dict(AGGREGATE_GRANULARITY_SECONDS)[granularity]
+        rows.append(
+            {
+                'source_id': source_id,
+                'granularity': granularity,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_start + bucket_seconds,
+                'sa_ipv4_count': len(bucket['source_ipv4']),
+                'da_ipv4_count': len(bucket['destination_ipv4']),
+                'sa_ipv6_count': len(bucket['source_ipv6']),
+                'da_ipv6_count': len(bucket['destination_ipv6']),
+            }
+        )
+    return rows
+
+
+def build_aggregate_protocol_rows(raw_buckets: list[dict]) -> list[dict]:
+    """Build v1-parity protocol aggregate rows from raw 5m bucket sets."""
+    buckets = defaultdict(lambda: {'ipv4': set(), 'ipv6': set()})
+
+    for raw in raw_buckets:
+        for granularity, seconds in AGGREGATE_GRANULARITY_SECONDS:
+            bucket_start = floor_bucket_start(raw['bucket_start'], seconds)
+            bucket = buckets[(raw['source_id'], granularity, bucket_start)]
+            bucket['ipv4'].update(raw['protocols_ipv4'])
+            bucket['ipv6'].update(raw['protocols_ipv6'])
+
+    rows = []
+    for (source_id, granularity, bucket_start), bucket in sorted(buckets.items()):
+        bucket_seconds = dict(AGGREGATE_GRANULARITY_SECONDS)[granularity]
+        rows.append(
+            {
+                'source_id': source_id,
+                'granularity': granularity,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_start + bucket_seconds,
+                'unique_protocols_count_ipv4': len(bucket['ipv4']),
+                'unique_protocols_count_ipv6': len(bucket['ipv6']),
+                'protocols_list_ipv4': ','.join(sorted(bucket['ipv4'])),
+                'protocols_list_ipv6': ','.join(sorted(bucket['ipv6'])),
+            }
+        )
+    return rows
+
+
+def build_aggregate_maad_rows(
+    raw_buckets: list[dict],
+    maad_bin: str | Path,
+    max_workers: int,
+) -> list[dict[str, dict]]:
+    """Build aggregate MAAD rows from unioned IPv4 address sets."""
+    tasks = build_aggregate_maad_tasks(raw_buckets, maad_bin)
+    if max_workers > 1 and len(tasks) > 1:
+        with Pool(processes=max_workers) as pool:
+            return list(pool.imap_unordered(process_maad_row_task, tasks, chunksize=1))
+    return [process_maad_row_task(task) for task in tasks]
+
+
+def build_aggregate_maad_tasks(raw_buckets: list[dict], maad_bin: str | Path) -> list[dict]:
+    """Build serializable MAAD tasks for aggregate buckets."""
+    buckets = defaultdict(lambda: {'source': set(), 'destination': set()})
+
+    for raw in raw_buckets:
+        for granularity, seconds in AGGREGATE_GRANULARITY_SECONDS:
+            bucket_start = floor_bucket_start(raw['bucket_start'], seconds)
+            bucket = buckets[(raw['source_id'], granularity, bucket_start)]
+            bucket['source'].update(raw['maad_source_ipv4'])
+            bucket['destination'].update(raw['maad_destination_ipv4'])
+
+    tasks = []
+    for (source_id, granularity, bucket_start), bucket in sorted(buckets.items()):
+        bucket_seconds = dict(AGGREGATE_GRANULARITY_SECONDS)[granularity]
+        tasks.append(
+            {
+                'maad_bin': str(maad_bin),
+                'source_id': source_id,
+                'granularity': granularity,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_start + bucket_seconds,
+                'source_addresses': sorted(bucket['source']),
+                'destination_addresses': sorted(bucket['destination']),
+            }
+        )
+    return tasks
+
+
+def process_maad_row_task(task: dict) -> dict[str, dict]:
+    """Run MAAD for one aggregate task."""
+    source_result = run_maad_json(task['maad_bin'], set(task['source_addresses']))
+    destination_result = run_maad_json(task['maad_bin'], set(task['destination_addresses']))
+    return build_maad_v2_rows(
+        source_id=task['source_id'],
+        granularity=task['granularity'],
+        bucket_start=task['bucket_start'],
+        bucket_end=task['bucket_end'],
+        ip_version=4,
+        source_result=source_result,
+        destination_result=destination_result,
+    )
+
+
+def floor_bucket_start(bucket_start: int, bucket_seconds: int) -> int:
+    """Floor a 5m bucket start to a larger aggregate bucket."""
+    return bucket_start - (bucket_start % bucket_seconds)
 
 
 def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:

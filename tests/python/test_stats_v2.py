@@ -165,7 +165,7 @@ def test_stats_v2_aggregates_rows_by_bucket_and_family() -> None:
             'bucket_end': 1744733400,
             'unique_protocols_count_ipv4': 2,
             'unique_protocols_count_ipv6': 1,
-            'protocols_list_ipv4': '6,17',
+            'protocols_list_ipv4': '17,6',
             'protocols_list_ipv6': '58',
         }
     ]

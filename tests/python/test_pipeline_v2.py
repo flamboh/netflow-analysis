@@ -62,10 +62,10 @@ def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None
         'SELECT source_id, bucket_start, ip_version, flows, packets, bytes FROM netflow_stats_v2 ORDER BY bucket_start, ip_version'
     ).fetchall()
     ip_stats = conn.execute(
-        'SELECT source_id, bucket_start, sa_ipv4_count, sa_ipv6_count FROM ip_stats_v2 ORDER BY bucket_start'
+        "SELECT source_id, bucket_start, sa_ipv4_count, sa_ipv6_count FROM ip_stats_v2 WHERE granularity = '5m' ORDER BY bucket_start"
     ).fetchall()
     protocol_stats = conn.execute(
-        'SELECT source_id, bucket_start, protocols_list_ipv4, protocols_list_ipv6 FROM protocol_stats_v2 ORDER BY bucket_start'
+        "SELECT source_id, bucket_start, protocols_list_ipv4, protocols_list_ipv6 FROM protocol_stats_v2 WHERE granularity = '5m' ORDER BY bucket_start"
     ).fetchall()
 
     assert processed_inputs == [
@@ -247,16 +247,17 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
             }
         ],
         maad_bin='/tmp/MAAD',
+        max_workers=1,
     )
 
     structure = conn.execute(
-        'SELECT source_id, bucket_start, ip_version, structure_json_sa, structure_json_da FROM structure_stats_v2'
+        "SELECT source_id, bucket_start, ip_version, structure_json_sa, structure_json_da FROM structure_stats_v2 WHERE granularity = '5m'"
     ).fetchone()
     processed_inputs = conn.execute(
         'SELECT structure_stats_v2_status, spectrum_stats_v2_status, dimension_stats_v2_status FROM processed_inputs_v2'
     ).fetchone()
 
-    assert maad_calls == [
+    assert maad_calls[:2] == [
         ('/tmp/MAAD', ['192.0.2.1', '192.0.2.2']),
         ('/tmp/MAAD', ['198.51.100.10', '198.51.100.9']),
     ]
@@ -369,3 +370,106 @@ def test_process_input_specs_can_write_parallel_worker_payloads(monkeypatch) -> 
         ('feed-a', 1744732800, 1),
         ('feed-b', 1744733100, 2),
     ]
+
+
+def test_process_input_specs_writes_v1_granularity_aggregates_for_csv(monkeypatch, tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = tmp_path / 'mapping.json'
+    mapping_path.write_text(
+        json.dumps(
+            {
+                'timestamp_format': 'unix',
+                'columns': {
+                    'time_received': 'received_at',
+                    'src_ip': 'src',
+                    'dst_ip': 'dst',
+                    'protocol': 'pr',
+                    'packets': 'pkt',
+                    'bytes': 'byt',
+                },
+                'source_id': {'value': 'uo-feed'},
+            }
+        ),
+        encoding='utf-8',
+    )
+    csv_path = tmp_path / 'flows.csv'
+    csv_path.write_text(
+        '\n'.join(
+            [
+                'received_at,src,dst,pr,pkt,byt',
+                '1744732801,192.0.2.1,198.51.100.1,6,10,1000',
+                '1744733101,192.0.2.2,198.51.100.2,17,20,2000',
+            ]
+        )
+        + '\n',
+        encoding='utf-8',
+    )
+    conn = sqlite3.connect(':memory:')
+
+    def fake_run_maad_json(maad_bin, addresses):
+        return pipeline_v2.MaadJsonResult(
+            schema_version=1,
+            metadata={
+                'input': '-',
+                'minPrefixLength': 7,
+                'maxPrefixLength': 23,
+                'totalAddrs': len(addresses),
+            },
+            structure=[],
+            spectrum=[],
+            dimensions=[],
+        )
+
+    monkeypatch.setattr(pipeline_v2, 'run_maad_json', fake_run_maad_json)
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {
+                'input_kind': 'csv',
+                'path': str(csv_path),
+                'mapping_path': str(mapping_path),
+            }
+        ],
+        maad_bin='/tmp/MAAD',
+        max_workers=1,
+    )
+
+    ip_stats = conn.execute(
+        """
+        SELECT granularity, bucket_start, sa_ipv4_count, da_ipv4_count
+        FROM ip_stats_v2
+        ORDER BY granularity, bucket_start
+        """
+    ).fetchall()
+    protocol_stats = conn.execute(
+        """
+        SELECT granularity, bucket_start, unique_protocols_count_ipv4, protocols_list_ipv4
+        FROM protocol_stats_v2
+        ORDER BY granularity, bucket_start
+        """
+    ).fetchall()
+    maad_30m = conn.execute(
+        """
+        SELECT json_extract(metadata_json_sa, '$.totalAddrs'),
+               json_extract(metadata_json_da, '$.totalAddrs')
+        FROM structure_stats_v2
+        WHERE granularity = '30m'
+        """
+    ).fetchone()
+
+    assert ip_stats == [
+        ('1d', 1744675200, 2, 2),
+        ('1h', 1744732800, 2, 2),
+        ('30m', 1744732800, 2, 2),
+        ('5m', 1744732800, 1, 1),
+        ('5m', 1744733100, 1, 1),
+    ]
+    assert protocol_stats == [
+        ('1d', 1744675200, 2, '17,6'),
+        ('1h', 1744732800, 2, '17,6'),
+        ('30m', 1744732800, 2, '17,6'),
+        ('5m', 1744732800, 1, '6'),
+        ('5m', 1744733100, 1, '17'),
+    ]
+    assert maad_30m == (2, 2)

@@ -182,8 +182,8 @@ def build_protocol_stats_v2_rows(rows: list[NormalizedRow]) -> list[dict]:
                 'bucket_end': bucket_bounds[(source_id, bucket_start)],
                 'unique_protocols_count_ipv4': len(bucket['ipv4']),
                 'unique_protocols_count_ipv6': len(bucket['ipv6']),
-                'protocols_list_ipv4': ','.join(sorted(bucket['ipv4'], key=int)),
-                'protocols_list_ipv6': ','.join(sorted(bucket['ipv6'], key=int)),
+                'protocols_list_ipv4': ','.join(sorted(bucket['ipv4'])),
+                'protocols_list_ipv6': ','.join(sorted(bucket['ipv6'])),
             }
         )
     return result
