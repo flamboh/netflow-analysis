@@ -22,6 +22,11 @@ V2_DB = Path(os.environ.get('LOCAL_UOREGON_V2_DB', 'data/uoregon-v2/netflow.sqli
 SOURCE_ID = os.environ.get('LOCAL_UOREGON_SOURCE_ID', 'oh_ir1_gw')
 WINDOW_START = int(os.environ.get('LOCAL_UOREGON_WINDOW_START', '1741075200'))
 WINDOW_END = int(os.environ.get('LOCAL_UOREGON_WINDOW_END', '1741075500'))
+GRANULARITIES = tuple(
+    granularity.strip()
+    for granularity in os.environ.get('LOCAL_UOREGON_GRANULARITIES', '5m').split(',')
+    if granularity.strip()
+)
 
 
 def require_local_validation() -> None:
@@ -77,7 +82,7 @@ def test_v2_netflow_5m_totals_match_v1(conn: sqlite3.Connection) -> None:
 
 def test_v2_ip_stats_match_v1(conn: sqlite3.Connection) -> None:
     rows = conn.execute(
-        """
+        f"""
         SELECT
             v1.granularity,
             v1.bucket_start,
@@ -97,9 +102,10 @@ def test_v2_ip_stats_match_v1(conn: sqlite3.Connection) -> None:
         WHERE v1.router = ?
           AND v1.bucket_start >= ?
           AND v1.bucket_start < ?
+          AND v1.granularity IN ({granularity_placeholders()})
         ORDER BY v1.granularity, v1.bucket_start
         """,
-        (SOURCE_ID, WINDOW_START, WINDOW_END),
+        (SOURCE_ID, WINDOW_START, WINDOW_END, *GRANULARITIES),
     ).fetchall()
 
     assert rows
@@ -110,7 +116,7 @@ def test_v2_ip_stats_match_v1(conn: sqlite3.Connection) -> None:
 
 def test_v2_protocol_stats_match_v1(conn: sqlite3.Connection) -> None:
     rows = conn.execute(
-        """
+        f"""
         SELECT
             v1.granularity,
             v1.bucket_start,
@@ -130,12 +136,17 @@ def test_v2_protocol_stats_match_v1(conn: sqlite3.Connection) -> None:
         WHERE v1.router = ?
           AND v1.bucket_start >= ?
           AND v1.bucket_start < ?
+          AND v1.granularity IN ({granularity_placeholders()})
         ORDER BY v1.granularity, v1.bucket_start
         """,
-        (SOURCE_ID, WINDOW_START, WINDOW_END),
+        (SOURCE_ID, WINDOW_START, WINDOW_END, *GRANULARITIES),
     ).fetchall()
 
     assert rows
     assert [row[:6] for row in rows] == [
         (row[0], row[1], row[6], row[7], row[8], row[9]) for row in rows
     ]
+
+
+def granularity_placeholders() -> str:
+    return ','.join('?' for _ in GRANULARITIES)

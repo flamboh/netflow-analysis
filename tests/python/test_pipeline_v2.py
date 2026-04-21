@@ -53,6 +53,7 @@ def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None
                 'mapping_path': str(mapping_path),
             }
         ],
+        max_workers=1,
     )
 
     processed_inputs = conn.execute(
@@ -145,6 +146,7 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
                 'source_id': 'oh_ir1_gw',
             }
         ],
+        max_workers=1,
     )
 
     netflow = conn.execute(
