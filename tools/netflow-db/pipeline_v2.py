@@ -35,15 +35,13 @@ from processed_inputs_v2 import (
     upsert_input_bucket,
 )
 from stats_v2 import (
-    build_ip_stats_v2_rows,
-    build_netflow_stats_v2_rows,
-    build_protocol_stats_v2_rows,
     init_ip_stats_v2_table,
     init_netflow_stats_v2_table,
     init_protocol_stats_v2_table,
     insert_ip_stats_v2_rows,
     insert_netflow_stats_v2_rows,
     insert_protocol_stats_v2_rows,
+    protocol_metric_keys,
 )
 
 
@@ -57,16 +55,65 @@ class BucketAccumulator:
     source_id: str
     bucket_start: int
     bucket_end: int
-    netflow_rows: list[NormalizedRow] = field(default_factory=list)
+    netflow_by_version: dict[int, dict] = field(default_factory=dict)
+    source_ipv4: set[str] = field(default_factory=set)
+    destination_ipv4: set[str] = field(default_factory=set)
+    source_ipv6: set[str] = field(default_factory=set)
+    destination_ipv6: set[str] = field(default_factory=set)
+    protocols_ipv4: set[str] = field(default_factory=set)
+    protocols_ipv6: set[str] = field(default_factory=set)
     maad_source_ipv4: set[str] = field(default_factory=set)
     maad_destination_ipv4: set[str] = field(default_factory=set)
 
     def add(self, row: NormalizedRow) -> None:
         """Accumulate one normalized row."""
-        self.netflow_rows.append(row)
+        netflow = self.netflow_by_version.setdefault(row.ip_version, new_netflow_bucket(row))
+        netflow['flows'] += 1
+        netflow['packets'] += row.packets
+        netflow['bytes'] += row.bytes
+        flow_key, packets_key, bytes_key = protocol_metric_keys(row.protocol)
+        netflow[flow_key] += 1
+        netflow[packets_key] += row.packets
+        netflow[bytes_key] += row.bytes
+
         if row.ip_version == 4:
+            self.source_ipv4.add(row.src_ip)
+            self.destination_ipv4.add(row.dst_ip)
+            self.protocols_ipv4.add(str(row.protocol))
             self.maad_source_ipv4.add(row.src_ip)
             self.maad_destination_ipv4.add(row.dst_ip)
+        else:
+            self.source_ipv6.add(row.src_ip)
+            self.destination_ipv6.add(row.dst_ip)
+            self.protocols_ipv6.add(str(row.protocol))
+
+    def netflow_rows(self) -> list[dict]:
+        """Return netflow_stats_v2 rows for this bucket."""
+        return [self.netflow_by_version[ip_version] for ip_version in sorted(self.netflow_by_version)]
+
+    def ip_row(self) -> dict:
+        """Return one ip_stats_v2 row for this bucket."""
+        return {
+            'source_id': self.source_id,
+            'bucket_start': self.bucket_start,
+            'bucket_end': self.bucket_end,
+            'sa_ipv4_count': len(self.source_ipv4),
+            'da_ipv4_count': len(self.destination_ipv4),
+            'sa_ipv6_count': len(self.source_ipv6),
+            'da_ipv6_count': len(self.destination_ipv6),
+        }
+
+    def protocol_row(self) -> dict:
+        """Return one protocol_stats_v2 row for this bucket."""
+        return {
+            'source_id': self.source_id,
+            'bucket_start': self.bucket_start,
+            'bucket_end': self.bucket_end,
+            'unique_protocols_count_ipv4': len(self.protocols_ipv4),
+            'unique_protocols_count_ipv6': len(self.protocols_ipv6),
+            'protocols_list_ipv4': ','.join(sorted(self.protocols_ipv4, key=int)),
+            'protocols_list_ipv6': ','.join(sorted(self.protocols_ipv6, key=int)),
+        }
 
 
 def load_pipeline_v2_config(path: str | Path) -> dict:
@@ -111,10 +158,13 @@ def process_input_specs(
                 bucket_end=bucket_end,
             )
 
-        rows = [row for bucket in buckets.values() for row in bucket.netflow_rows]
-        insert_netflow_stats_v2_rows(conn, build_netflow_stats_v2_rows(rows))
-        insert_ip_stats_v2_rows(conn, build_ip_stats_v2_rows(rows))
-        insert_protocol_stats_v2_rows(conn, build_protocol_stats_v2_rows(rows))
+        bucket_values = [buckets[key] for key in sorted(buckets)]
+        insert_netflow_stats_v2_rows(
+            conn,
+            [row for bucket in bucket_values for row in bucket.netflow_rows()],
+        )
+        insert_ip_stats_v2_rows(conn, [bucket.ip_row() for bucket in bucket_values])
+        insert_protocol_stats_v2_rows(conn, [bucket.protocol_row() for bucket in bucket_values])
 
         process_maad_buckets(conn, buckets, maad_bin)
 
@@ -171,6 +221,31 @@ def accumulate_input_buckets(rows: Iterable[NormalizedRow]) -> dict[tuple[str, i
         )
         bucket.add(row)
     return buckets
+
+
+def new_netflow_bucket(row: NormalizedRow) -> dict:
+    """Create an empty netflow_stats_v2 row accumulator."""
+    return {
+        'source_id': row.source_id,
+        'bucket_start': row.bucket_start,
+        'bucket_end': row.bucket_end,
+        'ip_version': row.ip_version,
+        'flows': 0,
+        'flows_tcp': 0,
+        'flows_udp': 0,
+        'flows_icmp': 0,
+        'flows_other': 0,
+        'packets': 0,
+        'packets_tcp': 0,
+        'packets_udp': 0,
+        'packets_icmp': 0,
+        'packets_other': 0,
+        'bytes': 0,
+        'bytes_tcp': 0,
+        'bytes_udp': 0,
+        'bytes_icmp': 0,
+        'bytes_other': 0,
+    }
 
 
 def process_maad_buckets(
