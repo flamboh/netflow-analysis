@@ -1,8 +1,9 @@
-# Web V2 Database Compatibility
+# Web V2 Database Replacement
 
 ## Goal
 
-Make `apps/web` read pipeline v2 databases without blocking on the eventual v1 table swap.
+Make `apps/web` read pipeline v2 databases as the canonical database shape.
+Pipeline v2 replaces v1; do not preserve v1 query paths in this work.
 
 This should be a stacked PR on top of the pipeline v2 PR. Keep it web-focused: no pipeline changes unless a web blocker exposes a real schema bug.
 
@@ -27,7 +28,7 @@ Pipeline v2 writes new tables and uses source/bucket language:
 - `*_stats_v2` tables
 - `dimension_stats_v2` exists in addition to structure/spectrum
 
-The frontend can still expose the word "router" for now, but server-side database access should treat that as a display/API alias for `source_id`.
+The frontend can still expose the word "router" where that keeps existing UI copy stable, but server-side database access should treat that as a display/API alias for `source_id`.
 
 ## V2 Tables
 
@@ -137,23 +138,15 @@ The existing UI only renders structure and spectrum. Dimension data can be left 
 
 ## Implementation Shape
 
-Add a small server-side compatibility module, for example:
+Add a small server-side v2 query module, for example:
 
-`apps/web/src/lib/server/netflow-schema.ts`
+`apps/web/src/lib/server/netflow-v2.ts`
 
 Responsibilities:
 
-- Detect whether a dataset DB has v2 tables.
-- Provide canonical table/column names for routes.
-- Keep route SQL from scattering v1/v2 conditionals everywhere.
-
-Suggested detection:
-
-```sql
-SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'netflow_stats_v2'
-```
-
-If v2 exists, use v2. If not, keep v1 behavior for now. This is compatibility for development and comparison, not a long-term fallback strategy.
+- Centralize v2 table names and common route query helpers.
+- Keep route SQL consistent around `source_id`, `bucket_start`, and `granularity`.
+- Remove v1 table assumptions from API routes instead of adding v1/v2 conditionals.
 
 ## Route Work
 
@@ -210,10 +203,10 @@ For v2 bucket details, return sane null/zero values or update the type to make t
 
 Treat the singularities endpoint as deprecated. Do not port it to v2.
 
-Web behavior should be one of:
+Web behavior should be:
 
 - hide singularities UI for v2 datasets
-- return a clear `410 Gone` or disabled response from the endpoint
+- return a clear `410 Gone` from the endpoint if it remains routable during cleanup
 
 ## Testing
 
@@ -243,14 +236,15 @@ Assertions:
 - Do not rewrite the dashboard UI.
 - Do not add local-only data tests.
 - Do not port singularities.
-- Do not add compatibility SQL views unless route-level compatibility gets too noisy.
-- Do not make v1/v2 fallback elaborate; this is greenfield and v2 is the target.
+- Do not add v1/v2 fallback paths.
+- Do not add compatibility SQL views.
+- Do not keep v1 table reads alive.
 
 ## Suggested PR Boundary
 
 One stacked PR should be enough:
 
-1. Add schema adapter.
+1. Add v2 query helper module.
 2. Port aggregate APIs.
 3. Port bucket detail APIs.
 4. Disable singularities for v2.
