@@ -269,3 +269,101 @@ def test_fractional_nfdump_timestamp_rows_are_not_headers() -> None:
 
     assert not pipeline_v2.looks_like_nfdump_header(['1741075200.000'])
     assert pipeline_v2.looks_like_nfdump_header(['received'])
+
+
+def test_process_input_specs_can_write_parallel_worker_payloads(monkeypatch) -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    captured_processes = []
+
+    payloads = [
+        {
+            'processed_buckets': [
+                {
+                    'input_kind': 'csv',
+                    'input_locator': '/tmp/a.csv',
+                    'source_id': 'feed-a',
+                    'bucket_start': 1744732800,
+                    'bucket_end': 1744733100,
+                }
+            ],
+            'netflow_rows': [],
+            'ip_rows': [
+                {
+                    'source_id': 'feed-a',
+                    'bucket_start': 1744732800,
+                    'bucket_end': 1744733100,
+                    'sa_ipv4_count': 1,
+                    'da_ipv4_count': 1,
+                    'sa_ipv6_count': 0,
+                    'da_ipv6_count': 0,
+                }
+            ],
+            'protocol_rows': [],
+            'maad_rows': [],
+        },
+        {
+            'processed_buckets': [
+                {
+                    'input_kind': 'csv',
+                    'input_locator': '/tmp/b.csv',
+                    'source_id': 'feed-b',
+                    'bucket_start': 1744733100,
+                    'bucket_end': 1744733400,
+                }
+            ],
+            'netflow_rows': [],
+            'ip_rows': [
+                {
+                    'source_id': 'feed-b',
+                    'bucket_start': 1744733100,
+                    'bucket_end': 1744733400,
+                    'sa_ipv4_count': 2,
+                    'da_ipv4_count': 2,
+                    'sa_ipv6_count': 0,
+                    'da_ipv6_count': 0,
+                }
+            ],
+            'protocol_rows': [],
+            'maad_rows': [],
+        },
+    ]
+
+    class FakePool:
+        def __init__(self, processes):
+            captured_processes.append(processes)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def imap_unordered(self, worker, tasks, chunksize=1):
+            assert chunksize == 1
+            return iter(payloads)
+
+    monkeypatch.setattr(pipeline_v2, 'Pool', FakePool)
+    monkeypatch.setattr(
+        pipeline_v2,
+        'process_input_spec_worker',
+        lambda task: (_ for _ in ()).throw(AssertionError('fake pool should supply payloads')),
+        raising=False,
+    )
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {'input_kind': 'csv', 'path': '/tmp/a.csv', 'mapping_path': '/tmp/a.json'},
+            {'input_kind': 'csv', 'path': '/tmp/b.csv', 'mapping_path': '/tmp/b.json'},
+        ],
+        max_workers=2,
+    )
+
+    assert captured_processes == [2]
+    assert conn.execute(
+        'SELECT source_id, bucket_start, sa_ipv4_count FROM ip_stats_v2 ORDER BY source_id'
+    ).fetchall() == [
+        ('feed-a', 1744732800, 1),
+        ('feed-b', 1744733100, 2),
+    ]

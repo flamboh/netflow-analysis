@@ -17,9 +17,11 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sqlite3
 import subprocess
 from dataclasses import dataclass, field
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterable
 
@@ -49,6 +51,10 @@ from stats_v2 import (
 
 
 DEFAULT_MAAD_BIN = Path(__file__).resolve().parents[2] / 'vendor' / 'maad' / 'MAAD'
+DEFAULT_MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
+
+STATS_TABLE_NAMES = ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2')
+MAAD_TABLE_NAMES = ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2')
 
 
 @dataclass
@@ -136,6 +142,7 @@ def process_input_specs(
     input_specs: list[dict],
     *,
     maad_bin: str | Path = DEFAULT_MAAD_BIN,
+    max_workers: int = DEFAULT_MAX_WORKERS,
 ) -> None:
     """Process explicit input specs into the v2 aggregate tables."""
     init_processed_inputs_v2_table(conn)
@@ -144,54 +151,76 @@ def process_input_specs(
     init_protocol_stats_v2_table(conn)
     init_maad_v2_tables(conn)
 
-    for spec in input_specs:
-        input_kind = str(spec['input_kind'])
-        input_locator = str(spec['path'])
-        buckets = accumulate_input_buckets(iter_input_rows(spec))
-        if not buckets:
-            continue
+    tasks = [(spec, str(maad_bin)) for spec in input_specs]
+    if max_workers > 1 and len(tasks) > 1:
+        with Pool(processes=max_workers) as pool:
+            payloads = pool.imap_unordered(process_input_spec_worker, tasks, chunksize=1)
+            for payload in payloads:
+                write_input_payload(conn, payload)
+        return
 
-        for source_id, bucket_start, bucket_end in sorted(buckets):
-            upsert_input_bucket(
+    for task in tasks:
+        write_input_payload(conn, process_input_spec_worker(task))
+
+
+def process_input_spec_worker(task: tuple[dict, str]) -> dict:
+    """Worker entrypoint for processing one input spec without DB access."""
+    spec, maad_bin = task
+    return build_input_payload(spec, maad_bin)
+
+
+def build_input_payload(spec: dict, maad_bin: str | Path) -> dict:
+    """Build all DB insert payloads for one input spec."""
+    input_kind = str(spec['input_kind'])
+    input_locator = str(spec['path'])
+    buckets = accumulate_input_buckets(iter_input_rows(spec))
+    bucket_values = [buckets[key] for key in sorted(buckets)]
+
+    return {
+        'processed_buckets': [
+            {
+                'input_kind': input_kind,
+                'input_locator': input_locator,
+                'source_id': source_id,
+                'bucket_start': bucket_start,
+                'bucket_end': bucket_end,
+            }
+            for source_id, bucket_start, bucket_end in sorted(buckets)
+        ],
+        'netflow_rows': [row for bucket in bucket_values for row in bucket.netflow_rows()],
+        'ip_rows': [bucket.ip_row() for bucket in bucket_values],
+        'protocol_rows': [bucket.protocol_row() for bucket in bucket_values],
+        'maad_rows': build_maad_payload_rows(buckets, maad_bin),
+    }
+
+
+def write_input_payload(conn: sqlite3.Connection, payload: dict) -> None:
+    """Persist a worker payload. SQLite writes remain in the parent process."""
+    processed_buckets = payload['processed_buckets']
+    if not processed_buckets:
+        return
+
+    for bucket in processed_buckets:
+        upsert_input_bucket(conn, **bucket)
+
+    insert_netflow_stats_v2_rows(conn, payload['netflow_rows'])
+    insert_ip_stats_v2_rows(conn, payload['ip_rows'])
+    insert_protocol_stats_v2_rows(conn, payload['protocol_rows'])
+
+    for rows in payload['maad_rows']:
+        insert_maad_v2_rows(conn, rows)
+
+    for bucket in processed_buckets:
+        for table_name in (*STATS_TABLE_NAMES, *MAAD_TABLE_NAMES):
+            mark_input_bucket_processed(
                 conn,
-                input_kind=input_kind,
-                input_locator=input_locator,
-                source_id=source_id,
-                bucket_start=bucket_start,
-                bucket_end=bucket_end,
+                table_name=table_name,
+                input_kind=bucket['input_kind'],
+                input_locator=bucket['input_locator'],
+                source_id=bucket['source_id'],
+                bucket_start=bucket['bucket_start'],
+                success=True,
             )
-
-        bucket_values = [buckets[key] for key in sorted(buckets)]
-        insert_netflow_stats_v2_rows(
-            conn,
-            [row for bucket in bucket_values for row in bucket.netflow_rows()],
-        )
-        insert_ip_stats_v2_rows(conn, [bucket.ip_row() for bucket in bucket_values])
-        insert_protocol_stats_v2_rows(conn, [bucket.protocol_row() for bucket in bucket_values])
-
-        process_maad_buckets(conn, buckets, maad_bin)
-
-        for source_id, bucket_start, _bucket_end in sorted(buckets):
-            for table_name in ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2'):
-                mark_input_bucket_processed(
-                    conn,
-                    table_name=table_name,
-                    input_kind=input_kind,
-                    input_locator=input_locator,
-                    source_id=source_id,
-                    bucket_start=bucket_start,
-                    success=True,
-                )
-            for table_name in ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2'):
-                mark_input_bucket_processed(
-                    conn,
-                    table_name=table_name,
-                    input_kind=input_kind,
-                    input_locator=input_locator,
-                    source_id=source_id,
-                    bucket_start=bucket_start,
-                    success=True,
-                )
 
 
 def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:
@@ -251,24 +280,26 @@ def new_netflow_bucket(row: NormalizedRow) -> dict:
     }
 
 
-def process_maad_buckets(
-    conn: sqlite3.Connection,
+def build_maad_payload_rows(
     buckets: dict[tuple[str, int, int], BucketAccumulator],
     maad_bin: str | Path,
-) -> None:
-    """Run MAAD for each v2 bucket and persist structure/spectrum/dimensions."""
+) -> list[dict[str, dict]]:
+    """Run MAAD for each v2 bucket and return structure/spectrum/dimension rows."""
+    rows = []
     for bucket in buckets.values():
         source_result = run_maad_json(maad_bin, bucket.maad_source_ipv4)
         destination_result = run_maad_json(maad_bin, bucket.maad_destination_ipv4)
-        rows = build_maad_v2_rows(
-            source_id=bucket.source_id,
-            bucket_start=bucket.bucket_start,
-            bucket_end=bucket.bucket_end,
-            ip_version=4,
-            source_result=source_result,
-            destination_result=destination_result,
+        rows.append(
+            build_maad_v2_rows(
+                source_id=bucket.source_id,
+                bucket_start=bucket.bucket_start,
+                bucket_end=bucket.bucket_end,
+                ip_version=4,
+                source_result=source_result,
+                destination_result=destination_result,
+            )
         )
-        insert_maad_v2_rows(conn, rows)
+    return rows
 
 
 def iter_csv_rows(path: str, mapping_path: str) -> Iterable[NormalizedRow]:
@@ -326,6 +357,7 @@ def main() -> None:
             conn,
             config['inputs'],
             maad_bin=config.get('maad_bin', DEFAULT_MAAD_BIN),
+            max_workers=int(config.get('max_workers', DEFAULT_MAX_WORKERS)),
         )
 
 
