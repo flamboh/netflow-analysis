@@ -5,8 +5,8 @@ Pipeline v2 is the clean-path ingest flow for:
 - external csv inputs
 - `nfcapd` inputs via `nfdump`
 
-This path is independent from the legacy pipeline tables and is intended to
-settle the non-MAAD contracts before MAAD integration lands.
+This path is independent from the legacy pipeline tables. MAAD is part of the
+v2 ingest contract, not an optional side path.
 
 ## Current Scope
 
@@ -179,4 +179,4 @@ and `*_json_da` columns. MAAD currently runs for IPv4 address buckets.
 - Pipeline v2 does not persist raw/intermediate rows
 - Pipeline v2 currently works on explicit inputs; it does not yet replace the
   legacy discovery flow
-- MAAD integration assumes the JSON stdout contract shown above
+- MAAD is mandatory and assumes the JSON stdout contract shown above

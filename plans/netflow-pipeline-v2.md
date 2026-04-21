@@ -16,9 +16,9 @@ The v2 path should be clean, strict, and independent from the current web/API sh
 - External csv is treated as unbucketed input
 - `source_id` replaces transport-specific `router`
 - Web compatibility is deferred until the v2 backend shape settles
-- MAAD work assumes future support for:
+- MAAD is mandatory in v2 and uses:
   - `--input -`
-  - `--stdout`
+  - `--output -`
   - `--format json`
 
 ## Normalized Row Contract
@@ -116,8 +116,6 @@ First slice:
 - `processed_inputs_v2`
 - `netflow_stats_v2`
 
-Follow-on:
-
 - `ip_stats_v2`
 - `protocol_stats_v2`
 - `spectrum_stats_v2`
@@ -140,7 +138,6 @@ Implement in this order:
 
 Hold for later:
 
-- MAAD integration
 - web/API migration
 - compatibility views
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Minimal pipeline entrypoint for non-MAAD v2 work.
+Pipeline v2 entrypoint.
 
 Processes explicit csv and nfcapd inputs into:
 - processed_inputs_v2
 - netflow_stats_v2
 - ip_stats_v2
 - protocol_stats_v2
+- structure_stats_v2
+- spectrum_stats_v2
+- dimension_stats_v2
 """
 
 from __future__ import annotations
@@ -310,7 +313,7 @@ def unique_input_buckets(rows: list[NormalizedRow]) -> list[tuple[str, int, int]
 
 def main() -> None:
     """Run the minimal pipeline v2 entrypoint."""
-    parser = argparse.ArgumentParser(description='Pipeline v2 non-MAAD processor')
+    parser = argparse.ArgumentParser(description='Pipeline v2 processor')
     parser.add_argument('--config', required=True, help='Path to the pipeline_v2 json config.')
     args = parser.parse_args()
 
