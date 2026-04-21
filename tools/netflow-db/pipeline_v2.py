@@ -16,10 +16,18 @@ import csv
 import json
 import sqlite3
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
 from csv_ingest_v2 import load_csv_source_config
+from maad_v2 import (
+    MaadJsonResult,
+    build_maad_v2_rows,
+    init_maad_v2_tables,
+    insert_maad_v2_rows,
+    run_maad_json,
+)
 from normalized_rows_v2 import NormalizedRow, build_nfdump_csv_command, normalize_csv_row, normalize_nfdump_csv_values
 from processed_inputs_v2 import (
     init_processed_inputs_v2_table,
@@ -39,6 +47,28 @@ from stats_v2 import (
 )
 
 
+DEFAULT_MAAD_BIN = Path(__file__).resolve().parents[2] / 'vendor' / 'maad' / 'MAAD'
+
+
+@dataclass
+class BucketAccumulator:
+    """Per-source 5-minute accumulator for v2 stats and MAAD inputs."""
+
+    source_id: str
+    bucket_start: int
+    bucket_end: int
+    netflow_rows: list[NormalizedRow] = field(default_factory=list)
+    maad_source_ipv4: set[str] = field(default_factory=set)
+    maad_destination_ipv4: set[str] = field(default_factory=set)
+
+    def add(self, row: NormalizedRow) -> None:
+        """Accumulate one normalized row."""
+        self.netflow_rows.append(row)
+        if row.ip_version == 4:
+            self.maad_source_ipv4.add(row.src_ip)
+            self.maad_destination_ipv4.add(row.dst_ip)
+
+
 def load_pipeline_v2_config(path: str | Path) -> dict:
     """Load the minimal v2 pipeline config file."""
     with open(path, 'r', encoding='utf-8') as handle:
@@ -51,21 +81,29 @@ def load_pipeline_v2_config(path: str | Path) -> dict:
     return payload
 
 
-def process_input_specs(conn: sqlite3.Connection, input_specs: list[dict]) -> None:
+def process_input_specs(
+    conn: sqlite3.Connection,
+    input_specs: list[dict],
+    *,
+    run_maad: bool = False,
+    maad_bin: str | Path = DEFAULT_MAAD_BIN,
+) -> None:
     """Process explicit input specs into the v2 aggregate tables."""
     init_processed_inputs_v2_table(conn)
     init_netflow_stats_v2_table(conn)
     init_ip_stats_v2_table(conn)
     init_protocol_stats_v2_table(conn)
+    if run_maad:
+        init_maad_v2_tables(conn)
 
     for spec in input_specs:
         input_kind = str(spec['input_kind'])
         input_locator = str(spec['path'])
-        rows = list(iter_input_rows(spec))
-        if not rows:
+        buckets = accumulate_input_buckets(iter_input_rows(spec))
+        if not buckets:
             continue
 
-        for source_id, bucket_start, bucket_end in unique_input_buckets(rows):
+        for source_id, bucket_start, bucket_end in sorted(buckets):
             upsert_input_bucket(
                 conn,
                 input_kind=input_kind,
@@ -75,11 +113,15 @@ def process_input_specs(conn: sqlite3.Connection, input_specs: list[dict]) -> No
                 bucket_end=bucket_end,
             )
 
+        rows = [row for bucket in buckets.values() for row in bucket.netflow_rows]
         insert_netflow_stats_v2_rows(conn, build_netflow_stats_v2_rows(rows))
         insert_ip_stats_v2_rows(conn, build_ip_stats_v2_rows(rows))
         insert_protocol_stats_v2_rows(conn, build_protocol_stats_v2_rows(rows))
 
-        for source_id, bucket_start, _bucket_end in unique_input_buckets(rows):
+        if run_maad:
+            process_maad_buckets(conn, buckets, maad_bin)
+
+        for source_id, bucket_start, _bucket_end in sorted(buckets):
             for table_name in ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2'):
                 mark_input_bucket_processed(
                     conn,
@@ -90,6 +132,17 @@ def process_input_specs(conn: sqlite3.Connection, input_specs: list[dict]) -> No
                     bucket_start=bucket_start,
                     success=True,
                 )
+            if run_maad:
+                for table_name in ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2'):
+                    mark_input_bucket_processed(
+                        conn,
+                        table_name=table_name,
+                        input_kind=input_kind,
+                        input_locator=input_locator,
+                        source_id=source_id,
+                        bucket_start=bucket_start,
+                        success=True,
+                    )
 
 
 def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:
@@ -105,6 +158,43 @@ def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:
         yield from iter_nfdump_rows(input_path, source_id)
         return
     raise ValueError(f'Unsupported input_kind: {input_kind}')
+
+
+def accumulate_input_buckets(rows: Iterable[NormalizedRow]) -> dict[tuple[str, int, int], BucketAccumulator]:
+    """Accumulate normalized rows by source and 5-minute bucket."""
+    buckets: dict[tuple[str, int, int], BucketAccumulator] = {}
+    for row in rows:
+        key = (row.source_id, row.bucket_start, row.bucket_end)
+        bucket = buckets.setdefault(
+            key,
+            BucketAccumulator(
+                source_id=row.source_id,
+                bucket_start=row.bucket_start,
+                bucket_end=row.bucket_end,
+            ),
+        )
+        bucket.add(row)
+    return buckets
+
+
+def process_maad_buckets(
+    conn: sqlite3.Connection,
+    buckets: dict[tuple[str, int, int], BucketAccumulator],
+    maad_bin: str | Path,
+) -> None:
+    """Run MAAD for each v2 bucket and persist structure/spectrum/dimensions."""
+    for bucket in buckets.values():
+        source_result = run_maad_json(maad_bin, bucket.maad_source_ipv4)
+        destination_result = run_maad_json(maad_bin, bucket.maad_destination_ipv4)
+        rows = build_maad_v2_rows(
+            source_id=bucket.source_id,
+            bucket_start=bucket.bucket_start,
+            bucket_end=bucket.bucket_end,
+            ip_version=4,
+            source_result=source_result,
+            destination_result=destination_result,
+        )
+        insert_maad_v2_rows(conn, rows)
 
 
 def iter_csv_rows(path: str, mapping_path: str) -> Iterable[NormalizedRow]:
@@ -158,7 +248,12 @@ def main() -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     with sqlite3.connect(db_path) as conn:
-        process_input_specs(conn, config['inputs'])
+        process_input_specs(
+            conn,
+            config['inputs'],
+            run_maad=bool(config.get('run_maad', False)),
+            maad_bin=config.get('maad_bin', DEFAULT_MAAD_BIN),
+        )
 
 
 if __name__ == '__main__':

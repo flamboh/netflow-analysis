@@ -9,7 +9,14 @@ from __future__ import annotations
 import sqlite3
 
 
-VALID_STATUS_TABLES = {'netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2'}
+VALID_STATUS_TABLES = {
+    'netflow_stats_v2',
+    'ip_stats_v2',
+    'protocol_stats_v2',
+    'structure_stats_v2',
+    'spectrum_stats_v2',
+    'dimension_stats_v2',
+}
 
 
 def init_processed_inputs_v2_table(conn: sqlite3.Connection) -> None:
@@ -26,10 +33,15 @@ def init_processed_inputs_v2_table(conn: sqlite3.Connection) -> None:
             netflow_stats_v2_status INTEGER,
             ip_stats_v2_status INTEGER,
             protocol_stats_v2_status INTEGER,
+            structure_stats_v2_status INTEGER,
+            spectrum_stats_v2_status INTEGER,
+            dimension_stats_v2_status INTEGER,
             PRIMARY KEY (input_kind, input_locator, source_id, bucket_start)
         ) WITHOUT ROWID
         """
     )
+    for column in ('structure_stats_v2_status', 'spectrum_stats_v2_status', 'dimension_stats_v2_status'):
+        ensure_column(conn, 'processed_inputs_v2', column, 'INTEGER')
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_processed_inputs_v2_source_bucket
@@ -37,6 +49,16 @@ def init_processed_inputs_v2_table(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+
+
+def ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, column_type: str) -> None:
+    """Add a column to an existing table when needed."""
+    columns = {
+        row[1]
+        for row in conn.execute(f'PRAGMA table_info({table_name})').fetchall()
+    }
+    if column_name not in columns:
+        conn.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}')
 
 
 def upsert_input_bucket(

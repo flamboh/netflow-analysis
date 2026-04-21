@@ -16,8 +16,11 @@ Pipeline v2 currently writes:
 - `netflow_stats_v2`
 - `ip_stats_v2`
 - `protocol_stats_v2`
+- `structure_stats_v2`
+- `spectrum_stats_v2`
+- `dimension_stats_v2`
 
-It does not yet run MAAD.
+MAAD is optional per run and is enabled with `run_maad: true`.
 
 ## Input Config
 
@@ -26,6 +29,8 @@ It does not yet run MAAD.
 ```json
 {
   "database_path": "./data/uoregon/netflow-v2.sqlite",
+  "run_maad": true,
+  "maad_bin": "./vendor/maad/MAAD",
   "inputs": [
     {
       "input_kind": "csv",
@@ -139,10 +144,40 @@ The v2 adapter treats these fields as:
 - `time_end = %te`
 - `time_start = %ts`
 
+## MAAD Contract
+
+When `run_maad` is enabled, pipeline v2 runs MAAD once for source IPv4 addresses
+and once for destination IPv4 addresses for each source/bucket.
+
+Current MAAD command shape:
+
+```bash
+MAAD --input - --output - --format json --structure --spectrum --dimensions
+```
+
+Expected JSON shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "input": "-",
+    "minPrefixLength": 7,
+    "maxPrefixLength": 23,
+    "totalAddrs": 84651
+  },
+  "structure": [{ "q": -0.5, "tauTilde": -0.986, "sd": 0.007 }],
+  "spectrum": [{ "alpha": 0.754, "f": 0.602 }],
+  "dimensions": [{ "q": 1, "dim": 0.481 }]
+}
+```
+
+Pipeline v2 stores source and destination outputs in the same row using `*_json_sa`
+and `*_json_da` columns. MAAD currently runs for IPv4 address buckets.
+
 ## Notes
 
 - Pipeline v2 does not persist raw/intermediate rows
 - Pipeline v2 currently works on explicit inputs; it does not yet replace the
   legacy discovery flow
-- MAAD integration is intentionally deferred until the upstream json/stdout
-  contract is available
+- MAAD integration assumes the JSON stdout contract shown above

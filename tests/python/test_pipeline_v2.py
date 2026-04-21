@@ -169,3 +169,97 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
             1,
         )
     ]
+
+
+def test_process_input_specs_runs_maad_when_enabled(monkeypatch) -> None:
+    pipeline_v2, normalized_rows_v2 = load_modules()
+    conn = sqlite3.connect(':memory:')
+
+    def fake_iter_nfdump_rows(path: str, source_id: str):
+        return iter(
+            [
+                normalized_rows_v2.NormalizedRow(
+                    source_id='oh_ir1_gw',
+                    bucket_start=1744733100,
+                    bucket_end=1744733400,
+                    time_received=1744733279,
+                    time_end=1744733000,
+                    time_start=1744732700,
+                    src_ip='192.0.2.1',
+                    dst_ip='198.51.100.9',
+                    ip_version=4,
+                    src_port=443,
+                    dst_port=55000,
+                    protocol=6,
+                    packets=10,
+                    bytes=1000,
+                    src_tos=2,
+                    dst_tos=0,
+                ),
+                normalized_rows_v2.NormalizedRow(
+                    source_id='oh_ir1_gw',
+                    bucket_start=1744733100,
+                    bucket_end=1744733400,
+                    time_received=1744733279,
+                    time_end=1744733000,
+                    time_start=1744732700,
+                    src_ip='192.0.2.2',
+                    dst_ip='198.51.100.10',
+                    ip_version=4,
+                    src_port=443,
+                    dst_port=55001,
+                    protocol=6,
+                    packets=11,
+                    bytes=1100,
+                    src_tos=2,
+                    dst_tos=0,
+                ),
+            ]
+        )
+
+    maad_calls = []
+
+    def fake_run_maad_json(maad_bin, addresses):
+        maad_calls.append((str(maad_bin), sorted(addresses)))
+        return pipeline_v2.MaadJsonResult(
+            schema_version=1,
+            metadata={
+                'input': '-',
+                'minPrefixLength': 7,
+                'maxPrefixLength': 23,
+                'totalAddrs': len(addresses),
+            },
+            structure=[{'q': -0.5, 'tauTilde': -0.98, 'sd': 0.01}],
+            spectrum=[{'alpha': 0.75, 'f': 0.60}],
+            dimensions=[{'q': 1, 'dim': 0.48}],
+        )
+
+    monkeypatch.setattr(pipeline_v2, 'iter_nfdump_rows', fake_iter_nfdump_rows)
+    monkeypatch.setattr(pipeline_v2, 'run_maad_json', fake_run_maad_json)
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {
+                'input_kind': 'nfcapd',
+                'path': '/captures/oh_ir1_gw/2025/04/15/nfcapd.202504150005',
+                'source_id': 'oh_ir1_gw',
+            }
+        ],
+        run_maad=True,
+        maad_bin='/tmp/MAAD',
+    )
+
+    structure = conn.execute(
+        'SELECT source_id, bucket_start, ip_version, structure_json_sa, structure_json_da FROM structure_stats_v2'
+    ).fetchone()
+    processed_inputs = conn.execute(
+        'SELECT structure_stats_v2_status, spectrum_stats_v2_status, dimension_stats_v2_status FROM processed_inputs_v2'
+    ).fetchone()
+
+    assert maad_calls == [
+        ('/tmp/MAAD', ['192.0.2.1', '192.0.2.2']),
+        ('/tmp/MAAD', ['198.51.100.10', '198.51.100.9']),
+    ]
+    assert structure[:3] == ('oh_ir1_gw', 1744733100, 4)
+    assert processed_inputs == (1, 1, 1)
