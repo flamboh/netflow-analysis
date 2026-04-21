@@ -148,3 +148,27 @@ def test_normalize_nfdump_csv_values_maps_expected_column_order() -> None:
     assert row.time_end == 1744733000
     assert row.time_start == 1744732700
     assert row.ip_version == 4
+
+
+def test_normalize_nfdump_csv_values_zeroes_decimal_pseudo_ports() -> None:
+    _, normalized_rows_v2 = load_modules()
+
+    row = normalized_rows_v2.normalize_nfdump_csv_values(
+        [
+            '1744733279.000',
+            '1744733000.000',
+            '1744732700.000',
+            '192.0.2.1',
+            '198.51.100.9',
+            '0',
+            '3.1',
+            '1',
+            '10',
+            '2048',
+            '2',
+            '0',
+        ],
+        source_id='oh_ir1_gw',
+    )
+
+    assert row.dst_port == 0

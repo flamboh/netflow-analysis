@@ -60,8 +60,8 @@ def normalize_nfdump_csv_values(values: Sequence[str], source_id: str) -> Normal
         'ts': values[2],
         'sa': values[3],
         'da': values[4],
-        'sp': values[5],
-        'dp': values[6],
+        'sp': normalize_nfdump_port(values[5]),
+        'dp': normalize_nfdump_port(values[6]),
         'pr': values[7],
         'pkt': values[8],
         'byt': values[9],
@@ -90,6 +90,14 @@ def normalize_nfdump_csv_values(values: Sequence[str], source_id: str) -> Normal
         source_id_column=None,
     )
     return normalize_csv_row(row, config)
+
+
+def normalize_nfdump_port(raw_value: str) -> str:
+    """Map nfdump ICMP type/code pseudo-ports to no transport port."""
+    raw_text = str(raw_value).strip()
+    if '.' in raw_text:
+        return '0'
+    return raw_text
 
 
 def normalize_csv_row(row: Mapping[str, Any], config: CsvSourceConfig) -> NormalizedRow:

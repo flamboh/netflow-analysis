@@ -262,3 +262,10 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
     ]
     assert structure[:3] == ('oh_ir1_gw', 1744733100, 4)
     assert processed_inputs == (1, 1, 1)
+
+
+def test_fractional_nfdump_timestamp_rows_are_not_headers() -> None:
+    pipeline_v2, _ = load_modules()
+
+    assert not pipeline_v2.looks_like_nfdump_header(['1741075200.000'])
+    assert pipeline_v2.looks_like_nfdump_header(['received'])

@@ -300,7 +300,7 @@ def iter_nfdump_rows(path: str, source_id: str) -> Iterable[NormalizedRow]:
 def looks_like_nfdump_header(values: list[str]) -> bool:
     """Return true when the csv row looks like a textual header."""
     try:
-        int(values[0])
+        float(values[0])
         return False
     except ValueError:
         return True

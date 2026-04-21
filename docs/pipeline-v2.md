@@ -146,6 +146,9 @@ The v2 adapter treats these fields as:
 The raw epoch forms are required because `%tr`, `%te`, and `%ts` emit formatted
 timestamps in nfdump CSV output.
 
+nfdump can emit ICMP type/code values such as `3.1` in port fields. Pipeline v2
+normalizes decimal pseudo-ports to `0` because they are not transport ports.
+
 ## MAAD Contract
 
 Pipeline v2 runs MAAD once for source IPv4 addresses and once for destination
