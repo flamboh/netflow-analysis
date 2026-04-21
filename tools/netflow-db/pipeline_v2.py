@@ -85,7 +85,6 @@ def process_input_specs(
     conn: sqlite3.Connection,
     input_specs: list[dict],
     *,
-    run_maad: bool = False,
     maad_bin: str | Path = DEFAULT_MAAD_BIN,
 ) -> None:
     """Process explicit input specs into the v2 aggregate tables."""
@@ -93,8 +92,7 @@ def process_input_specs(
     init_netflow_stats_v2_table(conn)
     init_ip_stats_v2_table(conn)
     init_protocol_stats_v2_table(conn)
-    if run_maad:
-        init_maad_v2_tables(conn)
+    init_maad_v2_tables(conn)
 
     for spec in input_specs:
         input_kind = str(spec['input_kind'])
@@ -118,8 +116,7 @@ def process_input_specs(
         insert_ip_stats_v2_rows(conn, build_ip_stats_v2_rows(rows))
         insert_protocol_stats_v2_rows(conn, build_protocol_stats_v2_rows(rows))
 
-        if run_maad:
-            process_maad_buckets(conn, buckets, maad_bin)
+        process_maad_buckets(conn, buckets, maad_bin)
 
         for source_id, bucket_start, _bucket_end in sorted(buckets):
             for table_name in ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2'):
@@ -132,17 +129,16 @@ def process_input_specs(
                     bucket_start=bucket_start,
                     success=True,
                 )
-            if run_maad:
-                for table_name in ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2'):
-                    mark_input_bucket_processed(
-                        conn,
-                        table_name=table_name,
-                        input_kind=input_kind,
-                        input_locator=input_locator,
-                        source_id=source_id,
-                        bucket_start=bucket_start,
-                        success=True,
-                    )
+            for table_name in ('structure_stats_v2', 'spectrum_stats_v2', 'dimension_stats_v2'):
+                mark_input_bucket_processed(
+                    conn,
+                    table_name=table_name,
+                    input_kind=input_kind,
+                    input_locator=input_locator,
+                    source_id=source_id,
+                    bucket_start=bucket_start,
+                    success=True,
+                )
 
 
 def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:
@@ -251,7 +247,6 @@ def main() -> None:
         process_input_specs(
             conn,
             config['inputs'],
-            run_maad=bool(config.get('run_maad', False)),
             maad_bin=config.get('maad_bin', DEFAULT_MAAD_BIN),
         )
 

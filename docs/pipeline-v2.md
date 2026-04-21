@@ -20,7 +20,7 @@ Pipeline v2 currently writes:
 - `spectrum_stats_v2`
 - `dimension_stats_v2`
 
-MAAD is optional per run and is enabled with `run_maad: true`.
+MAAD is always part of pipeline v2.
 
 ## Input Config
 
@@ -29,7 +29,6 @@ MAAD is optional per run and is enabled with `run_maad: true`.
 ```json
 {
   "database_path": "./data/uoregon/netflow-v2.sqlite",
-  "run_maad": true,
   "maad_bin": "./vendor/maad/MAAD",
   "inputs": [
     {
@@ -146,8 +145,8 @@ The v2 adapter treats these fields as:
 
 ## MAAD Contract
 
-When `run_maad` is enabled, pipeline v2 runs MAAD once for source IPv4 addresses
-and once for destination IPv4 addresses for each source/bucket.
+Pipeline v2 runs MAAD once for source IPv4 addresses and once for destination
+IPv4 addresses for each source/bucket.
 
 Current MAAD command shape:
 

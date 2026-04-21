@@ -171,7 +171,7 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
     ]
 
 
-def test_process_input_specs_runs_maad_when_enabled(monkeypatch) -> None:
+def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
     pipeline_v2, normalized_rows_v2 = load_modules()
     conn = sqlite3.connect(':memory:')
 
@@ -246,7 +246,6 @@ def test_process_input_specs_runs_maad_when_enabled(monkeypatch) -> None:
                 'source_id': 'oh_ir1_gw',
             }
         ],
-        run_maad=True,
         maad_bin='/tmp/MAAD',
     )
 
