@@ -22,6 +22,7 @@ import sqlite3
 import subprocess
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Iterable
@@ -428,8 +429,22 @@ def build_maad_rows_for_raw_bucket(raw_bucket: dict, granularity: str, maad_bin:
 
 
 def floor_bucket_start(bucket_start: int, bucket_seconds: int) -> int:
-    """Floor a 5m bucket start to a larger aggregate bucket."""
-    return bucket_start - (bucket_start % bucket_seconds)
+    """Floor a 5m bucket start to a local-time aggregate bucket."""
+    timestamp = datetime.fromtimestamp(bucket_start)
+    if bucket_seconds == 1800:
+        floored = timestamp.replace(
+            minute=(timestamp.minute // 30) * 30,
+            second=0,
+            microsecond=0,
+        )
+        return int(floored.timestamp())
+    if bucket_seconds == 3600:
+        floored = timestamp.replace(minute=0, second=0, microsecond=0)
+        return int(floored.timestamp())
+    if bucket_seconds == 86400:
+        floored = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        return int(floored.timestamp())
+    raise ValueError(f'Unsupported aggregate bucket size: {bucket_seconds}')
 
 
 def iter_input_rows(spec: dict) -> Iterable[NormalizedRow]:
