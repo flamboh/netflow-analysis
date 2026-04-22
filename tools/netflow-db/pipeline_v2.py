@@ -171,6 +171,189 @@ def load_pipeline_v2_config(path: str | Path) -> dict:
     return payload
 
 
+def process_pipeline_v2_config(conn: sqlite3.Connection, config: dict) -> None:
+    """Process a v2 config, including canonical nfcapd tree inputs."""
+    maad_bin = config.get('maad_bin', DEFAULT_MAAD_BIN)
+    max_workers = int(config.get('max_workers', DEFAULT_MAX_WORKERS))
+    explicit_inputs = []
+
+    for spec in config['inputs']:
+        input_kind = str(spec['input_kind'])
+        if input_kind == 'nfcapd_tree':
+            process_nfcapd_tree_spec(conn, spec, maad_bin=maad_bin, max_workers=max_workers)
+        else:
+            explicit_inputs.append(spec)
+
+    if explicit_inputs:
+        process_input_specs(conn, explicit_inputs, maad_bin=maad_bin, max_workers=max_workers)
+
+
+def process_nfcapd_tree_spec(
+    conn: sqlite3.Connection,
+    spec: dict,
+    *,
+    maad_bin: str | Path,
+    max_workers: int,
+) -> None:
+    """Process a canonical nfcapd tree one day at a time."""
+    root_path = Path(spec['root_path'])
+    source_ids = [str(source_id) for source_id in spec['source_ids']]
+    start_date = parse_config_date(str(spec['start_date']))
+    end_date = (
+        parse_config_date(str(spec['end_date']))
+        if spec.get('end_date')
+        else discover_latest_nfcapd_tree_day(root_path, source_ids)
+    )
+
+    for day in iter_days(start_date, end_date):
+        input_specs = discover_nfcapd_tree_specs(root_path, source_ids, day)
+        if not input_specs:
+            LOGGER.info('No nfcapd files found for %s', day.strftime('%Y-%m-%d'))
+            continue
+        if all_tree_specs_processed(conn, input_specs):
+            print(f"[pipeline_v2] Skip {day.strftime('%Y-%m-%d')}: {len(input_specs)} already processed")
+            continue
+        print(f"[pipeline_v2] Processing {day.strftime('%Y-%m-%d')}: {len(input_specs)} nfcapd files")
+        process_input_specs(conn, input_specs, maad_bin=maad_bin, max_workers=max_workers)
+        print(f"[pipeline_v2] Complete {day.strftime('%Y-%m-%d')}: {len(input_specs)} nfcapd files")
+
+
+def discover_nfcapd_tree_specs(
+    root_path: str | Path,
+    source_ids: list[str],
+    day: datetime,
+) -> list[dict]:
+    """Discover nfcapd files under <root>/<source>/YYYY/MM/DD."""
+    root = Path(root_path)
+    specs = []
+    for source_id in sorted(source_ids):
+        day_dir = root / source_id / day.strftime('%Y') / day.strftime('%m') / day.strftime('%d')
+        if not day_dir.is_dir():
+            continue
+        for path in sorted(day_dir.glob('nfcapd.*')):
+            specs.append(
+                {
+                    'input_kind': 'nfcapd',
+                    'path': str(path),
+                    'source_id': source_id,
+                }
+            )
+    return specs
+
+
+def all_tree_specs_processed(conn: sqlite3.Connection, input_specs: list[dict]) -> bool:
+    """Return true when every discovered file has processed v2 status."""
+    if not input_specs:
+        return False
+    init_processed_inputs_v2_table(conn)
+    locators = [spec['path'] for spec in input_specs]
+    processed = set()
+    for batch in chunked(locators, 900):
+        placeholders = ','.join('?' for _ in batch)
+        rows = conn.execute(
+            f"""
+            SELECT input_locator
+            FROM processed_inputs_v2
+            WHERE input_kind = 'nfcapd'
+              AND status = 'processed'
+              AND input_locator IN ({placeholders})
+            """,
+            batch,
+        ).fetchall()
+        processed.update(row[0] for row in rows)
+    return processed == set(locators)
+
+
+def chunked(values: list[str], size: int) -> Iterable[list[str]]:
+    """Yield fixed-size chunks from values."""
+    for index in range(0, len(values), size):
+        yield values[index:index + size]
+
+
+def discover_latest_nfcapd_tree_day(root_path: str | Path, source_ids: list[str]) -> datetime:
+    """Return the latest day containing a canonical nfcapd file."""
+    root = Path(root_path)
+    latest: datetime | None = None
+    for source_id in source_ids:
+        source_root = root / source_id
+        if not source_root.is_dir():
+            continue
+        for year_dir in sorted(source_root.glob('????')):
+            if not year_dir.is_dir():
+                continue
+            for month_dir in sorted(year_dir.glob('??')):
+                if not month_dir.is_dir():
+                    continue
+                for day_dir in sorted(month_dir.glob('??')):
+                    if not day_dir.is_dir():
+                        continue
+                    try:
+                        day = datetime.strptime(
+                            f'{year_dir.name}/{month_dir.name}/{day_dir.name}',
+                            '%Y/%m/%d',
+                        )
+                    except ValueError:
+                        continue
+                    if latest is None or day > latest:
+                        latest = day
+
+    if latest is None:
+        raise ValueError(f'No nfcapd files found under {root}')
+    return latest
+
+
+def iter_days(start_date: datetime, end_date: datetime) -> Iterable[datetime]:
+    """Yield inclusive calendar days."""
+    if end_date < start_date:
+        raise ValueError('end_date must be on or after start_date')
+    current = start_date
+    while current <= end_date:
+        yield current
+        current += timedelta(days=1)
+
+
+def parse_config_date(raw_value: str) -> datetime:
+    """Parse a YYYY-MM-DD date from config or CLI."""
+    try:
+        return datetime.strptime(raw_value, '%Y-%m-%d')
+    except ValueError as error:
+        raise ValueError(f'Invalid date {raw_value!r}; expected YYYY-MM-DD') from error
+
+
+def build_dataset_tree_config(
+    *,
+    dataset_id: str,
+    start_date: str,
+    end_date: str | None = None,
+    database_path: str | Path | None = None,
+    maad_bin: str | Path = DEFAULT_MAAD_BIN,
+    max_workers: int = DEFAULT_MAX_WORKERS,
+) -> dict:
+    """Build a v2 nfcapd_tree config from datasets.json."""
+    from common import get_dataset_config, list_dataset_sources
+
+    dataset = get_dataset_config(dataset_id)
+    db_path = (
+        Path(database_path)
+        if database_path is not None
+        else Path(__file__).resolve().parents[2] / 'data' / f'{dataset_id}-v2' / 'netflow.sqlite'
+    )
+    tree_input = {
+        'input_kind': 'nfcapd_tree',
+        'root_path': dataset['root_path'],
+        'source_ids': list_dataset_sources(dataset_id),
+        'start_date': start_date,
+    }
+    if end_date is not None:
+        tree_input['end_date'] = end_date
+    return {
+        'database_path': str(db_path),
+        'maad_bin': str(maad_bin),
+        'max_workers': max_workers,
+        'inputs': [tree_input],
+    }
+
+
 def process_input_specs(
     conn: sqlite3.Connection,
     input_specs: list[dict],
@@ -607,20 +790,34 @@ def looks_like_nfdump_header(values: list[str]) -> bool:
 def main() -> None:
     """Run the minimal pipeline v2 entrypoint."""
     parser = argparse.ArgumentParser(description='Pipeline v2 processor')
-    parser.add_argument('--config', required=True, help='Path to the pipeline_v2 json config.')
+    parser.add_argument('--config', help='Path to the pipeline_v2 json config.')
+    parser.add_argument('--dataset', help='Dataset id from datasets.json for canonical nfcapd tree input.')
+    parser.add_argument('--start-date', help='Start date for --dataset, inclusive, YYYY-MM-DD.')
+    parser.add_argument('--end-date', help='End date for --dataset, inclusive, YYYY-MM-DD. Defaults to latest nfcapd day.')
+    parser.add_argument('--database-path', help='Override v2 SQLite output path.')
+    parser.add_argument('--maad-bin', default=str(DEFAULT_MAAD_BIN), help='Path to MAAD binary.')
+    parser.add_argument('--max-workers', type=int, default=DEFAULT_MAX_WORKERS, help='Worker process count.')
     args = parser.parse_args()
 
-    config = load_pipeline_v2_config(args.config)
+    if args.config:
+        config = load_pipeline_v2_config(args.config)
+    else:
+        if not args.dataset or not args.start_date:
+            parser.error('--config or both --dataset and --start-date is required')
+        config = build_dataset_tree_config(
+            dataset_id=args.dataset,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            database_path=args.database_path,
+            maad_bin=args.maad_bin,
+            max_workers=args.max_workers,
+        )
+
     db_path = Path(config['database_path'])
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     with sqlite3.connect(db_path) as conn:
-        process_input_specs(
-            conn,
-            config['inputs'],
-            maad_bin=config.get('maad_bin', DEFAULT_MAAD_BIN),
-            max_workers=int(config.get('max_workers', DEFAULT_MAX_WORKERS)),
-        )
+        process_pipeline_v2_config(conn, config)
 
 
 if __name__ == '__main__':
