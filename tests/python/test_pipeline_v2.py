@@ -220,6 +220,171 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
     ]
 
 
+def test_discover_nfcapd_tree_specs_uses_canonical_layout(tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    root = tmp_path / 'uoregon'
+    valid = [
+        root / 'cc_ir1_gw' / '2025' / '02' / '01' / 'nfcapd.202502010000',
+        root / 'cc_ir1_gw' / '2025' / '02' / '01' / 'nfcapd.202502010005',
+        root / 'oh_ir1_gw' / '2025' / '02' / '01' / 'nfcapd.202502010000',
+    ]
+    ignored = root / 'oh_ir1_gw' / '2025' / '02' / '02' / 'nfcapd.202502020000'
+    for path in [*valid, ignored]:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('', encoding='utf-8')
+
+    specs = pipeline_v2.discover_nfcapd_tree_specs(
+        root_path=root,
+        source_ids=['oh_ir1_gw', 'cc_ir1_gw'],
+        day=datetime(2025, 2, 1),
+    )
+
+    assert specs == [
+        {
+            'input_kind': 'nfcapd',
+            'path': str(valid[0]),
+            'source_id': 'cc_ir1_gw',
+        },
+        {
+            'input_kind': 'nfcapd',
+            'path': str(valid[1]),
+            'source_id': 'cc_ir1_gw',
+        },
+        {
+            'input_kind': 'nfcapd',
+            'path': str(valid[2]),
+            'source_id': 'oh_ir1_gw',
+        },
+    ]
+
+
+def test_process_pipeline_v2_config_chunks_nfcapd_tree_by_day(monkeypatch, tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    root = tmp_path / 'uoregon'
+    calls = []
+
+    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers):
+        calls.append((input_specs, str(maad_bin), max_workers))
+
+    for day in ['01', '02']:
+        for source_id in ['cc_ir1_gw', 'oh_ir1_gw']:
+            path = root / source_id / '2025' / '02' / day / f'nfcapd.202502{day}0000'
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('', encoding='utf-8')
+
+    monkeypatch.setattr(pipeline_v2, 'process_input_specs', fake_process_input_specs)
+
+    pipeline_v2.process_pipeline_v2_config(
+        conn,
+        {
+            'maad_bin': '/tmp/MAAD',
+            'max_workers': 16,
+            'inputs': [
+                {
+                    'input_kind': 'nfcapd_tree',
+                    'root_path': str(root),
+                    'source_ids': ['cc_ir1_gw', 'oh_ir1_gw'],
+                    'start_date': '2025-02-01',
+                    'end_date': '2025-02-02',
+                }
+            ],
+        },
+    )
+
+    assert [len(input_specs) for input_specs, _, _ in calls] == [2, 2]
+    assert calls[0][0][0]['path'].endswith('/cc_ir1_gw/2025/02/01/nfcapd.202502010000')
+    assert calls[1][0][1]['path'].endswith('/oh_ir1_gw/2025/02/02/nfcapd.202502020000')
+    assert all(maad_bin == '/tmp/MAAD' and max_workers == 16 for _, maad_bin, max_workers in calls)
+
+
+def test_process_pipeline_v2_config_defaults_tree_end_date_to_latest_file(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    root = tmp_path / 'uoregon'
+    calls = []
+
+    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers):
+        calls.append(input_specs)
+
+    for day in ['01', '03']:
+        path = root / 'cc_ir1_gw' / '2025' / '02' / day / f'nfcapd.202502{day}0000'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('', encoding='utf-8')
+
+    monkeypatch.setattr(pipeline_v2, 'process_input_specs', fake_process_input_specs)
+
+    pipeline_v2.process_pipeline_v2_config(
+        conn,
+        {
+            'inputs': [
+                {
+                    'input_kind': 'nfcapd_tree',
+                    'root_path': str(root),
+                    'source_ids': ['cc_ir1_gw'],
+                    'start_date': '2025-02-01',
+                }
+            ],
+        },
+    )
+
+    assert [input_specs[0]['path'] for input_specs in calls] == [
+        str(root / 'cc_ir1_gw' / '2025' / '02' / '01' / 'nfcapd.202502010000'),
+        str(root / 'cc_ir1_gw' / '2025' / '02' / '03' / 'nfcapd.202502030000'),
+    ]
+
+
+def test_process_pipeline_v2_config_skips_fully_processed_tree_day(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    root = tmp_path / 'uoregon'
+    path = root / 'cc_ir1_gw' / '2025' / '02' / '01' / 'nfcapd.202502010000'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('', encoding='utf-8')
+    pipeline_v2.init_processed_inputs_v2_table(conn)
+    pipeline_v2.upsert_input_bucket(
+        conn,
+        input_kind='nfcapd',
+        input_locator=str(path),
+        source_id='cc_ir1_gw',
+        bucket_start=1738396800,
+        bucket_end=1738397100,
+    )
+    pipeline_v2.mark_input_bucket_status(
+        conn,
+        input_kind='nfcapd',
+        input_locator=str(path),
+        source_id='cc_ir1_gw',
+        bucket_start=1738396800,
+        status='processed',
+    )
+
+    monkeypatch.setattr(
+        pipeline_v2,
+        'process_input_specs',
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('processed day should skip')),
+    )
+
+    pipeline_v2.process_pipeline_v2_config(
+        conn,
+        {
+            'inputs': [
+                {
+                    'input_kind': 'nfcapd_tree',
+                    'root_path': str(root),
+                    'source_ids': ['cc_ir1_gw'],
+                    'start_date': '2025-02-01',
+                    'end_date': '2025-02-01',
+                }
+            ],
+        },
+    )
+
+
 def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
     pipeline_v2, normalized_rows_v2 = load_modules()
     conn = sqlite3.connect(':memory:')

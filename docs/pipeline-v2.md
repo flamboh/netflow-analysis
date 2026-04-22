@@ -29,7 +29,26 @@ status columns.
 
 ## Input Config
 
-`pipeline_v2.py` takes an explicit json config:
+For canonical on-disk nfcapd datasets, run v2 directly from `datasets.json`:
+
+```bash
+python tools/netflow-db/pipeline_v2.py --dataset uoregon --start-date 2025-02-01
+```
+
+This assumes the standard nfcapd layout:
+
+```text
+<dataset-root>/<source_id>/YYYY/MM/DD/nfcapd.YYYYMMDDHHMM
+```
+
+`--end-date` is optional and defaults to the latest discovered nfcapd day. The
+pipeline processes this tree one calendar day at a time into
+`./data/<dataset>-v2/netflow.sqlite`, keeping memory bounded. Reruns skip days
+where every discovered nfcapd file is already marked `processed`; partial days
+are rebuilt as a full day so aggregate rows stay coherent.
+
+Explicit json configs are still supported for csv inputs and unusual file
+layouts:
 
 ```json
 {
@@ -45,6 +64,13 @@ status columns.
       "input_kind": "nfcapd",
       "path": "/research/obo/netflow_datasets/uoregon/oh_ir1_gw/2025/04/15/nfcapd.202504150005",
       "source_id": "oh_ir1_gw"
+    },
+    {
+      "input_kind": "nfcapd_tree",
+      "root_path": "/research/obo/netflow_datasets/uoregon",
+      "source_ids": ["cc_ir1_gw", "oh_ir1_gw"],
+      "start_date": "2025-02-01",
+      "end_date": "2025-02-07"
     }
   ]
 }
@@ -192,8 +218,5 @@ and `*_json_da` columns. MAAD currently runs for IPv4 address buckets.
 ## Notes
 
 - Pipeline v2 does not persist raw/intermediate rows
-- Pipeline v2 currently works on explicit inputs; it does not yet replace the
-  legacy discovery flow
+- Pipeline v2 has first-class support for canonical nfcapd directory trees
 - MAAD is mandatory and assumes the JSON stdout contract shown above
-- Real uoregon correctness checks live in `tests/local_only/uoregon_v2_validation.py`.
-  They are not part of default pytest discovery and require `RUN_LOCAL_NETFLOW_V2=1`.
