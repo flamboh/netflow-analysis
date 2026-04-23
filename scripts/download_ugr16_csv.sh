@@ -4,27 +4,29 @@ set -euo pipefail
 BASE_URL="https://nesg.ugr.es/nesg-ugr16/"
 DEST_DIR="${RAW_DATASETS_PATH:-/research/obo/raw_datasets}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-URL_LIST_NAME="ugr16-nfcapd-urls.txt"
+URL_LIST_NAME="ugr16-csv-urls.txt"
 URLS_ONLY=0
 DOWNLOADER=""
 
 usage() {
   cat <<'EOF'
-Usage: download_ugr16_nfcapd.sh [options]
+Usage: download_ugr16_csv.sh [options]
 
-Download only the UGR16 weekly nfcapd archives from the NESG dataset site.
+Download only the UGR16 weekly labeled CSV archives from the NESG dataset site.
+
+Matches the week-level `march_week3_csv.tar.gz` style assets.
 
 Options:
-  --dest DIR          Destination directory for archives and URL manifest.
-                      Default: \$RAW_DATASETS_PATH or /research/obo/raw_datasets
+  --dest DIR          Destination directory for downloads and URL manifest.
+                      Default: $RAW_DATASETS_PATH or /research/obo/raw_datasets
   --urls-only         Only generate the URL manifest; do not download files.
   --downloader NAME   Force a downloader: aria2c, wget, or curl.
   -h, --help          Show this help text.
 
 Examples:
-  scripts/download_ugr16_nfcapd.sh
-  scripts/download_ugr16_nfcapd.sh --urls-only
-  scripts/download_ugr16_nfcapd.sh --dest /research/obo/raw_datasets
+  scripts/download_ugr16_csv.sh
+  scripts/download_ugr16_csv.sh --urls-only
+  scripts/download_ugr16_csv.sh --dest /research/obo/raw_datasets
 EOF
 }
 
@@ -66,19 +68,18 @@ trap 'rm -f "$TMP_URL_LIST"' EXIT
 
 python3 "$SCRIPT_DIR/scrape_ugr16_download_urls.py" \
   --base-url "$BASE_URL" \
-  --kind nfcapd \
+  --kind csv \
   > "$TMP_URL_LIST"
-
 
 sort -u "$TMP_URL_LIST" > "$URL_LIST_PATH"
 URL_COUNT="$(wc -l < "$URL_LIST_PATH" | tr -d ' ')"
 
 if [[ "$URL_COUNT" -eq 0 ]]; then
-  echo "No nfcapd archive URLs were found." >&2
+  echo "No CSV asset URLs were found." >&2
   exit 1
 fi
 
-echo "Wrote $URL_COUNT archive URLs to $URL_LIST_PATH"
+echo "Wrote $URL_COUNT CSV asset URLs to $URL_LIST_PATH"
 echo "Destination directory: $DEST_DIR"
 
 if [[ "$URLS_ONLY" -eq 1 ]]; then
