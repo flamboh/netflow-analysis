@@ -48,6 +48,9 @@ export type NetflowMetricField =
 	| 'bytesIcmp'
 	| 'bytesOther';
 
+export type NetflowIpFamily = 'all' | 'ipv4' | 'ipv6';
+export type NetflowSplitMetricField = `${NetflowMetricField}Ipv4` | `${NetflowMetricField}Ipv6`;
+
 export interface NetflowMetricTotals {
 	flows: number;
 	flowsTcp: number;
@@ -66,8 +69,17 @@ export interface NetflowMetricTotals {
 	bytesOther: number;
 }
 
-export interface NetflowStatsResult extends NetflowMetricTotals {
+export type NetflowMetricTotalsByIpFamily = {
+	[key in NetflowSplitMetricField]: number;
+};
+
+export interface NetflowStatsResult extends NetflowMetricTotals, NetflowMetricTotalsByIpFamily {
 	bucketStart: number;
+}
+
+export interface NetflowStatsResponse {
+	result: NetflowStatsResult[];
+	availableIpFamilies: NetflowIpFamily[];
 }
 
 export interface NetflowFileSummaryRecord {
