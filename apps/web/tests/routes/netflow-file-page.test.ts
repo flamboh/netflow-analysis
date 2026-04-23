@@ -6,7 +6,7 @@ describe('/netflow/files/[slug] page load', () => {
 		vi.unstubAllEnvs();
 	});
 
-	it('returns page props and singularities visibility from server load', async () => {
+	it('returns page props with v2 singularities disabled', async () => {
 		vi.stubEnv('SHOW_SINGULARITIES', 'true');
 
 		const fetch = vi.fn().mockResolvedValue({
@@ -37,7 +37,7 @@ describe('/netflow/files/[slug] page load', () => {
 		expect(result).toEqual({
 			dataset: 'alpha',
 			slug: '202503010005',
-			showSingularities: true,
+			showSingularities: false,
 			fileInfo: {
 				year: '2025',
 				month: '03',

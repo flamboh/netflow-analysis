@@ -19,7 +19,12 @@
 		ChartTypeOption,
 		RouterConfig
 	} from './types.ts';
-	import type { NetflowStatsResult } from '$lib/types/types';
+	import type {
+		NetflowIpFamily,
+		NetflowMetricTotals,
+		NetflowStatsResponse,
+		NetflowStatsResult
+	} from '$lib/types/types';
 
 	const props = $props<{
 		dataset: string;
@@ -36,11 +41,59 @@
 		groupByChange: { groupBy: GroupByOption };
 		dataOptionsChange: { options: DataOption[] };
 	}>();
+	const IP_FAMILY_LABELS: Record<NetflowIpFamily, string> = {
+		all: 'All',
+		ipv4: 'IPv4',
+		ipv6: 'IPv6'
+	};
 
 	let chartType = $state<ChartTypeOption>('stacked');
-	let results = $state<NetflowDataPoint[]>([]);
+	let selectedIpFamily = $state<NetflowIpFamily>('all');
+	let availableIpFamilies = $state<NetflowIpFamily[]>(['all']);
+	let rawResults = $state.raw<NetflowStatsResult[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+
+	function getMetricsForFamily(
+		row: NetflowStatsResult,
+		suffix: 'Ipv4' | 'Ipv6' | null
+	): NetflowMetricTotals {
+		return {
+			flows: suffix ? (row[`flows${suffix}`] ?? 0) : row.flows,
+			flowsTcp: suffix ? (row[`flowsTcp${suffix}`] ?? 0) : row.flowsTcp,
+			flowsUdp: suffix ? (row[`flowsUdp${suffix}`] ?? 0) : row.flowsUdp,
+			flowsIcmp: suffix ? (row[`flowsIcmp${suffix}`] ?? 0) : row.flowsIcmp,
+			flowsOther: suffix ? (row[`flowsOther${suffix}`] ?? 0) : row.flowsOther,
+			packets: suffix ? (row[`packets${suffix}`] ?? 0) : row.packets,
+			packetsTcp: suffix ? (row[`packetsTcp${suffix}`] ?? 0) : row.packetsTcp,
+			packetsUdp: suffix ? (row[`packetsUdp${suffix}`] ?? 0) : row.packetsUdp,
+			packetsIcmp: suffix ? (row[`packetsIcmp${suffix}`] ?? 0) : row.packetsIcmp,
+			packetsOther: suffix ? (row[`packetsOther${suffix}`] ?? 0) : row.packetsOther,
+			bytes: suffix ? (row[`bytes${suffix}`] ?? 0) : row.bytes,
+			bytesTcp: suffix ? (row[`bytesTcp${suffix}`] ?? 0) : row.bytesTcp,
+			bytesUdp: suffix ? (row[`bytesUdp${suffix}`] ?? 0) : row.bytesUdp,
+			bytesIcmp: suffix ? (row[`bytesIcmp${suffix}`] ?? 0) : row.bytesIcmp,
+			bytesOther: suffix ? (row[`bytesOther${suffix}`] ?? 0) : row.bytesOther
+		};
+	}
+
+	let results = $derived.by<NetflowDataPoint[]>(() => {
+		const suffix =
+			selectedIpFamily === 'all' ? null : selectedIpFamily === 'ipv4' ? 'Ipv4' : 'Ipv6';
+		return rawResults.map((row) => ({
+			bucketStart: row.bucketStart,
+			...getMetricsForFamily(row, suffix)
+		}));
+	});
+
+	let ipFamilyOptions = $derived.by(() =>
+		availableIpFamilies.length > 1
+			? availableIpFamilies.map((family) => ({
+					value: family,
+					label: IP_FAMILY_LABELS[family]
+				}))
+			: []
+	);
 
 	type FilterInputs = {
 		startDate: string;
@@ -76,10 +129,14 @@
 		};
 	}
 
-	function readCachedResults(cacheKey: string, requestedRange: TimeRange): NetflowDataPoint[] {
+	function readCachedResults(cacheKey: string, requestedRange: TimeRange): NetflowStatsResult[] {
 		return readCachedWindow<NetflowStatsResult>(cacheKey, requestedRange, (record, range) => {
 			return record.bucketStart >= range.start && record.bucketStart < range.end;
 		});
+	}
+
+	function handleIpFamilyChange(ipFamily: NetflowIpFamily) {
+		selectedIpFamily = ipFamily;
 	}
 
 	async function loadData(
@@ -123,8 +180,12 @@
 						throw new Error(message || `Failed to load data: ${response.statusText}`);
 					}
 
-					const json = await response.json();
-					return json.result as NetflowStatsResult[];
+					const json = (await response.json()) as NetflowStatsResponse;
+					availableIpFamilies = json.availableIpFamilies;
+					if (!json.availableIpFamilies.includes(selectedIpFamily)) {
+						selectedIpFamily = 'all';
+					}
+					return json.result;
 				},
 				getRecordKey: (record) => `${record.bucketStart}`,
 				compareRecords: (left, right) => left.bucketStart - right.bucketStart
@@ -133,13 +194,13 @@
 			if (token !== requestToken) {
 				return;
 			}
-			results = readCachedResults(cacheKey, requestedRange);
+			rawResults = readCachedResults(cacheKey, requestedRange);
 		} catch (err) {
 			if (token !== requestToken) {
 				return;
 			}
 			error = `Failed to load data: ${err instanceof Error ? err.message : 'Unknown error'}`;
-			results = [];
+			rawResults = [];
 		} finally {
 			if (token === requestToken) {
 				loading = false;
@@ -176,14 +237,14 @@
 
 		if (!props.routersLoaded) {
 			error = null;
-			results = [];
+			rawResults = [];
 			loading = true;
 			return;
 		}
 
 		if (selectedRouters.length === 0) {
 			error = 'Select at least one router to view NetFlow statistics';
-			results = [];
+			rawResults = [];
 			loading = false;
 			return;
 		}
@@ -225,6 +286,9 @@
 			onDataOptionsChange={handleDataOptionsChange}
 			{chartType}
 			onChartTypeChange={handleChartTypeChange}
+			{ipFamilyOptions}
+			{selectedIpFamily}
+			onIpFamilyChange={handleIpFamilyChange}
 		/>
 
 		<div

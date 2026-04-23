@@ -3,16 +3,14 @@ import type { RequestHandler } from './$types';
 import { IP_GRANULARITIES } from '$lib/types/types';
 import type { IpGranularity, IpStatsBucket, IpStatsResponse } from '$lib/types/types';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
+import {
+	getNetflowSchemaVersion,
+	parseSourceIds,
+	parseTimestamp,
+	placeholders
+} from '$lib/server/netflow-v2';
 
 const VALID_GRANULARITIES = new Set<string>(IP_GRANULARITIES);
-
-function parseRouters(param: string | null): string[] {
-	if (!param) return [];
-	return param
-		.split(',')
-		.map((router) => router.trim())
-		.filter((router) => router.length > 0);
-}
 
 function parseGranularity(param: string | null): IpGranularity | null {
 	if (!param) return null;
@@ -22,15 +20,9 @@ function parseGranularity(param: string | null): IpGranularity | null {
 	return null;
 }
 
-function parseTimestamp(param: string | null): number | null {
-	if (!param) return null;
-	const value = Number(param);
-	return Number.isFinite(value) ? value : null;
-}
-
 export const GET: RequestHandler = async ({ url }) => {
 	const dataset = getRequestedDataset(url);
-	const routers = parseRouters(url.searchParams.get('routers'));
+	const routers = parseSourceIds(url.searchParams.get('routers'));
 	const granularity =
 		parseGranularity(url.searchParams.get('granularity')) ?? (IP_GRANULARITIES[2] as IpGranularity); // default 1h
 	const start = parseTimestamp(url.searchParams.get('startDate'));
@@ -50,12 +42,14 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	try {
 		const db = getDatasetDb(dataset);
-		const placeholders = routers.map(() => '?').join(',');
+		const schema = getNetflowSchemaVersion(db);
+		const tableName = schema === 'v2' ? 'ip_stats_v2' : 'ip_stats';
+		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
 		const params = [granularity, ...routers, start, end];
 
 		const query = `
 			SELECT
-				router,
+				${sourceColumn} AS router,
 				bucket_start AS bucketStart,
 				bucket_end   AS bucketEnd,
 				granularity,
@@ -64,13 +58,13 @@ export const GET: RequestHandler = async ({ url }) => {
 				SUM(sa_ipv6_count) AS saIpv6Count,
 				SUM(da_ipv6_count) AS daIpv6Count,
 				MAX(processed_at) AS processedAt
-			FROM ip_stats
+			FROM ${tableName}
 			WHERE granularity = ?
-				AND router IN (${placeholders})
+				AND ${sourceColumn} IN (${placeholders(routers)})
 				AND bucket_start >= ?
 				AND bucket_start < ?
-			GROUP BY router, bucket_start, bucket_end, granularity
-			ORDER BY router ASC, bucket_start ASC
+			GROUP BY ${sourceColumn}, bucket_start, bucket_end, granularity
+			ORDER BY ${sourceColumn} ASC, bucket_start ASC
 		`;
 
 		const stmt = db.prepare(query);
