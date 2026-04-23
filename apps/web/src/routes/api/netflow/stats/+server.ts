@@ -2,36 +2,19 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import type { NetflowStatsResult } from '$lib/types/types';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
-
-// Bucket sizes in seconds
-const BUCKET_SIZES: Record<string, number> = {
-	date: 86400, // 24 hours
-	hour: 3600, // 1 hour
-	'30min': 1800, // 30 minutes
-	'5min': 300 // 5 minutes
-};
-
-/**
- * Generate SQL expression for epoch-based bucket calculation in local time.
- * Server timezone is set to America/Los_Angeles to handle DST correctly.
- */
-function getBucketStartQuery(groupBy: string): string {
-	const bucketSize = BUCKET_SIZES[groupBy] ?? BUCKET_SIZES.date;
-	return `(CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime', 'start of day', 'utc', printf('+%d seconds', ((CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime')) AS integer) - CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime', 'start of day')) AS integer)) / ${bucketSize}) * ${bucketSize}))) AS integer))`;
-}
+import {
+	getBucketStartQuery,
+	getNetflowSchemaVersion,
+	parseSourceIds,
+	placeholders
+} from '$lib/server/netflow-v2';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const dataset = getRequestedDataset(url);
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
-	// const fullDay = url.searchParams.get('fullDay') === 'true';
-	// const time = url.searchParams.get('time') || '1200';
-	// const endTime = url.searchParams.get('endTime') || '0100';
-	const routersParam = url.searchParams.get('routers') || '';
 	const groupBy = url.searchParams.get('groupBy') || 'date';
-
-	// Parse routers
-	const routers = routersParam.split(',').filter((r) => r.length > 0);
+	const routers = parseSourceIds(url.searchParams.get('routers'));
 
 	if (routers.length === 0) {
 		return json({ error: 'No routers selected' }, { status: 400 });
@@ -39,7 +22,11 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	try {
 		const db = getDatasetDb(dataset);
-		const bucketStartQuery = getBucketStartQuery(groupBy);
+		const schema = getNetflowSchemaVersion(db);
+		const timeColumn = schema === 'v2' ? 'bucket_start' : 'timestamp';
+		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
+		const tableName = schema === 'v2' ? 'netflow_stats_v2' : 'netflow_stats';
+		const bucketStartQuery = getBucketStartQuery(timeColumn, groupBy);
 
 		const query = `
 			SELECT 
@@ -59,10 +46,10 @@ export const GET: RequestHandler = async ({ url }) => {
 				SUM(bytes_udp) AS bytesUdp,
 				SUM(bytes_icmp) AS bytesIcmp,
 				SUM(bytes_other) AS bytesOther
-			FROM netflow_stats 
-			WHERE router IN (${routers.map(() => '?').join(',')})
-			AND timestamp >= ? 
-			AND timestamp < ?
+			FROM ${tableName} 
+			WHERE ${sourceColumn} IN (${placeholders(routers)})
+			AND ${timeColumn} >= ? 
+			AND ${timeColumn} < ?
 			GROUP BY bucketStart
 			ORDER BY bucketStart
 		`;

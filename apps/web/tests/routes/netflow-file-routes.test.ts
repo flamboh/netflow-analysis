@@ -19,6 +19,16 @@ vi.mock('$lib/server/datasets', () => ({
 	getDatasetDb: vi.fn()
 }));
 
+vi.mock('$lib/server/netflow-v2', async () => {
+	const actual =
+		await vi.importActual<typeof import('$lib/server/netflow-v2')>('$lib/server/netflow-v2');
+	return {
+		...actual,
+		assertNetflowV2Database: vi.fn(),
+		getNetflowSchemaVersion: vi.fn(() => 'v2')
+	};
+});
+
 vi.mock('$lib/server/paths', () => ({
 	getMaadDir: vi.fn()
 }));
@@ -55,7 +65,7 @@ describe('netflow file helpers and routes', () => {
 	it('looks up netflow file paths by slug + router', async () => {
 		vi.mocked(getDatasetDb).mockReturnValue({
 			prepare: vi.fn().mockReturnValue({
-				get: vi.fn().mockReturnValue({ file_path: '/captures/r1/nfcapd.202503010005' })
+				get: vi.fn().mockReturnValue({ input_locator: '/captures/r1/nfcapd.202503010005' })
 			})
 		} as never);
 
@@ -78,8 +88,8 @@ describe('netflow file helpers and routes', () => {
 				spectrumJsonDa: '[{"alpha":3,"f":4}]'
 			})
 			.mockReturnValueOnce({
-				structureJsonSa: '[{"q":1,"s":2}]',
-				structureJsonDa: '[{"q":3,"s":4}]'
+				structureJsonSa: '[{"q":1,"tauTilde":2,"sd":0.5}]',
+				structureJsonDa: '[{"q":3,"tauTilde":4,"sd":0.75}]'
 			});
 		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
 		vi.mocked(getDatasetDb).mockReturnValue({
@@ -122,7 +132,7 @@ describe('netflow file helpers and routes', () => {
 			slug: '202503010005',
 			router: 'r1',
 			filename: 'nfcapd.202503010005',
-			structureFunction: [{ q: 1, s: 2 }],
+			structureFunction: [{ q: 1, tau: 2, sd: 0.5 }],
 			metadata: {
 				dataSource: 'Database: structure_stats 5m bucket (Source Addresses)',
 				uniqueIPCount: -1,
@@ -141,6 +151,11 @@ describe('netflow file helpers and routes', () => {
 					{
 						router: 'r1',
 						file_path: '/captures/r1/nfcapd.202503010005',
+						input_kind: 'nfcapd',
+						input_status: 'processed',
+						input_error_message: null,
+						bucket_start: 1740823500,
+						bucket_end: 1740823800,
 						flows: 1,
 						flows_tcp: 2,
 						flows_udp: 3,
@@ -166,7 +181,7 @@ describe('netflow file helpers and routes', () => {
 						daIpv4Count: 3,
 						saIpv6Count: 4,
 						daIpv6Count: 5,
-						structureJsonSa: '[{"q":2,"s":8}]',
+						structureJsonSa: '[{"q":2,"tauTilde":8,"sd":0.25}]',
 						structureJsonDa: null,
 						spectrumJsonSa: '[{"alpha":1.5,"f":2}]',
 						spectrumJsonDa: null
@@ -189,6 +204,11 @@ describe('netflow file helpers and routes', () => {
 						router: 'r1',
 						file_path: '/captures/r1/nfcapd.202503010005',
 						file_exists_on_disk: true,
+						input_kind: 'nfcapd',
+						input_status: 'processed',
+						input_error_message: null,
+						bucket_start: 1740823500,
+						bucket_end: 1740823800,
 						flows: 1,
 						flows_tcp: 2,
 						flows_udp: 3,
@@ -217,7 +237,7 @@ describe('netflow file helpers and routes', () => {
 						slug: '202503010005',
 						router: 'r1',
 						filename: 'nfcapd.202503010005',
-						structureFunction: [{ q: 2, s: 8 }],
+						structureFunction: [{ q: 2, tau: 8, sd: 0.25 }],
 						metadata: {
 							dataSource: 'Database: structure_stats 5m bucket (Source Addresses)',
 							uniqueIPCount: -1,
@@ -269,8 +289,8 @@ describe('netflow file helpers and routes', () => {
 				url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=true')
 			} as never);
 
-			expect(badResponse.status).toBe(400);
-			expect(missingFileResponse.status).toBe(404);
+			expect(badResponse.status).toBe(410);
+			expect(missingFileResponse.status).toBe(410);
 		} finally {
 			if (originalShowSingularities === undefined) {
 				delete process.env.SHOW_SINGULARITIES;
@@ -291,7 +311,7 @@ describe('netflow file helpers and routes', () => {
 				url: new URL('http://localhost/api/netflow/files/x/singularities?router=r1&source=true')
 			} as never);
 
-			expect(response.status).toBe(404);
+			expect(response.status).toBe(410);
 		} finally {
 			if (originalShowSingularities === undefined) {
 				delete process.env.SHOW_SINGULARITIES;

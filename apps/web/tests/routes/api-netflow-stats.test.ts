@@ -7,6 +7,16 @@ vi.mock('$lib/server/datasets', () => ({
 	getRequestedDataset: vi.fn()
 }));
 
+vi.mock('$lib/server/netflow-v2', async () => {
+	const actual =
+		await vi.importActual<typeof import('$lib/server/netflow-v2')>('$lib/server/netflow-v2');
+	return {
+		...actual,
+		assertNetflowV2Database: vi.fn(),
+		getNetflowSchemaVersion: vi.fn(() => 'v2')
+	};
+});
+
 describe('/api/netflow/stats GET', () => {
 	it('returns 400 when no routers are selected', async () => {
 		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
