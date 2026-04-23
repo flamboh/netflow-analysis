@@ -75,7 +75,7 @@ describe('dataset server helpers', () => {
 			'sqlite3',
 			[
 				dbPath,
-				'CREATE TABLE netflow_stats (timestamp INTEGER NOT NULL); INSERT INTO netflow_stats (timestamp) VALUES (1740823200);'
+				"CREATE TABLE netflow_stats_v2 (bucket_start INTEGER NOT NULL, source_id TEXT NOT NULL); INSERT INTO netflow_stats_v2 (bucket_start, source_id) VALUES (1740823200, 'router-a');"
 			],
 			{ encoding: 'utf-8' }
 		);
@@ -155,7 +155,7 @@ describe('dataset server helpers', () => {
 			'sqlite3',
 			[
 				dbPath,
-				'CREATE TABLE netflow_stats (timestamp INTEGER NOT NULL); INSERT INTO netflow_stats (timestamp) VALUES (1740823200);'
+				"CREATE TABLE netflow_stats_v2 (bucket_start INTEGER NOT NULL, source_id TEXT NOT NULL); INSERT INTO netflow_stats_v2 (bucket_start, source_id) VALUES (1740823200, 'router-a');"
 			],
 			{ encoding: 'utf-8' }
 		);

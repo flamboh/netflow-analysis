@@ -170,9 +170,16 @@ export function getDatasetDefaultStartDate(datasetId: string): string {
 
 	try {
 		const db = getDatasetDb(datasetId);
-		const row = db.prepare('SELECT MIN(timestamp) AS minTimestamp FROM netflow_stats').get() as
-			| { minTimestamp: number | null }
-			| undefined;
+		let row: { minTimestamp: number | null } | undefined;
+		try {
+			row = db.prepare('SELECT MIN(bucket_start) AS minTimestamp FROM netflow_stats_v2').get() as
+				| { minTimestamp: number | null }
+				| undefined;
+		} catch {
+			row = db.prepare('SELECT MIN(timestamp) AS minTimestamp FROM netflow_stats').get() as
+				| { minTimestamp: number | null }
+				| undefined;
+		}
 		if (typeof row?.minTimestamp === 'number' && Number.isFinite(row.minTimestamp)) {
 			const value = formatLocalDate(row.minTimestamp);
 			datasetDefaultStartCache.set(datasetId, { dbPath, mtimeMs: stat.mtimeMs, value });
@@ -189,6 +196,28 @@ export function listDatasetSources(datasetId: string): string[] {
 	const dataset = getDatasetConfig(datasetId);
 	if (dataset.source_ids && dataset.source_ids.length > 0) {
 		return [...dataset.source_ids].sort();
+	}
+
+	const dbPath = getDatasetDbPath(datasetId);
+	if (fs.existsSync(dbPath)) {
+		try {
+			const db = getDatasetDb(datasetId);
+			let rows: { sourceId: string }[];
+			try {
+				rows = db
+					.prepare('SELECT DISTINCT source_id AS sourceId FROM netflow_stats_v2 ORDER BY source_id')
+					.all() as { sourceId: string }[];
+			} catch {
+				rows = db
+					.prepare('SELECT DISTINCT router AS sourceId FROM netflow_stats ORDER BY router')
+					.all() as { sourceId: string }[];
+			}
+			if (rows.length > 0) {
+				return rows.map((row) => row.sourceId);
+			}
+		} catch {
+			// Dataset metadata can still come from the configured source tree while a DB is being replaced.
+		}
 	}
 
 	if ((dataset.source_mode ?? 'subdirs') !== 'subdirs') {

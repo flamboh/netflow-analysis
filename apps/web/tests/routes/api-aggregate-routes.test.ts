@@ -12,6 +12,16 @@ vi.mock('$lib/server/datasets', () => ({
 	listDatasetSources: vi.fn()
 }));
 
+vi.mock('$lib/server/netflow-v2', async () => {
+	const actual =
+		await vi.importActual<typeof import('$lib/server/netflow-v2')>('$lib/server/netflow-v2');
+	return {
+		...actual,
+		assertNetflowV2Database: vi.fn(),
+		getNetflowSchemaVersion: vi.fn(() => 'v2')
+	};
+});
+
 describe('aggregate API routes', () => {
 	it('lists routers for a dataset and returns 404 when none exist', async () => {
 		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
@@ -106,7 +116,7 @@ describe('aggregate API routes', () => {
 				{
 					router: 'r1',
 					bucketStart: 100,
-					structureJsonSa: '[{"q":1,"s":2}]',
+					structureJsonSa: '[{"q":1,"tauTilde":2,"sd":0.5}]',
 					structureJsonDa: 'not-json'
 				}
 			]);
@@ -133,7 +143,14 @@ describe('aggregate API routes', () => {
 			requestedRouters: ['r1']
 		});
 		await expect(structureResponse.json()).resolves.toEqual({
-			buckets: [{ bucketStart: 100, router: 'r1', structureSa: [{ q: 1, s: 2 }], structureDa: [] }],
+			buckets: [
+				{
+					bucketStart: 100,
+					router: 'r1',
+					structureSa: [{ q: 1, tau: 2, sd: 0.5 }],
+					structureDa: []
+				}
+			],
 			requestedRouters: ['r1']
 		});
 	});

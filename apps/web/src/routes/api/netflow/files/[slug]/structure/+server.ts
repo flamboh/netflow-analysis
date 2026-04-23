@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import type { StructureFunctionData, StructureFunctionPoint } from '$lib/types/types';
 import { getDatasetFromRequest, getDb, slugToBucketStart } from '../utils';
+import { getNetflowSchemaVersion, normalizeStructurePoints } from '$lib/server/netflow-v2';
 
 const FIVE_MINUTES = '5m';
 
@@ -40,13 +41,16 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 	try {
 		const db = getDb(dataset);
+		const schema = getNetflowSchemaVersion(db);
+		const tableName = schema === 'v2' ? 'structure_stats_v2' : 'structure_stats';
+		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
 		const row = db
 			.prepare(
 				`SELECT
 					structure_json_sa AS structureJsonSa,
 					structure_json_da AS structureJsonDa
-				FROM structure_stats
-				WHERE router = ?
+				FROM ${tableName}
+				WHERE ${sourceColumn} = ?
 					AND granularity = ?
 					AND bucket_start = ?
 					AND ip_version = 4
@@ -72,7 +76,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		let data: StructureFunctionPoint[] = [];
 
 		try {
-			data = JSON.parse(rawStructure) as StructureFunctionPoint[];
+			data = normalizeStructurePoints(JSON.parse(rawStructure) as StructureFunctionPoint[]);
 		} catch (error) {
 			console.error('Failed to parse structure JSON from database:', error);
 			return json({ error: 'Failed to parse structure statistics' }, { status: 500 });

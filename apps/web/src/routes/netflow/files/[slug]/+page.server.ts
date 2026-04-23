@@ -1,7 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { loadDatasetSummariesFromFetch, resolveDefaultDatasetId } from '$lib/datasets';
-import { shouldShowSingularities } from '$lib/server/singularities';
 
 export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	const { slug } = params;
@@ -28,7 +27,7 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	return {
 		dataset,
 		slug,
-		showSingularities: shouldShowSingularities(),
+		showSingularities: false,
 		fileInfo: {
 			year,
 			month,
