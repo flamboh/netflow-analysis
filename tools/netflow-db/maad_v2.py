@@ -8,6 +8,7 @@ MAAD --input - --output - --format json --structure --spectrum --dimensions
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 from dataclasses import dataclass
@@ -16,10 +17,15 @@ from typing import Any
 
 
 MIN_MAAD_ADDRS = 2
+DEFAULT_MAAD_TIMEOUT_SECONDS = int(os.environ.get('MAAD_TIMEOUT_SECONDS', '300'))
 
 
 class MaadV2Error(ValueError):
     """Raised when MAAD output or configuration is invalid."""
+
+
+class MaadTimeoutError(TimeoutError):
+    """Raised when a MAAD invocation exceeds the configured timeout."""
 
 
 @dataclass(frozen=True)
@@ -69,30 +75,40 @@ def parse_maad_json(output: str) -> MaadJsonResult:
     )
 
 
-def run_maad_json(maad_bin: str | Path, addresses: set[str]) -> MaadJsonResult:
+def run_maad_json(
+    maad_bin: str | Path,
+    addresses: set[str],
+    *,
+    timeout_seconds: int = DEFAULT_MAAD_TIMEOUT_SECONDS,
+) -> MaadJsonResult:
     """Run MAAD against a set of IPv4 addresses and parse its JSON output."""
     if len(addresses) < MIN_MAAD_ADDRS:
         return empty_maad_result(len(addresses))
 
     input_payload = '\n'.join(sorted(addresses))
-    result = subprocess.run(
-        [
-            str(maad_bin),
-            '--input',
-            '-',
-            '--output',
-            '-',
-            '--format',
-            'json',
-            '--structure',
-            '--spectrum',
-            '--dimensions',
-        ],
-        input=input_payload,
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
+    try:
+        result = subprocess.run(
+            [
+                str(maad_bin),
+                '--input',
+                '-',
+                '--output',
+                '-',
+                '--format',
+                'json',
+                '--structure',
+                '--spectrum',
+                '--dimensions',
+            ],
+            input=input_payload,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise MaadTimeoutError(
+            f'MAAD timed out after {timeout_seconds}s for {len(addresses)} addresses'
+        ) from error
     if result.returncode != 0:
         raise RuntimeError(f'MAAD failed: {result.stderr.strip()}')
     return parse_maad_json(result.stdout)

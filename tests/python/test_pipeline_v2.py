@@ -435,7 +435,7 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
 
     maad_calls = []
 
-    def fake_run_maad_json(maad_bin, addresses):
+    def fake_run_maad_json(maad_bin, addresses, *, timeout_seconds):
         maad_calls.append((str(maad_bin), sorted(addresses)))
         return pipeline_v2.MaadJsonResult(
             schema_version=1,
@@ -687,7 +687,7 @@ def test_process_input_specs_writes_v1_granularity_aggregates_for_csv(monkeypatc
     )
     conn = sqlite3.connect(':memory:')
 
-    def fake_run_maad_json(maad_bin, addresses):
+    def fake_run_maad_json(maad_bin, addresses, *, timeout_seconds):
         return pipeline_v2.MaadJsonResult(
             schema_version=1,
             metadata={
@@ -754,6 +754,92 @@ def test_process_input_specs_writes_v1_granularity_aggregates_for_csv(monkeypatc
         ('5m', 1744733100, 1, '17'),
     ]
     assert maad_30m == (2, 2)
+
+
+def test_process_maad_row_task_uses_timeout_by_granularity(monkeypatch) -> None:
+    pipeline_v2, _ = load_modules()
+    timeouts = []
+
+    def fake_run_maad_json(maad_bin, addresses, *, timeout_seconds):
+        timeouts.append(timeout_seconds)
+        return pipeline_v2.MaadJsonResult(
+            schema_version=1,
+            metadata={
+                'input': '-',
+                'minPrefixLength': 7,
+                'maxPrefixLength': 23,
+                'totalAddrs': len(addresses),
+            },
+            structure=[],
+            spectrum=[],
+            dimensions=[],
+        )
+
+    monkeypatch.setattr(pipeline_v2, 'run_maad_json', fake_run_maad_json)
+
+    rows = pipeline_v2.process_maad_row_task(
+        {
+            'maad_bin': '/tmp/MAAD',
+            'source_id': 'oh_ir1_gw',
+            'granularity': '1d',
+            'bucket_start': 1749625200,
+            'bucket_end': 1749711600,
+            'source_addresses': ['192.0.2.1', '192.0.2.2'],
+            'destination_addresses': ['198.51.100.1', '198.51.100.2', '198.51.100.3'],
+            'log_progress': False,
+        }
+    )
+
+    assert timeouts == [1800, 1800]
+    assert json.loads(rows['structure']['metadata_json_sa'])['totalAddrs'] == 2
+    assert json.loads(rows['structure']['metadata_json_da'])['totalAddrs'] == 3
+
+
+def test_build_aggregate_maad_rows_caps_pool_size(monkeypatch) -> None:
+    pipeline_v2, _ = load_modules()
+    captured_processes = []
+
+    class FakePool:
+        def __init__(self, processes):
+            captured_processes.append(processes)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def imap_unordered(self, worker, tasks, chunksize=1):
+            return iter(worker(task) for task in tasks)
+
+    monkeypatch.setattr(pipeline_v2, 'Pool', FakePool)
+    monkeypatch.setattr(
+        pipeline_v2,
+        'process_maad_row_task',
+        lambda task: {'structure': {'source_id': task['source_id']}},
+    )
+
+    rows = pipeline_v2.build_aggregate_maad_rows(
+        [
+            {
+                'source_id': 'feed-a',
+                'bucket_start': 1744732800,
+                'maad_source_ipv4': ['192.0.2.1'],
+                'maad_destination_ipv4': ['198.51.100.1'],
+            },
+            {
+                'source_id': 'feed-a',
+                'bucket_start': 1744733100,
+                'maad_source_ipv4': ['192.0.2.2'],
+                'maad_destination_ipv4': ['198.51.100.2'],
+            },
+        ],
+        '/tmp/MAAD',
+        max_workers=16,
+    )
+
+    assert captured_processes == [4]
+    assert len(rows) == 3
 
 
 def test_aggregate_day_bucket_end_uses_local_midnight_across_dst(monkeypatch) -> None:

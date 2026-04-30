@@ -1,6 +1,9 @@
 import importlib
 import json
 import sqlite3
+import subprocess
+
+import pytest
 
 
 def load_module():
@@ -100,3 +103,35 @@ def test_insert_maad_v2_rows_persists_all_three_tables() -> None:
     assert json.loads(structure[5])['totalAddrs'] == 20
     assert json.loads(spectrum[4]) == [{'alpha': 0.75, 'f': 0.60}]
     assert json.loads(dimensions[4]) == [{'q': 1, 'dim': 0.48}]
+
+
+def test_run_maad_json_uses_explicit_timeout(monkeypatch) -> None:
+    maad_v2 = load_module()
+    captured = {}
+
+    def fake_run(command, *, input, capture_output, text, timeout):
+        captured['command'] = command
+        captured['input'] = input
+        captured['timeout'] = timeout
+        return subprocess.CompletedProcess(command, 0, stdout=sample_payload(3), stderr='')
+
+    monkeypatch.setattr(maad_v2.subprocess, 'run', fake_run)
+
+    result = maad_v2.run_maad_json('/tmp/MAAD', {'198.51.100.1', '192.0.2.1'}, timeout_seconds=900)
+
+    assert result.metadata['totalAddrs'] == 3
+    assert captured['command'][:2] == ['/tmp/MAAD', '--input']
+    assert captured['timeout'] == 900
+    assert captured['input'] == '192.0.2.1\n198.51.100.1'
+
+
+def test_run_maad_json_wraps_timeout_with_address_count(monkeypatch) -> None:
+    maad_v2 = load_module()
+
+    def fake_run(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+
+    monkeypatch.setattr(maad_v2.subprocess, 'run', fake_run)
+
+    with pytest.raises(maad_v2.MaadTimeoutError, match='after 600s for 2 addresses'):
+        maad_v2.run_maad_json('/tmp/MAAD', {'198.51.100.1', '192.0.2.1'}, timeout_seconds=600)

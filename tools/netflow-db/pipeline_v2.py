@@ -31,6 +31,7 @@ from zoneinfo import ZoneInfo
 
 from csv_ingest_v2 import load_csv_source_config
 from maad_v2 import (
+    MaadTimeoutError,
     MaadJsonResult,
     build_maad_v2_rows,
     init_maad_v2_tables,
@@ -58,10 +59,17 @@ from stats_v2 import (
 
 DEFAULT_MAAD_BIN = Path(__file__).resolve().parents[2] / 'vendor' / 'maad' / 'MAAD'
 DEFAULT_MAX_WORKERS = int(os.environ.get('MAX_WORKERS', '8'))
+DEFAULT_AGGREGATE_MAAD_MAX_WORKERS = int(os.environ.get('AGGREGATE_MAAD_MAX_WORKERS', '4'))
 PIPELINE_TIMEZONE = ZoneInfo(os.environ.get('NETFLOW_TIMEZONE', 'America/Los_Angeles'))
 LOGGER = logging.getLogger(__name__)
 
 AGGREGATE_GRANULARITY_SECONDS = (('30m', 1800), ('1h', 3600), ('1d', 86400))
+MAAD_TIMEOUT_SECONDS_BY_GRANULARITY = {
+    '5m': int(os.environ.get('MAAD_TIMEOUT_5M_SECONDS', '300')),
+    '30m': int(os.environ.get('MAAD_TIMEOUT_30M_SECONDS', '600')),
+    '1h': int(os.environ.get('MAAD_TIMEOUT_1H_SECONDS', '900')),
+    '1d': int(os.environ.get('MAAD_TIMEOUT_1D_SECONDS', '1800')),
+}
 NFDUMP_HEADER_FIRST_VALUES = {
     'trr',
     'ter',
@@ -563,8 +571,13 @@ def build_aggregate_maad_rows(
 ) -> list[dict[str, dict]]:
     """Build aggregate MAAD rows from unioned IPv4 address sets."""
     tasks = build_aggregate_maad_tasks(raw_buckets, maad_bin)
-    if max_workers > 1 and len(tasks) > 1:
-        with Pool(processes=max_workers) as pool:
+    aggregate_workers = aggregate_maad_worker_count(max_workers)
+    if tasks:
+        print(
+            f"[pipeline_v2] Aggregate MAAD: {len(tasks)} tasks with {aggregate_workers} workers"
+        )
+    if aggregate_workers > 1 and len(tasks) > 1:
+        with Pool(processes=aggregate_workers) as pool:
             return list(pool.imap_unordered(process_maad_row_task, tasks, chunksize=1))
     return [process_maad_row_task(task) for task in tasks]
 
@@ -592,6 +605,7 @@ def build_aggregate_maad_tasks(raw_buckets: list[dict], maad_bin: str | Path) ->
                 'bucket_end': next_bucket_start(bucket_start, bucket_seconds),
                 'source_addresses': sorted(bucket['source']),
                 'destination_addresses': sorted(bucket['destination']),
+                'log_progress': True,
             }
         )
     return tasks
@@ -599,8 +613,41 @@ def build_aggregate_maad_tasks(raw_buckets: list[dict], maad_bin: str | Path) ->
 
 def process_maad_row_task(task: dict) -> dict[str, dict]:
     """Run MAAD for one aggregate task."""
-    source_result = run_maad_json(task['maad_bin'], set(task['source_addresses']))
-    destination_result = run_maad_json(task['maad_bin'], set(task['destination_addresses']))
+    timeout_seconds = maad_timeout_seconds(str(task['granularity']))
+    bucket_label = datetime.fromtimestamp(task['bucket_start'], PIPELINE_TIMEZONE).isoformat()
+    source_count = len(task['source_addresses'])
+    destination_count = len(task['destination_addresses'])
+    if task.get('log_progress'):
+        print(
+            "[pipeline_v2] Aggregate MAAD task "
+            f"{task['source_id']} {task['granularity']} {bucket_label} "
+            f"sa={source_count} da={destination_count} timeout={timeout_seconds}s"
+        )
+
+    try:
+        source_result = run_maad_json(
+            task['maad_bin'],
+            set(task['source_addresses']),
+            timeout_seconds=timeout_seconds,
+        )
+    except MaadTimeoutError as error:
+        raise MaadTimeoutError(
+            "MAAD timed out for "
+            f"{task['source_id']} {task['granularity']} {bucket_label} "
+            f"source addresses={source_count} timeout={timeout_seconds}s"
+        ) from error
+    try:
+        destination_result = run_maad_json(
+            task['maad_bin'],
+            set(task['destination_addresses']),
+            timeout_seconds=timeout_seconds,
+        )
+    except MaadTimeoutError as error:
+        raise MaadTimeoutError(
+            "MAAD timed out for "
+            f"{task['source_id']} {task['granularity']} {bucket_label} "
+            f"destination addresses={destination_count} timeout={timeout_seconds}s"
+        ) from error
     return build_maad_v2_rows(
         source_id=task['source_id'],
         granularity=task['granularity'],
@@ -624,8 +671,22 @@ def build_maad_rows_for_raw_bucket(raw_bucket: dict, granularity: str, maad_bin:
             'bucket_end': next_bucket_start(raw_bucket['bucket_start'], bucket_seconds),
             'source_addresses': raw_bucket['maad_source_ipv4'],
             'destination_addresses': raw_bucket['maad_destination_ipv4'],
+            'log_progress': False,
         }
     )
+
+
+def maad_timeout_seconds(granularity: str) -> int:
+    """Return the MAAD timeout for the provided bucket granularity."""
+    try:
+        return MAAD_TIMEOUT_SECONDS_BY_GRANULARITY[granularity]
+    except KeyError as error:
+        raise ValueError(f'Unsupported MAAD granularity: {granularity}') from error
+
+
+def aggregate_maad_worker_count(max_workers: int) -> int:
+    """Bound aggregate MAAD concurrency to reduce timeout risk from contention."""
+    return max(1, min(max_workers, DEFAULT_AGGREGATE_MAAD_MAX_WORKERS))
 
 
 def floor_bucket_start(bucket_start: int, bucket_seconds: int) -> int:
@@ -731,9 +792,18 @@ def build_maad_payload_rows(
 ) -> list[dict[str, dict]]:
     """Run MAAD for each v2 bucket and return structure/spectrum/dimension rows."""
     rows = []
+    timeout_seconds = maad_timeout_seconds('5m')
     for bucket in buckets.values():
-        source_result = run_maad_json(maad_bin, bucket.maad_source_ipv4)
-        destination_result = run_maad_json(maad_bin, bucket.maad_destination_ipv4)
+        source_result = run_maad_json(
+            maad_bin,
+            bucket.maad_source_ipv4,
+            timeout_seconds=timeout_seconds,
+        )
+        destination_result = run_maad_json(
+            maad_bin,
+            bucket.maad_destination_ipv4,
+            timeout_seconds=timeout_seconds,
+        )
         rows.append(
             build_maad_v2_rows(
                 source_id=bucket.source_id,
