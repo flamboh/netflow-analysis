@@ -11,10 +11,11 @@
   {
     "dataset_id": "ugr16",
     "label": "UGR16",
-    "root_path": "/path/to/netflow_datasets/ugr16",
+    "root_path": "/path/to/raw_datasets/ugr_csv",
     "db_path": "./data/ugr16/netflow.sqlite",
     "default_start_date": "2016-04-04",
-    "source_mode": "subdirs",
+    "source_mode": "static",
+    "source_ids": ["ugr16"],
     "discovery_mode": "static"
   }
 ]
