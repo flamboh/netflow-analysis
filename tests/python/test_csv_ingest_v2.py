@@ -74,6 +74,25 @@ def test_load_csv_source_config_requires_source_id_value_or_column(tmp_path: Pat
         module.load_csv_source_config(config_path)
 
 
+def test_load_csv_source_config_requires_fieldnames_without_header(tmp_path: Path) -> None:
+    module = load_module()
+    config_path = write_config(
+        tmp_path / 'mapping.json',
+        {
+            'has_header': False,
+            'columns': {
+                'time_received': 'received_at',
+                'src_ip': 'src',
+                'dst_ip': 'dst',
+            },
+            'source_id': {'value': 'uo-feed'},
+        },
+    )
+
+    with pytest.raises(module.CsvSourceConfigError, match='fieldnames'):
+        module.load_csv_source_config(config_path)
+
+
 def test_bucket_start_prefers_time_received_then_end_then_start(tmp_path: Path) -> None:
     module = load_module()
     config = module.load_csv_source_config(
@@ -124,6 +143,67 @@ def test_bucket_start_prefers_time_received_then_end_then_start(tmp_path: Path) 
     assert received_bucket == 1744733100
     assert end_bucket == 1744732800
     assert start_bucket == 1744732500
+
+
+def test_parse_datetime_timestamp_uses_configured_timezone(tmp_path: Path) -> None:
+    module = load_module()
+    config = module.load_csv_source_config(
+        write_config(
+            tmp_path / 'mapping.json',
+            {
+                'timestamp_format': 'datetime',
+                'timestamp_timezone': 'Europe/Madrid',
+                'columns': {
+                    'time_end': 'te',
+                    'src_ip': 'src',
+                    'dst_ip': 'dst',
+                },
+                'source_id': {'value': 'ugr16'},
+            },
+        )
+    )
+
+    bucket = module.resolve_bucket_start(
+        {
+            'te': '2016-07-27 13:43:30',
+            'src': '42.219.154.107',
+            'dst': '143.72.8.137',
+        },
+        config,
+    )
+
+    assert bucket == 1469619600
+
+
+def test_parse_datetime_timestamp_uses_configured_format(tmp_path: Path) -> None:
+    module = load_module()
+    config = module.load_csv_source_config(
+        write_config(
+            tmp_path / 'mapping.json',
+            {
+                'timestamp_format': 'datetime',
+                'datetime_format': '%Y/%m/%d %H:%M:%S',
+                'timestamp_timezone': 'UTC',
+                'columns': {
+                    'time_end': 'te',
+                    'src_ip': 'src',
+                    'dst_ip': 'dst',
+                },
+                'source_id': {'value': 'feed'},
+            },
+        )
+    )
+
+    bucket = module.resolve_bucket_start(
+        {
+            'te': '2025/04/15 12:34:56',
+            'src': '192.0.2.1',
+            'dst': '198.51.100.1',
+        },
+        config,
+    )
+
+    assert bucket == 1744720200
 
 
 def test_resolve_source_id_uses_constant_or_row_column(tmp_path: Path) -> None:

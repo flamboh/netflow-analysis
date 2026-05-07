@@ -2,6 +2,7 @@ import importlib
 import json
 import sqlite3
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -135,3 +136,36 @@ def test_run_maad_json_wraps_timeout_with_address_count(monkeypatch) -> None:
 
     with pytest.raises(maad_v2.MaadTimeoutError, match='after 600s for 2 addresses'):
         maad_v2.run_maad_json('/tmp/MAAD', {'198.51.100.1', '192.0.2.1'}, timeout_seconds=600)
+
+
+def test_compute_maad_json_returns_full_contract() -> None:
+    maad_v2 = load_module()
+    addresses = {f'10.0.{third_octet}.{fourth_octet}' for third_octet in range(2) for fourth_octet in range(256)}
+    addresses.add('192.0.2.1')
+
+    result = maad_v2.compute_maad_json(addresses)
+
+    assert result.metadata['totalAddrs'] == len(addresses)
+    assert isinstance(result.metadata['minPrefixLength'], int)
+    assert isinstance(result.metadata['maxPrefixLength'], int)
+    assert result.structure
+    assert isinstance(result.spectrum, list)
+    assert {row['q'] for row in result.dimensions} == {1.0, 0.0, 2.0}
+
+
+def test_compute_maad_json_matches_binary_metadata() -> None:
+    maad_v2 = load_module()
+    maad_bin = Path(__file__).resolve().parents[2] / 'vendor' / 'maad' / 'MAAD'
+    if not maad_bin.is_file():
+        pytest.skip('MAAD binary is not built')
+    addresses = {f'10.0.{third_octet}.{fourth_octet}' for third_octet in range(2) for fourth_octet in range(256)}
+    addresses.add('192.0.2.1')
+
+    python_result = maad_v2.compute_maad_json(addresses)
+    binary_result = maad_v2.run_maad_json(maad_bin, addresses)
+
+    assert python_result.metadata == binary_result.metadata
+    assert python_result.structure[0] == pytest.approx(binary_result.structure[0])
+    assert len(python_result.dimensions) == len(binary_result.dimensions)
+    for python_row, binary_row in zip(python_result.dimensions, binary_result.dimensions):
+        assert python_row == pytest.approx(binary_row)

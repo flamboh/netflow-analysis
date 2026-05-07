@@ -139,6 +139,16 @@ def test_normalize_csv_row_wraps_invalid_ip_as_config_error(tmp_path: Path) -> N
             config,
         )
 
+    with pytest.raises(csv_ingest_v2.CsvSourceConfigError, match='Invalid IP address'):
+        normalized_rows_v2.normalize_csv_row(
+            {
+                'received_at': '1744733279',
+                'src': '999.999.999.999',
+                'dst': '198.51.100.9',
+            },
+            config,
+        )
+
 
 def test_normalize_csv_row_rejects_whitespace_required_values(tmp_path: Path) -> None:
     csv_ingest_v2, normalized_rows_v2 = load_modules()
@@ -234,3 +244,49 @@ def test_normalize_nfdump_csv_values_zeroes_decimal_pseudo_ports() -> None:
     )
 
     assert row.dst_port == 0
+
+
+def test_normalize_csv_row_accepts_protocol_names(tmp_path: Path) -> None:
+    csv_ingest_v2, normalized_rows_v2 = load_modules()
+    config_path = tmp_path / 'mapping.json'
+    config_path.write_text(
+        """
+        {
+          "timestamp_format": "datetime",
+          "timestamp_timezone": "Europe/Madrid",
+          "columns": {
+            "time_end": "te",
+            "src_ip": "src",
+            "dst_ip": "dst",
+            "src_port": "sp",
+            "dst_port": "dp",
+            "protocol": "pr",
+            "packets": "pkt",
+            "bytes": "byt"
+          },
+          "protocol_map": { "UDP": 17 },
+          "source_id": { "value": "ugr16" }
+        }
+        """,
+        encoding='utf-8',
+    )
+    config = csv_ingest_v2.load_csv_source_config(config_path)
+
+    row = normalized_rows_v2.normalize_csv_row(
+        {
+            'te': '2016-07-27 13:43:30',
+            'src': '42.219.154.107',
+            'dst': '143.72.8.137',
+            'sp': '59212',
+            'dp': '53',
+            'pr': 'UDP',
+            'pkt': '1',
+            'byt': '72',
+        },
+        config,
+    )
+
+    assert row.bucket_start == 1469619600
+    assert row.protocol == 17
+    assert row.packets == 1
+    assert row.bytes == 72
