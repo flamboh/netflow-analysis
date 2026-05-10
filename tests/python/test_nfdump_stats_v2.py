@@ -125,3 +125,49 @@ def test_parse_nfcapd_bucket_start_uses_first_fold_for_ambiguous_fall_back(monke
         module.parse_nfcapd_bucket_start('/captures/oh_ir1_gw/2025/11/02/nfcapd.202511020115')
         == 1762071300
     )
+
+
+def test_read_protocol_counters_skips_sparse_nfdump_rows(monkeypatch, caplog) -> None:
+    module = load_module()
+
+    def fake_run(command, capture_output, text, timeout):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=(
+                'firstSeen,duration,proto,packets,bytes,bps,bpp,flows\n'
+                '2025-01-01 00:00:00.000,1.0,58,3,300,0,0,1\n'
+                '2025-01-01 00:00:00.000,1.0,,3,300,0,0,1\n'
+                'Summary,,,,,,,\n'
+            ),
+            stderr='',
+        )
+
+    monkeypatch.setattr(module.subprocess, 'run', fake_run)
+
+    rows = module.read_protocol_counters('/captures/nfcapd.202508190000', 6)
+
+    assert rows == [(58, 3, 300, 1)]
+    assert 'Skipping malformed nfdump protocol row' in caplog.text
+
+
+def test_read_protocol_counters_treats_no_matching_flows_as_empty(monkeypatch, caplog) -> None:
+    module = load_module()
+
+    def fake_run(command, capture_output, text, timeout):
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=(
+                'firstSeen,duration,proto,packets,bytes,bps,bpp,flows\n'
+                'No matching flows\n'
+            ),
+            stderr='',
+        )
+
+    monkeypatch.setattr(module.subprocess, 'run', fake_run)
+
+    rows = module.read_protocol_counters('/captures/nfcapd.202508190500', 6)
+
+    assert rows == []
+    assert 'Skipping malformed nfdump protocol row' not in caplog.text

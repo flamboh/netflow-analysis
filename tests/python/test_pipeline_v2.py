@@ -1,6 +1,7 @@
 import importlib
 import json
 import sqlite3
+import tarfile
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -9,9 +10,14 @@ import pytest
 
 
 def load_modules():
+    csv_ingest_v2 = importlib.import_module('csv_ingest_v2')
+    csv_inputs_v2 = importlib.import_module('csv_inputs_v2')
     pipeline_v2 = importlib.import_module('pipeline_v2')
     normalized_rows_v2 = importlib.import_module('normalized_rows_v2')
-    return importlib.reload(pipeline_v2), importlib.reload(normalized_rows_v2)
+    importlib.reload(csv_ingest_v2)
+    importlib.reload(normalized_rows_v2)
+    importlib.reload(csv_inputs_v2)
+    return importlib.reload(pipeline_v2), normalized_rows_v2
 
 
 def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None:
@@ -89,6 +95,89 @@ def test_process_input_specs_populates_v2_tables_for_csv(tmp_path: Path) -> None
         ('uo-feed', 1744732800, '', '58'),
         ('uo-feed', 1744733100, '6', ''),
     ]
+
+
+def test_process_input_specs_rejects_header_csv_missing_mapped_column(tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = tmp_path / 'mapping.json'
+    mapping_path.write_text(
+        json.dumps(
+            {
+                'timestamp_format': 'unix',
+                'columns': {
+                    'time_received': 'received_at',
+                    'src_ip': 'src',
+                    'dst_ip': 'dst',
+                    'packets': 'pkt',
+                },
+                'source_id': {'value': 'uo-feed'},
+            }
+        ),
+        encoding='utf-8',
+    )
+    csv_path = tmp_path / 'flows.csv'
+    csv_path.write_text(
+        'received_at,src,dst\n1744733279,192.0.2.1,198.51.100.9\n',
+        encoding='utf-8',
+    )
+
+    with pytest.raises(pipeline_v2.CsvSourceConfigError, match='pkt'):
+        pipeline_v2.process_input_specs(
+            sqlite3.connect(':memory:'),
+            [
+                {
+                    'input_kind': 'csv',
+                    'path': str(csv_path),
+                    'mapping_path': str(mapping_path),
+                }
+            ],
+            max_workers=1,
+        )
+
+
+def test_process_input_specs_rejects_late_csv_rows_after_streaming_cutoff(tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = tmp_path / 'mapping.json'
+    mapping_path.write_text(
+        json.dumps(
+            {
+                'timestamp_format': 'unix',
+                'out_of_order_lag_buckets': 0,
+                'columns': {
+                    'time_received': 'received_at',
+                    'src_ip': 'src',
+                    'dst_ip': 'dst',
+                },
+                'source_id': {'value': 'uo-feed'},
+            }
+        ),
+        encoding='utf-8',
+    )
+    csv_path = tmp_path / 'flows.csv'
+    csv_path.write_text(
+        '\n'.join(
+            [
+                'received_at,src,dst',
+                '1744733401,192.0.2.1,198.51.100.1',
+                '1744732801,192.0.2.2,198.51.100.2',
+            ]
+        )
+        + '\n',
+        encoding='utf-8',
+    )
+
+    with pytest.raises(ValueError, match='not ordered enough'):
+        pipeline_v2.process_input_specs(
+            sqlite3.connect(':memory:'),
+            [
+                {
+                    'input_kind': 'csv',
+                    'path': str(csv_path),
+                    'mapping_path': str(mapping_path),
+                }
+            ],
+            max_workers=1,
+        )
 
 
 def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None:
@@ -220,6 +309,318 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
     ]
 
 
+def write_ugr16_mapping(path: Path) -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                'timestamp_format': 'datetime',
+                'timestamp_timezone': 'Europe/Madrid',
+                'has_header': False,
+                'fieldnames': [
+                    'time_end',
+                    'duration',
+                    'src_ip',
+                    'dst_ip',
+                    'src_port',
+                    'dst_port',
+                    'protocol',
+                    'flags',
+                    'forwarding_status',
+                    'src_tos',
+                    'packets',
+                    'bytes',
+                    'label',
+                ],
+                'skip_bad_column_count': True,
+                'archive': {'member_contains': 'csv'},
+                'discovery': {
+                    'include_contains': [],
+                    'include_suffixes': ['.tar.gz', '.tgz'],
+                    'exclude_suffixes': ['.aria2', '.txt'],
+                },
+                'columns': {
+                    'time_end': 'time_end',
+                    'src_ip': 'src_ip',
+                    'dst_ip': 'dst_ip',
+                    'src_port': 'src_port',
+                    'dst_port': 'dst_port',
+                    'protocol': 'protocol',
+                    'packets': 'packets',
+                    'bytes': 'bytes',
+                    'src_tos': 'src_tos',
+                },
+                'source_id': {'value': 'ugr16-test'},
+            }
+        ),
+        encoding='utf-8',
+    )
+    return path
+
+
+def test_process_input_specs_populates_v2_tables_for_ugr16_csv_config(tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = write_ugr16_mapping(tmp_path / 'ugr16.mapping.json')
+    csv_path = tmp_path / 'july.week5.csv'
+    csv_path.write_text(
+        '\n'.join(
+            [
+                '2016-08-001.169.173.160,80,45736,TCP,.AP.SF,0,0,5,948,background',
+                '2016-07-27 13:43:00,0.000,42.219.154.106,143.72.8.136,59212,53,UDP,.A....,0,0,TCP,72,background',
+                '2016-07-27 13:43:01,0.000,42.219.154.106,143.72.8.136,59212,53,Trnk1,.A....,0,0,1,72,background',
+                '2016-07-27 13:43:30,0.000,42.219.154.107,143.72.8.137,59212,53,UDP,.A....,0,0,1,72,background',
+                '2016-07-27 13:44:01,0.000,42.219.154.108,143.72.8.137,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+            ]
+        )
+        + '\n',
+        encoding='utf-8',
+    )
+    conn = sqlite3.connect(':memory:')
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {
+                'input_kind': 'csv',
+                'path': str(csv_path),
+                'mapping_path': str(mapping_path),
+            }
+        ],
+        max_workers=1,
+    )
+
+    netflow = conn.execute(
+        'SELECT source_id, bucket_start, ip_version, flows, flows_tcp, flows_udp, packets, bytes FROM netflow_stats_v2'
+    ).fetchall()
+    processed_inputs = conn.execute(
+        'SELECT input_kind, input_locator, source_id, bucket_start, status FROM processed_inputs_v2'
+    ).fetchall()
+
+    assert netflow == [
+        ('ugr16-test', 1469619600, 4, 2, 1, 1, 7, 5370),
+    ]
+    assert processed_inputs == [
+        ('csv', str(csv_path), 'ugr16-test', 1469619600, 'processed'),
+    ]
+
+
+def test_process_input_specs_uses_arrow_fast_path_for_ugr16_without_maad(tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = write_ugr16_mapping(tmp_path / 'ugr16.mapping.json')
+    csv_path = tmp_path / 'july.week5.csv'
+    csv_path.write_text(
+        '\n'.join(
+            [
+                '2016-08-001.169.173.160,80,45736,TCP,.AP.SF,0,0,5,948,background',
+                '2016-07-27 13:43:30,0.000,42.219.154.107,143.72.8.137,59212,53,UDP,.A....,0,0,1,72,background',
+                '2016-07-27 13:44:01,0.000,42.219.154.108,143.72.8.137,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+                '2016-07-27 13:44:30,0.000,999.219.154.109,143.72.8.139,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+                '2016-07-27 13:44:45,0.000,42.219.154.110,not-ip,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+            ]
+        )
+        + '\n',
+        encoding='utf-8',
+    )
+    conn = sqlite3.connect(':memory:')
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {
+                'input_kind': 'csv',
+                'path': str(csv_path),
+                'mapping_path': str(mapping_path),
+            }
+        ],
+        max_workers=1,
+        run_maad=False,
+    )
+
+    netflow = conn.execute(
+        'SELECT source_id, bucket_start, ip_version, flows, flows_tcp, flows_udp, packets, bytes FROM netflow_stats_v2'
+    ).fetchall()
+    ip_stats = conn.execute(
+        "SELECT granularity, bucket_start, sa_ipv4_count, da_ipv4_count FROM ip_stats_v2 ORDER BY granularity, bucket_start"
+    ).fetchall()
+    processed_inputs = conn.execute(
+        'SELECT input_kind, input_locator, source_id, bucket_start, status FROM processed_inputs_v2'
+    ).fetchall()
+
+    assert netflow == [
+        ('ugr16-test', 1469619600, 4, 2, 1, 1, 7, 5370),
+    ]
+    assert ip_stats == [
+        ('1d', 1469602800, 2, 1),
+        ('1h', 1469617200, 2, 1),
+        ('30m', 1469619000, 2, 1),
+        ('5m', 1469619600, 2, 1),
+    ]
+    assert processed_inputs == [
+        ('csv', str(csv_path), 'ugr16-test', 1469619600, 'processed'),
+    ]
+
+
+def test_process_input_specs_uses_arrow_fast_path_for_ugr16_with_streaming_maad(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = write_ugr16_mapping(tmp_path / 'ugr16.mapping.json')
+    csv_path = tmp_path / 'july.week5.csv'
+    csv_path.write_text(
+        '\n'.join(
+            [
+                '2016-07-27 13:43:30,0.000,42.219.154.107,143.72.8.137,59212,53,UDP,.A....,0,0,1,72,background',
+                '2016-07-27 13:44:01,0.000,42.219.154.108,143.72.8.138,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+                '2016-07-27 13:44:30,0.000,999.219.154.109,143.72.8.139,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+                '2016-07-27 13:44:45,0.000,42.219.154.110,not-ip,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+            ]
+        )
+        + '\n',
+        encoding='utf-8',
+    )
+    conn = sqlite3.connect(':memory:')
+    maad_calls = []
+
+    def fake_run_maad_json(maad_bin, addresses, *, timeout_seconds):
+        maad_calls.append((str(maad_bin), sorted(addresses), timeout_seconds))
+        return pipeline_v2.MaadJsonResult(
+            schema_version=1,
+            metadata={
+                'input': '-',
+                'minPrefixLength': 7,
+                'maxPrefixLength': 23,
+                'totalAddrs': len(addresses),
+            },
+            structure=[],
+            spectrum=[],
+            dimensions=[],
+        )
+
+    monkeypatch.setattr(pipeline_v2, 'run_maad_json', fake_run_maad_json)
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {
+                'input_kind': 'csv',
+                'path': str(csv_path),
+                'mapping_path': str(mapping_path),
+            }
+        ],
+        maad_bin='/tmp/MAAD',
+        max_workers=1,
+    )
+
+    maad_totals = conn.execute(
+        """
+        SELECT granularity,
+               json_extract(metadata_json_sa, '$.totalAddrs'),
+               json_extract(metadata_json_da, '$.totalAddrs')
+        FROM structure_stats_v2
+        ORDER BY granularity
+        """
+    ).fetchall()
+    disk_objects = sorted(path.name for path in tmp_path.iterdir())
+
+    assert maad_totals == [
+        ('1d', 2, 2),
+        ('1h', 2, 2),
+        ('30m', 2, 2),
+        ('5m', 2, 2),
+    ]
+    assert sorted(call[2] for call in maad_calls) == [300, 300, 600, 600, 900, 900, 1800, 1800]
+    assert disk_objects == ['july.week5.csv', 'ugr16.mapping.json']
+
+
+def test_process_input_specs_uses_arrow_fast_path_for_ugr16_tar_without_maad(tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = write_ugr16_mapping(tmp_path / 'ugr16.mapping.json')
+    member_path = tmp_path / 'july.week5.csv.uniqblacklistremoved'
+    member_path.write_text(
+        '\n'.join(
+            [
+                '2016-07-27 13:43:30,0.000,42.219.154.107,143.72.8.137,59212,53,UDP,.A....,0,0,1,72,background',
+                '2016-07-27 13:44:01,0.000,42.219.154.108,143.72.8.137,443,58676,TCP,.AP.S.,0,0,6,5298,background',
+            ]
+        )
+        + '\n',
+        encoding='utf-8',
+    )
+    archive_path = tmp_path / 'july_week5_csv.tar.gz'
+    with tarfile.open(archive_path, 'w:gz') as archive:
+        archive.add(member_path, arcname='uniq/july.week5.csv.uniqblacklistremoved')
+    conn = sqlite3.connect(':memory:')
+
+    pipeline_v2.process_input_specs(
+        conn,
+        [
+            {
+                'input_kind': 'csv',
+                'path': str(archive_path),
+                'mapping_path': str(mapping_path),
+            }
+        ],
+        max_workers=1,
+        run_maad=False,
+    )
+
+    assert conn.execute(
+        'SELECT source_id, bucket_start, ip_version, flows, flows_tcp, flows_udp, packets, bytes FROM netflow_stats_v2'
+    ).fetchall() == [
+        ('ugr16-test', 1469619600, 4, 2, 1, 1, 7, 5370),
+    ]
+    assert conn.execute('SELECT status FROM processed_inputs_v2').fetchall() == [('processed',)]
+
+
+def test_csv_tree_discovers_ugr16_archives_and_extracted_files(monkeypatch, tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    mapping_path = write_ugr16_mapping(tmp_path / 'ugr16.mapping.json')
+    root = tmp_path / 'ugr_csv'
+    root.mkdir()
+    archive_path = root / 'april_week2_csv.tar.gz'
+    incomplete_archive_path = root / 'august_week3_csv.tar.gz'
+    extracted_path = root / 'august.week1.csv'
+    ignored_path = root / 'ugr16-csv-urls.txt'
+    extracted_path.write_text('', encoding='utf-8')
+    incomplete_archive_path.write_text('', encoding='utf-8')
+    incomplete_archive_path.with_name(f'{incomplete_archive_path.name}.aria2').write_text(
+        '',
+        encoding='utf-8',
+    )
+    ignored_path.write_text('', encoding='utf-8')
+    member_path = tmp_path / 'april.week2.csv.uniqblacklistremoved'
+    member_path.write_text(
+        '2016-04-04 00:00:00,0.000,42.219.154.107,143.72.8.137,59212,53,UDP,.A....,0,0,1,72,background\n',
+        encoding='utf-8',
+    )
+    with tarfile.open(archive_path, 'w:gz') as archive:
+        archive.add(member_path, arcname='uniq/april.week2.csv.uniqblacklistremoved')
+    calls = []
+
+    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers, **kwargs):
+        calls.append(input_specs)
+
+    monkeypatch.setattr(pipeline_v2, 'process_input_specs', fake_process_input_specs)
+
+    pipeline_v2.process_pipeline_v2_config(
+        sqlite3.connect(':memory:'),
+        {
+            'inputs': [
+                {
+                    'input_kind': 'csv_tree',
+                    'root_path': str(root),
+                    'mapping_path': str(mapping_path),
+                }
+            ],
+        },
+    )
+
+    assert calls == [
+        [
+            {'input_kind': 'csv', 'path': str(archive_path), 'mapping_path': str(mapping_path)},
+        ]
+    ]
+
+
 def test_discover_nfcapd_tree_specs_uses_canonical_layout(tmp_path: Path) -> None:
     pipeline_v2, _ = load_modules()
     root = tmp_path / 'uoregon'
@@ -264,7 +665,7 @@ def test_process_pipeline_v2_config_chunks_nfcapd_tree_by_day(monkeypatch, tmp_p
     root = tmp_path / 'uoregon'
     calls = []
 
-    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers):
+    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers, **kwargs):
         calls.append((input_specs, str(maad_bin), max_workers))
 
     for day in ['01', '02']:
@@ -306,7 +707,7 @@ def test_process_pipeline_v2_config_defaults_tree_end_date_to_latest_file(
     root = tmp_path / 'uoregon'
     calls = []
 
-    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers):
+    def fake_process_input_specs(conn, input_specs, *, maad_bin, max_workers, **kwargs):
         calls.append(input_specs)
 
     for day in ['01', '03']:
@@ -452,6 +853,12 @@ def test_process_input_specs_always_runs_maad(monkeypatch) -> None:
 
     monkeypatch.setattr(pipeline_v2, 'iter_csv_rows', fake_iter_csv_rows)
     monkeypatch.setattr(pipeline_v2, 'run_maad_json', fake_run_maad_json)
+    monkeypatch.setattr(pipeline_v2, 'should_stream_csv_input_specs', lambda specs: True)
+    monkeypatch.setattr(
+        pipeline_v2,
+        'load_csv_source_config',
+        lambda path: type('Config', (), {'out_of_order_lag_buckets': 12})(),
+    )
 
     pipeline_v2.process_input_specs(
         conn,
@@ -551,6 +958,126 @@ def test_write_input_payload_rolls_back_stats_on_failure(monkeypatch) -> None:
 
     assert conn.execute('SELECT COUNT(*) FROM processed_inputs_v2').fetchone()[0] == 0
     assert conn.execute('SELECT COUNT(*) FROM netflow_stats_v2').fetchone()[0] == 0
+
+
+def test_csv_input_fully_processed_requires_only_processed_rows() -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    pipeline_v2.init_processed_inputs_v2_table(conn)
+
+    assert not pipeline_v2.csv_input_fully_processed(conn, '/tmp/flows.csv')
+
+    pipeline_v2.upsert_input_bucket(
+        conn,
+        input_kind='csv',
+        input_locator='/tmp/flows.csv',
+        source_id='feed-a',
+        bucket_start=1744732800,
+        bucket_end=1744733100,
+    )
+    assert not pipeline_v2.csv_input_fully_processed(conn, '/tmp/flows.csv')
+
+    pipeline_v2.mark_input_bucket_status(
+        conn,
+        input_kind='csv',
+        input_locator='/tmp/flows.csv',
+        source_id='feed-a',
+        bucket_start=1744732800,
+        status='processed',
+    )
+    assert pipeline_v2.csv_input_fully_processed(conn, '/tmp/flows.csv')
+
+    pipeline_v2.upsert_input_bucket(
+        conn,
+        input_kind='csv',
+        input_locator='/tmp/flows.csv',
+        source_id='feed-a',
+        bucket_start=1744733100,
+        bucket_end=1744733400,
+    )
+    assert not pipeline_v2.csv_input_fully_processed(conn, '/tmp/flows.csv')
+
+
+def test_mark_csv_buckets_waits_until_daily_aggregate_is_flushed() -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    pipeline_v2.init_processed_inputs_v2_table(conn)
+    day_start = int(datetime(2025, 4, 15, tzinfo=pipeline_v2.PIPELINE_TIMEZONE).timestamp())
+    bucket = {
+        'input_kind': 'csv',
+        'input_locator': '/tmp/flows.csv',
+        'source_id': 'feed-a',
+        'bucket_start': day_start,
+        'bucket_end': day_start + 300,
+    }
+    pipeline_v2.upsert_input_bucket(conn, **bucket)
+    pending = [bucket]
+
+    pipeline_v2.mark_csv_buckets_with_flushed_aggregates(conn, pending, day_start + 3600)
+
+    assert conn.execute('SELECT status FROM processed_inputs_v2').fetchone() == ('pending',)
+    assert pending == [bucket]
+
+    pipeline_v2.mark_csv_buckets_with_flushed_aggregates(conn, pending, day_start + 86400)
+
+    assert conn.execute('SELECT status FROM processed_inputs_v2').fetchone() == ('processed',)
+    assert pending == []
+
+    db_only_bucket = {
+        'input_kind': 'csv',
+        'input_locator': '/tmp/flows.csv',
+        'source_id': 'feed-a',
+        'bucket_start': day_start + 300,
+        'bucket_end': day_start + 600,
+    }
+    pipeline_v2.upsert_input_bucket(conn, **db_only_bucket)
+
+    pipeline_v2.mark_csv_buckets_with_flushed_aggregates(conn, [], day_start + 86400)
+
+    assert conn.execute(
+        'SELECT status FROM processed_inputs_v2 WHERE bucket_start = ?',
+        (day_start + 300,),
+    ).fetchone() == ('processed',)
+
+
+def test_skip_processed_csv_bucket_values_filters_retry_buckets() -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+    pipeline_v2.init_processed_inputs_v2_table(conn)
+    processed_bucket = pipeline_v2.BucketAccumulator(
+        source_id='feed-a',
+        bucket_start=1744732800,
+        bucket_end=1744733100,
+    )
+    pending_bucket = pipeline_v2.BucketAccumulator(
+        source_id='feed-a',
+        bucket_start=1744733100,
+        bucket_end=1744733400,
+    )
+    pipeline_v2.upsert_input_bucket(
+        conn,
+        input_kind='csv',
+        input_locator='/tmp/flows.csv',
+        source_id='feed-a',
+        bucket_start=1744732800,
+        bucket_end=1744733100,
+    )
+    pipeline_v2.mark_input_bucket_status(
+        conn,
+        input_kind='csv',
+        input_locator='/tmp/flows.csv',
+        source_id='feed-a',
+        bucket_start=1744732800,
+        status='processed',
+    )
+
+    remaining = pipeline_v2.skip_processed_csv_bucket_values(
+        conn,
+        '/tmp/flows.csv',
+        [processed_bucket, pending_bucket],
+    )
+
+    assert remaining == [pending_bucket]
 
 
 def test_process_input_specs_can_write_parallel_worker_payloads(monkeypatch) -> None:
@@ -835,6 +1362,8 @@ def test_build_aggregate_maad_rows_caps_pool_size(monkeypatch) -> None:
             },
         ],
         '/tmp/MAAD',
+        'subprocess',
+        maad_workers=16,
         max_workers=16,
     )
 

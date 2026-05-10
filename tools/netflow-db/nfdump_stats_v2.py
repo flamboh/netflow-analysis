@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import ipaddress
+import logging
 import os
 import subprocess
 from datetime import datetime
@@ -20,6 +21,7 @@ from stats_v2 import protocol_metric_keys
 
 NFDUMP_TIMEOUT_SECONDS = 300
 PIPELINE_TIMEZONE = ZoneInfo(os.environ.get('NETFLOW_TIMEZONE', 'America/Los_Angeles'))
+LOGGER = logging.getLogger(__name__)
 
 
 def build_nfcapd_bucket_payload(path: str, source_id: str) -> dict:
@@ -119,15 +121,62 @@ def read_protocol_counters(path: str, ip_version: int) -> list[tuple[int, int, i
     for row in csv.DictReader(result.stdout.splitlines()):
         if not row:
             continue
-        rows.append(
-            (
-                int(row['proto'].strip()),
-                int(row['packets'].strip()),
-                int(row['bytes'].strip()),
-                int(row['flows'].strip()),
-            )
-        )
+        if is_no_matching_flows_row(row):
+            continue
+        parsed = parse_protocol_counter_row(row, path=path, ip_version=ip_version)
+        if parsed is not None:
+            rows.append(parsed)
     return rows
+
+
+def is_no_matching_flows_row(row: dict[str, str | None]) -> bool:
+    """Return true when nfdump emits its no-match sentinel row in CSV mode."""
+    return row.get('firstSeen') == 'No matching flows' and all(
+        row.get(key) is None for key in ('duration', 'proto', 'packets', 'bytes', 'bps', 'bpp', 'flows')
+    )
+
+
+def parse_protocol_counter_row(
+    row: dict[str, str | None],
+    *,
+    path: str,
+    ip_version: int,
+) -> tuple[int, int, int, int] | None:
+    """Parse one grouped protocol row, skipping sparse nfdump output rows."""
+    values: list[str] = []
+    for key in ('proto', 'packets', 'bytes', 'flows'):
+        raw_value = row.get(key)
+        if raw_value is None:
+            LOGGER.warning(
+                'Skipping malformed nfdump protocol row for %s ipv%s: %s',
+                path,
+                ip_version,
+                row,
+            )
+            return None
+        value = raw_value.strip()
+        if not value:
+            LOGGER.warning(
+                'Skipping malformed nfdump protocol row for %s ipv%s: %s',
+                path,
+                ip_version,
+                row,
+            )
+            return None
+        values.append(value)
+
+    try:
+        protocol, packets, bytes_value, flows = (int(value) for value in values)
+    except ValueError:
+        LOGGER.warning(
+            'Skipping malformed nfdump protocol row for %s ipv%s: %s',
+            path,
+            ip_version,
+            row,
+        )
+        return None
+
+    return (protocol, packets, bytes_value, flows)
 
 
 def read_address_sets(path: str, ip_version: int) -> tuple[set[str], set[str]]:

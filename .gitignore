@@ -34,6 +34,9 @@ exploration/
 **/local-notes
 **/tmp
 datasets.json
+configs/
+scripts/local/ugr16-csv.pipeline-v2.json
+tools/netflow-db/maad_fast
 
 .claude/worktrees/
 .husky/_/
