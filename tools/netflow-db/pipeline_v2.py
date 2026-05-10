@@ -63,10 +63,12 @@ from processed_inputs_v2 import (
     upsert_input_bucket,
 )
 from stats_v2 import (
+    NETFLOW_METRIC_COLUMNS,
     init_ip_stats_v2_table,
     init_netflow_stats_v2_table,
     init_protocol_stats_v2_table,
     insert_ip_stats_v2_rows,
+    insert_netflow_stats_aggregate_v2_rows,
     insert_netflow_stats_v2_rows,
     insert_protocol_stats_v2_rows,
     protocol_metric_keys,
@@ -238,6 +240,7 @@ class BucketAccumulator:
             'protocols_ipv6': sorted(self.protocols_ipv6),
             'maad_source_ipv4': sorted(self.maad_source_ipv4),
             'maad_destination_ipv4': sorted(self.maad_destination_ipv4),
+            'netflow_rows': [dict(row) for row in self.netflow_rows()],
         }
 
 
@@ -1686,6 +1689,8 @@ def add_raw_bucket_to_streaming_aggregates(
         aggregate['protocols_ipv6'].update(raw_bucket['protocols_ipv6'])
         aggregate['maad_source_ipv4'].update(raw_bucket['maad_source_ipv4'])
         aggregate['maad_destination_ipv4'].update(raw_bucket['maad_destination_ipv4'])
+        for row in raw_bucket['netflow_rows']:
+            add_netflow_row_to_aggregate(aggregate, row)
 
 
 def new_streaming_aggregate_bucket(source_id: str, granularity: str, bucket_start: int) -> dict:
@@ -1704,7 +1709,25 @@ def new_streaming_aggregate_bucket(source_id: str, granularity: str, bucket_star
         'protocols_ipv6': set(),
         'maad_source_ipv4': set(),
         'maad_destination_ipv4': set(),
+        'netflow_by_version': {},
     }
+
+
+def add_netflow_row_to_aggregate(bucket: dict, row: dict) -> None:
+    """Sum one 5m netflow row into a coarser aggregate bucket."""
+    ip_version = validate_ip_version(row['ip_version'])
+    aggregate = bucket['netflow_by_version'].setdefault(
+        ip_version,
+        new_netflow_bucket_from_values(
+            source_id=bucket['source_id'],
+            bucket_start=bucket['bucket_start'],
+            bucket_end=bucket['bucket_end'],
+            ip_version=ip_version,
+        ),
+    )
+    aggregate['granularity'] = bucket['granularity']
+    for column in NETFLOW_METRIC_COLUMNS:
+        aggregate[column] += row[column]
 
 
 def flush_streaming_aggregate_buckets(
@@ -1720,6 +1743,11 @@ def flush_streaming_aggregate_buckets(
     if not keys:
         return
     buckets = [aggregate_buckets.pop(key) for key in sorted(keys)]
+    netflow_rows = [
+        row
+        for bucket in buckets
+        for row in build_streaming_aggregate_netflow_rows(bucket)
+    ]
     ip_rows = [build_streaming_aggregate_ip_row(bucket) for bucket in buckets]
     protocol_rows = [build_streaming_aggregate_protocol_row(bucket) for bucket in buckets]
     maad_rows = (
@@ -1728,10 +1756,19 @@ def flush_streaming_aggregate_buckets(
         else []
     )
     with conn:
+        insert_netflow_stats_aggregate_v2_rows(conn, netflow_rows)
         insert_ip_stats_v2_rows(conn, ip_rows)
         insert_protocol_stats_v2_rows(conn, protocol_rows)
         for rows in maad_rows:
             insert_maad_v2_rows(conn, rows)
+
+
+def build_streaming_aggregate_netflow_rows(bucket: dict) -> list[dict]:
+    """Build aggregate netflow_stats_aggregate_v2 rows from streaming state."""
+    return [
+        bucket['netflow_by_version'][ip_version]
+        for ip_version in sorted(bucket['netflow_by_version'])
+    ]
 
 
 def build_streaming_aggregate_ip_row(bucket: dict) -> dict:
@@ -1901,6 +1938,7 @@ def write_aggregate_rows(
     """Write 30m, 1h, and 1d aggregate rows from raw bucket sets."""
     if not raw_buckets:
         return
+    netflow_rows = build_aggregate_netflow_rows(raw_buckets)
     ip_rows = build_aggregate_ip_rows(raw_buckets)
     protocol_rows = build_aggregate_protocol_rows(raw_buckets)
     maad_rows = (
@@ -1909,10 +1947,38 @@ def write_aggregate_rows(
         else []
     )
     with conn:
+        insert_netflow_stats_aggregate_v2_rows(conn, netflow_rows)
         insert_ip_stats_v2_rows(conn, ip_rows)
         insert_protocol_stats_v2_rows(conn, protocol_rows)
         for rows in maad_rows:
             insert_maad_v2_rows(conn, rows)
+
+
+def build_aggregate_netflow_rows(raw_buckets: list[dict]) -> list[dict]:
+    """Build netflow aggregate rows from raw 5m netflow stats."""
+    buckets: dict[tuple[str, str, int, int], dict] = {}
+
+    for raw in raw_buckets:
+        for granularity, seconds in AGGREGATE_GRANULARITY_SECONDS:
+            bucket_start = floor_bucket_start(raw['bucket_start'], seconds)
+            bucket_end = next_bucket_start(bucket_start, seconds)
+            for raw_row in raw['netflow_rows']:
+                ip_version = validate_ip_version(raw_row['ip_version'])
+                key = (raw['source_id'], granularity, bucket_start, ip_version)
+                bucket = buckets.setdefault(
+                    key,
+                    new_netflow_bucket_from_values(
+                        source_id=raw['source_id'],
+                        bucket_start=bucket_start,
+                        bucket_end=bucket_end,
+                        ip_version=ip_version,
+                    ),
+                )
+                bucket['granularity'] = granularity
+                for column in NETFLOW_METRIC_COLUMNS:
+                    bucket[column] += raw_row[column]
+
+    return [buckets[key] for key in sorted(buckets)]
 
 
 def build_aggregate_ip_rows(raw_buckets: list[dict]) -> list[dict]:

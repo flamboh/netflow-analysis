@@ -147,9 +147,34 @@ describe('/api/netflow/stats GET', () => {
 			],
 			availableIpFamilies: ['all', 'ipv4', 'ipv6']
 		});
-		expect(all).toHaveBeenCalledWith('r1', 'r2', '1', '2');
-		expect(prepare).toHaveBeenCalledWith(expect.stringContaining("'start of day', 'utc'"));
+		expect(all).toHaveBeenCalledWith('r1', 'r2', '1h', 1, 2);
+		expect(prepare).toHaveBeenCalledWith(
+			expect.stringContaining('FROM netflow_stats_aggregate_v2')
+		);
+		expect(prepare).toHaveBeenCalledWith(expect.stringContaining('AND granularity = ?'));
 		expect(prepare).toHaveBeenCalledWith(expect.stringContaining('CASE WHEN ip_version = 4'));
+	});
+
+	it('uses raw v2 stats for 5-minute requests', async () => {
+		const all = vi.fn().mockReturnValue([{ bucketStart: 100, flows: 1 }]);
+		const prepare = vi.fn().mockReturnValue({ all });
+		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
+		vi.mocked(getDatasetDb).mockReturnValue({
+			prepare
+		} as never);
+
+		const response = await GET({
+			url: new URL(
+				'http://localhost/api/netflow/stats?routers=r1&startDate=1&endDate=2&groupBy=5min'
+			)
+		} as never);
+
+		expect(response.status).toBe(200);
+		expect(all).toHaveBeenCalledWith('r1', 1, 2);
+		expect(prepare).toHaveBeenCalledWith(expect.stringContaining('FROM netflow_stats_v2'));
+		expect(prepare).not.toHaveBeenCalledWith(
+			expect.stringContaining('FROM netflow_stats_aggregate_v2')
+		);
 	});
 
 	it('returns all-only family options for v1 datasets', async () => {
