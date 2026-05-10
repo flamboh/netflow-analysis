@@ -51,6 +51,14 @@ def is_csv_path(path: str) -> bool:
     return re.fullmatch(r"[a-z]+_week\d+_csv\.tar\.gz", filename) is not None
 
 
+def is_requested_month(path: str, months: set[str]) -> bool:
+    if not months:
+        return True
+    filename = path.rsplit("/", 1)[-1].lower()
+    month = filename.split("_", 1)[0]
+    return month in months
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True, help="UGR16 dataset base URL")
@@ -60,16 +68,25 @@ def parse_args() -> argparse.Namespace:
         choices=("nfcapd", "csv"),
         help="Asset kind to extract",
     )
+    parser.add_argument(
+        "--month",
+        action="append",
+        default=[],
+        help="Limit results to a month name. Can be repeated.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     matcher = is_nfcapd_path if args.kind == "nfcapd" else is_csv_path
+    months = {month.strip().lower() for month in args.month if month.strip()}
     seen: set[str] = set()
 
     for path in iter_hidden_values(args.base_url):
         if not matcher(path):
+            continue
+        if not is_requested_month(path, months):
             continue
         url = urljoin(args.base_url, path)
         if url in seen:
