@@ -71,7 +71,7 @@ layouts:
     {
       "input_kind": "csv_tree",
       "root_path": "/research/obo/raw_datasets/ugr_csv",
-      "mapping_path": "./configs/ugr16-csv.mapping.json"
+      "mapping_path": "/path/to/ugr16-csv.mapping.json"
     },
     {
       "input_kind": "nfcapd_tree",
@@ -90,18 +90,21 @@ Run it with:
 python tools/netflow-db/pipeline_v2.py --config /path/to/pipeline-v2.json
 ```
 
-The checked-in UGR'16 CSV build config writes the web-facing database path.
-For the full CSV corpus, build to a candidate path first, then verify and
-promote only after all discovered input buckets are processed:
+UGR'16 CSV configs are local because deployments use different data roots. The
+operator helpers live in `scripts/local/`. Create
+`scripts/local/ugr16-csv.pipeline-v2.json`, or pass another config path. For the
+full CSV corpus, build to a candidate path first, then verify and promote only
+after all discovered input buckets are processed:
 
 ```bash
-scripts/build_ugr16_netflow_v2.sh \
+scripts/local/build_ugr16_netflow_v2.sh \
   --detach \
+  --config scripts/local/ugr16-csv.pipeline-v2.json \
   --database data/ugr16/netflow.detached.build.sqlite \
   --log data/ugr16/netflow.detached.build.log \
   --pid data/ugr16/netflow.detached.build.pid
 
-scripts/finalize_ugr16_netflow_v2.sh \
+scripts/local/finalize_ugr16_netflow_v2.sh \
   --candidate data/ugr16/netflow.detached.build.sqlite \
   --target data/ugr16/netflow.sqlite \
   --promote

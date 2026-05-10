@@ -53,6 +53,8 @@ jobs:
 
       - run: bun run test:web
 
+      - run: ./scripts/build_maad_fast.sh
+
       - run: bun run test:db
 
       - run: python -m compileall tools/netflow-db

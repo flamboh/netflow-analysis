@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CANDIDATE_PATH="$ROOT_DIR/data/ugr16/netflow.detached.build.sqlite"
 TARGET_PATH="$ROOT_DIR/data/ugr16/netflow.sqlite"
 PROMOTE=0
@@ -10,7 +10,7 @@ SKIP_WEB=0
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/finalize_ugr16_netflow_v2.sh [--candidate PATH] [--target PATH] [--promote] [--web-base-url URL] [--skip-web]
+Usage: scripts/local/finalize_ugr16_netflow_v2.sh [--candidate PATH] [--target PATH] [--promote] [--web-base-url URL] [--skip-web]
 
 Verify a complete UGR'16 pipeline-v2 candidate. With --promote, atomically
 replace the web-facing netflow.sqlite after verification passes.
@@ -87,6 +87,6 @@ if [[ "$SKIP_WEB" -ne 1 ]]; then
   if [[ -n "$WEB_BASE_URL" ]]; then
     web_args+=(--base-url "$WEB_BASE_URL")
   fi
-  python scripts/verify_ugr16_web_routes.py "${web_args[@]}"
+  python scripts/local/verify_ugr16_web_routes.py "${web_args[@]}"
 fi
 echo "promoted UGR16 database: $TARGET_PATH"

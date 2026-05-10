@@ -560,7 +560,7 @@ def all_aggregate_maad_closed(bucket_start: int, aggregate_cutoff: float) -> boo
 def main() -> None:
     parser = argparse.ArgumentParser(description='Enrich pipeline v2 DB MAAD rows from CSV inputs.')
     parser.add_argument('--database-path', required=True)
-    parser.add_argument('--config', default='configs/ugr16-csv.pipeline-v2.json')
+    parser.add_argument('--config', required=True)
     parser.add_argument('--maad-bin')
     parser.add_argument('--maad-backend', choices=['python', 'subprocess'])
     parser.add_argument('--maad-workers', type=int)
