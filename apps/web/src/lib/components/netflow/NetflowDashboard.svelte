@@ -1,6 +1,7 @@
 <script lang="ts">
 	import DragGrip from '$lib/components/common/DragGrip.svelte';
 	import { createEventDispatcher } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
 	import ChartContainer from '$lib/components/charts/ChartContainer.svelte';
 	import MetricSelector from '$lib/components/filters/MetricSelector.svelte';
@@ -104,6 +105,14 @@
 
 	let lastFiltersKey = '';
 	let requestToken = 0;
+	const ipFamilyCache = new SvelteMap<string, NetflowIpFamily[]>();
+
+	function setAvailableIpFamilies(ipFamilies: NetflowIpFamily[]) {
+		availableIpFamilies = ipFamilies;
+		if (!ipFamilies.includes(selectedIpFamily)) {
+			selectedIpFamily = 'all';
+		}
+	}
 
 	function deriveSelectedRouters(routers: RouterConfig): string[] {
 		return Object.entries(routers)
@@ -191,6 +200,7 @@
 			if (token !== requestToken) {
 				return;
 			}
+			setAvailableIpFamilies(ipFamilyCache.get(cacheKey) ?? ['all']);
 			rawResults = readCachedResults(cacheKey, requestedRange);
 		} catch (err) {
 			if (token !== requestToken) {
