@@ -1,9 +1,10 @@
 import { createDateFromPSTComponents } from '$lib/utils/timezone';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
+import { getNetflowSchemaVersion } from '$lib/server/netflow-v2';
 
 export interface NetflowRecord {
 	router: string;
-	file_path: string;
+	input_locator: string;
 }
 
 export function getDb(dataset: string) {
@@ -40,17 +41,36 @@ export async function getNetflowFilePath(
 	slug: string,
 	router: string
 ): Promise<string | null> {
-	const filePattern = `nfcapd.${slug}`;
+	const bucketStart = slugToBucketStart(slug);
+	if (bucketStart === null) {
+		return null;
+	}
+
 	const query = `
-		SELECT file_path FROM netflow_stats
-		WHERE file_path LIKE '%' || ? AND router = ?
+		SELECT input_locator FROM processed_inputs_v2
+		WHERE source_id = ? AND bucket_start = ? AND input_kind = 'nfcapd'
 		LIMIT 1
 	`;
 
 	const database = getDb(dataset);
-	const result = database.prepare(query).get(filePattern, router) as NetflowRecord | undefined;
+	const schema = getNetflowSchemaVersion(database);
+	if (schema === 'v2') {
+		const result = database.prepare(query).get(router, bucketStart) as NetflowRecord | undefined;
+		return result?.input_locator || null;
+	}
 
-	return result?.file_path || null;
+	const filePattern = `nfcapd.${slug}`;
+	const result = database
+		.prepare(
+			`
+			SELECT file_path AS input_locator FROM netflow_stats
+			WHERE file_path LIKE '%' || ? AND router = ?
+			LIMIT 1
+		`
+		)
+		.get(filePattern, router) as NetflowRecord | undefined;
+
+	return result?.input_locator || null;
 }
 
 export function getDatasetFromRequest(url: URL): string {

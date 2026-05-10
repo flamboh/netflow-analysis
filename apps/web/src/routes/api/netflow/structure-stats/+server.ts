@@ -7,16 +7,15 @@ import type {
 	StructureStatsResponse
 } from '$lib/types/types';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
+import {
+	getNetflowSchemaVersion,
+	normalizeStructurePoints,
+	parseSourceIds,
+	parseTimestamp,
+	placeholders
+} from '$lib/server/netflow-v2';
 
 const VALID_GRANULARITIES = new Set<string>(IP_GRANULARITIES);
-
-function parseRouters(param: string | null): string[] {
-	if (!param) return [];
-	return param
-		.split(',')
-		.map((router) => router.trim())
-		.filter((router) => router.length > 0);
-}
 
 function parseGranularity(param: string | null): IpGranularity | null {
 	if (!param) return null;
@@ -26,15 +25,9 @@ function parseGranularity(param: string | null): IpGranularity | null {
 	return null;
 }
 
-function parseTimestamp(param: string | null): number | null {
-	if (!param) return null;
-	const value = Number(param);
-	return Number.isFinite(value) ? value : null;
-}
-
 export const GET: RequestHandler = async ({ url }) => {
 	const dataset = getRequestedDataset(url);
-	const routers = parseRouters(url.searchParams.get('routers'));
+	const routers = parseSourceIds(url.searchParams.get('routers'));
 	const granularity =
 		parseGranularity(url.searchParams.get('granularity')) ?? (IP_GRANULARITIES[2] as IpGranularity); // default 1h
 	const start = parseTimestamp(url.searchParams.get('startDate'));
@@ -54,22 +47,24 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	try {
 		const db = getDatasetDb(dataset);
-		const placeholders = routers.map(() => '?').join(',');
+		const schema = getNetflowSchemaVersion(db);
+		const tableName = schema === 'v2' ? 'structure_stats_v2' : 'structure_stats';
+		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
 		const params = [granularity, ...routers, start, end];
 
 		const query = `
 			SELECT
-				router,
+				${sourceColumn} AS router,
 				bucket_start AS bucketStart,
 				structure_json_sa AS structureJsonSa,
 				structure_json_da AS structureJsonDa
-			FROM structure_stats
+			FROM ${tableName}
 			WHERE granularity = ?
-				AND router IN (${placeholders})
+				AND ${sourceColumn} IN (${placeholders(routers)})
 				AND bucket_start >= ?
 				AND bucket_start < ?
 				AND ip_version = 4
-			ORDER BY router ASC, bucket_start ASC
+			ORDER BY ${sourceColumn} ASC, bucket_start ASC
 		`;
 
 		const stmt = db.prepare(query);
@@ -85,7 +80,9 @@ export const GET: RequestHandler = async ({ url }) => {
 
 			try {
 				if (row.structureJsonSa) {
-					structureSa = JSON.parse(row.structureJsonSa) as StructureFunctionPoint[];
+					structureSa = normalizeStructurePoints(
+						JSON.parse(row.structureJsonSa) as StructureFunctionPoint[]
+					);
 				}
 			} catch (e) {
 				console.error('Failed to parse structure_json_sa:', e);
@@ -93,7 +90,9 @@ export const GET: RequestHandler = async ({ url }) => {
 
 			try {
 				if (row.structureJsonDa) {
-					structureDa = JSON.parse(row.structureJsonDa) as StructureFunctionPoint[];
+					structureDa = normalizeStructurePoints(
+						JSON.parse(row.structureJsonDa) as StructureFunctionPoint[]
+					);
 				}
 			} catch (e) {
 				console.error('Failed to parse structure_json_da:', e);

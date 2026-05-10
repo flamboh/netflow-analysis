@@ -48,6 +48,9 @@ export type NetflowMetricField =
 	| 'bytesIcmp'
 	| 'bytesOther';
 
+export type NetflowIpFamily = 'all' | 'ipv4' | 'ipv6';
+export type NetflowSplitMetricField = `${NetflowMetricField}Ipv4` | `${NetflowMetricField}Ipv6`;
+
 export interface NetflowMetricTotals {
 	flows: number;
 	flowsTcp: number;
@@ -66,14 +69,28 @@ export interface NetflowMetricTotals {
 	bytesOther: number;
 }
 
-export interface NetflowStatsResult extends NetflowMetricTotals {
+export type NetflowMetricTotalsByIpFamily = {
+	[key in NetflowSplitMetricField]: number;
+};
+
+export interface NetflowStatsResult extends NetflowMetricTotals, NetflowMetricTotalsByIpFamily {
 	bucketStart: number;
+}
+
+export interface NetflowStatsResponse {
+	result: NetflowStatsResult[];
+	availableIpFamilies: NetflowIpFamily[];
 }
 
 export interface NetflowFileSummaryRecord {
 	router: string;
-	file_path: string;
+	file_path: string | null;
 	file_exists_on_disk?: boolean;
+	input_kind?: string | null;
+	input_status?: string | null;
+	input_error_message?: string | null;
+	bucket_start?: number;
+	bucket_end?: number;
 	flows: number;
 	flows_tcp: number;
 	flows_udp: number;
@@ -89,12 +106,12 @@ export interface NetflowFileSummaryRecord {
 	bytes_udp: number;
 	bytes_icmp: number;
 	bytes_other: number;
-	first_timestamp: number;
-	last_timestamp: number;
-	msec_first: number;
-	msec_last: number;
-	sequence_failures: number;
-	processed_at: string;
+	first_timestamp: number | null;
+	last_timestamp: number | null;
+	msec_first: number | null;
+	msec_last: number | null;
+	sequence_failures: number | null;
+	processed_at: string | null;
 }
 
 export interface NetflowFileSummaryResponse {

@@ -550,30 +550,36 @@ def get_stale_days(
     status_column = f"{table_name}_status"
     cursor = conn.cursor()
     
-    # Find days that have mixed status (some processed, some pending)
-    # We group by router and day, then check for both statuses
-    query = f"""
-        WITH day_status AS (
-            SELECT 
-                router,
-                CAST(
-                    strftime(
-                        '%s',
-                        datetime(timestamp, 'unixepoch', 'localtime', 'start of day')
-                    ) AS INTEGER
-                ) AS day_start,
-                MAX(CASE WHEN {status_column} = 1 THEN 1 ELSE 0 END) AS has_processed,
-                MAX(CASE WHEN {status_column} IS NULL THEN 1 ELSE 0 END) AS has_pending
-            FROM processed_files
-            GROUP BY router, day_start
+    rows = cursor.execute(
+        f"""
+        SELECT router, timestamp, {status_column}
+        FROM processed_files
+        """
+    ).fetchall()
+
+    day_status: dict[tuple[str, int], dict[str, bool]] = {}
+    for router, timestamp, status in rows:
+        day_start_dt = unix_to_timestamp(timestamp).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
         )
-        SELECT router, day_start
-        FROM day_status
-        WHERE has_processed = 1 AND has_pending = 1
-    """
-    
-    rows = cursor.execute(query).fetchall()
-    return {(row[0], row[1]) for row in rows}
+        day_start = timestamp_to_unix(day_start_dt)
+        state = day_status.setdefault(
+            (router, day_start),
+            {'has_processed': False, 'has_pending': False},
+        )
+        if status == 1:
+            state['has_processed'] = True
+        if status is None:
+            state['has_pending'] = True
+
+    return {
+        key
+        for key, state in day_status.items()
+        if state['has_processed'] and state['has_pending']
+    }
 
 
 def reset_day_for_reprocessing(

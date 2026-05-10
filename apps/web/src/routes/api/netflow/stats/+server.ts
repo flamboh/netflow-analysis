@@ -1,37 +1,106 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import type { NetflowStatsResult } from '$lib/types/types';
+import type {
+	NetflowIpFamily,
+	NetflowMetricField,
+	NetflowSplitMetricField,
+	NetflowStatsResponse,
+	NetflowStatsResult
+} from '$lib/types/types';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
+import { NETFLOW_DATA_OPTION_FIELDS } from '$lib/components/netflow/constants';
+import {
+	getBucketStartQuery,
+	getNetflowSchemaVersion,
+	parseSourceIds,
+	placeholders
+} from '$lib/server/netflow-v2';
 
-// Bucket sizes in seconds
-const BUCKET_SIZES: Record<string, number> = {
-	date: 86400, // 24 hours
-	hour: 3600, // 1 hour
-	'30min': 1800, // 30 minutes
-	'5min': 300 // 5 minutes
+const V2_IP_VERSION_BY_FAMILY: Record<Exclude<NetflowIpFamily, 'all'>, 4 | 6> = {
+	ipv4: 4,
+	ipv6: 6
 };
 
-/**
- * Generate SQL expression for epoch-based bucket calculation in local time.
- * Server timezone is set to America/Los_Angeles to handle DST correctly.
- */
-function getBucketStartQuery(groupBy: string): string {
-	const bucketSize = BUCKET_SIZES[groupBy] ?? BUCKET_SIZES.date;
-	return `(CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime', 'start of day', 'utc', printf('+%d seconds', ((CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime')) AS integer) - CAST(strftime('%s', datetime(timestamp, 'unixepoch', 'localtime', 'start of day')) AS integer)) / ${bucketSize}) * ${bucketSize}))) AS integer))`;
+function getBaseMetricSelects(): string[] {
+	return NETFLOW_DATA_OPTION_FIELDS.map((field) => {
+		const columnName = field.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`).toLowerCase();
+		return `SUM(${columnName}) AS ${field}`;
+	});
+}
+
+function getFamilyMetricSelects(family: Exclude<NetflowIpFamily, 'all'>): string[] {
+	const ipVersion = V2_IP_VERSION_BY_FAMILY[family];
+	const suffix = family === 'ipv4' ? 'Ipv4' : 'Ipv6';
+	return NETFLOW_DATA_OPTION_FIELDS.map((field) => {
+		const columnName = field.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`).toLowerCase();
+		return `SUM(CASE WHEN ip_version = ${ipVersion} THEN ${columnName} ELSE 0 END) AS ${field}${suffix}`;
+	});
+}
+
+function getMetricValue(
+	row: Record<string, number | null>,
+	field: NetflowMetricField | NetflowSplitMetricField
+): number {
+	return row[field] ?? 0;
+}
+
+function normalizeRow(row: Record<string, number | null>): NetflowStatsResult {
+	return {
+		bucketStart: row.bucketStart ?? 0,
+		flows: getMetricValue(row, 'flows'),
+		flowsTcp: getMetricValue(row, 'flowsTcp'),
+		flowsUdp: getMetricValue(row, 'flowsUdp'),
+		flowsIcmp: getMetricValue(row, 'flowsIcmp'),
+		flowsOther: getMetricValue(row, 'flowsOther'),
+		packets: getMetricValue(row, 'packets'),
+		packetsTcp: getMetricValue(row, 'packetsTcp'),
+		packetsUdp: getMetricValue(row, 'packetsUdp'),
+		packetsIcmp: getMetricValue(row, 'packetsIcmp'),
+		packetsOther: getMetricValue(row, 'packetsOther'),
+		bytes: getMetricValue(row, 'bytes'),
+		bytesTcp: getMetricValue(row, 'bytesTcp'),
+		bytesUdp: getMetricValue(row, 'bytesUdp'),
+		bytesIcmp: getMetricValue(row, 'bytesIcmp'),
+		bytesOther: getMetricValue(row, 'bytesOther'),
+		flowsIpv4: getMetricValue(row, 'flowsIpv4'),
+		flowsTcpIpv4: getMetricValue(row, 'flowsTcpIpv4'),
+		flowsUdpIpv4: getMetricValue(row, 'flowsUdpIpv4'),
+		flowsIcmpIpv4: getMetricValue(row, 'flowsIcmpIpv4'),
+		flowsOtherIpv4: getMetricValue(row, 'flowsOtherIpv4'),
+		packetsIpv4: getMetricValue(row, 'packetsIpv4'),
+		packetsTcpIpv4: getMetricValue(row, 'packetsTcpIpv4'),
+		packetsUdpIpv4: getMetricValue(row, 'packetsUdpIpv4'),
+		packetsIcmpIpv4: getMetricValue(row, 'packetsIcmpIpv4'),
+		packetsOtherIpv4: getMetricValue(row, 'packetsOtherIpv4'),
+		bytesIpv4: getMetricValue(row, 'bytesIpv4'),
+		bytesTcpIpv4: getMetricValue(row, 'bytesTcpIpv4'),
+		bytesUdpIpv4: getMetricValue(row, 'bytesUdpIpv4'),
+		bytesIcmpIpv4: getMetricValue(row, 'bytesIcmpIpv4'),
+		bytesOtherIpv4: getMetricValue(row, 'bytesOtherIpv4'),
+		flowsIpv6: getMetricValue(row, 'flowsIpv6'),
+		flowsTcpIpv6: getMetricValue(row, 'flowsTcpIpv6'),
+		flowsUdpIpv6: getMetricValue(row, 'flowsUdpIpv6'),
+		flowsIcmpIpv6: getMetricValue(row, 'flowsIcmpIpv6'),
+		flowsOtherIpv6: getMetricValue(row, 'flowsOtherIpv6'),
+		packetsIpv6: getMetricValue(row, 'packetsIpv6'),
+		packetsTcpIpv6: getMetricValue(row, 'packetsTcpIpv6'),
+		packetsUdpIpv6: getMetricValue(row, 'packetsUdpIpv6'),
+		packetsIcmpIpv6: getMetricValue(row, 'packetsIcmpIpv6'),
+		packetsOtherIpv6: getMetricValue(row, 'packetsOtherIpv6'),
+		bytesIpv6: getMetricValue(row, 'bytesIpv6'),
+		bytesTcpIpv6: getMetricValue(row, 'bytesTcpIpv6'),
+		bytesUdpIpv6: getMetricValue(row, 'bytesUdpIpv6'),
+		bytesIcmpIpv6: getMetricValue(row, 'bytesIcmpIpv6'),
+		bytesOtherIpv6: getMetricValue(row, 'bytesOtherIpv6')
+	};
 }
 
 export const GET: RequestHandler = async ({ url }) => {
 	const dataset = getRequestedDataset(url);
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
-	// const fullDay = url.searchParams.get('fullDay') === 'true';
-	// const time = url.searchParams.get('time') || '1200';
-	// const endTime = url.searchParams.get('endTime') || '0100';
-	const routersParam = url.searchParams.get('routers') || '';
 	const groupBy = url.searchParams.get('groupBy') || 'date';
-
-	// Parse routers
-	const routers = routersParam.split(',').filter((r) => r.length > 0);
+	const routers = parseSourceIds(url.searchParams.get('routers'));
 
 	if (routers.length === 0) {
 		return json({ error: 'No routers selected' }, { status: 400 });
@@ -39,30 +108,24 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	try {
 		const db = getDatasetDb(dataset);
-		const bucketStartQuery = getBucketStartQuery(groupBy);
+		const schema = getNetflowSchemaVersion(db);
+		const timeColumn = schema === 'v2' ? 'bucket_start' : 'timestamp';
+		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
+		const tableName = schema === 'v2' ? 'netflow_stats_v2' : 'netflow_stats';
+		const bucketStartQuery = getBucketStartQuery(timeColumn, groupBy);
+		const metricSelects = getBaseMetricSelects();
+		if (schema === 'v2') {
+			metricSelects.push(...getFamilyMetricSelects('ipv4'), ...getFamilyMetricSelects('ipv6'));
+		}
 
 		const query = `
 			SELECT 
 				${bucketStartQuery} as bucketStart,
-				SUM(flows) AS flows,
-				SUM(flows_tcp) AS flowsTcp,
-				SUM(flows_udp) AS flowsUdp,
-				SUM(flows_icmp) AS flowsIcmp,
-				SUM(flows_other) AS flowsOther,
-				SUM(packets) AS packets,
-				SUM(packets_tcp) AS packetsTcp,
-				SUM(packets_udp) AS packetsUdp,
-				SUM(packets_icmp) AS packetsIcmp,
-				SUM(packets_other) AS packetsOther,
-				SUM(bytes) AS bytes,
-				SUM(bytes_tcp) AS bytesTcp,
-				SUM(bytes_udp) AS bytesUdp,
-				SUM(bytes_icmp) AS bytesIcmp,
-				SUM(bytes_other) AS bytesOther
-			FROM netflow_stats 
-			WHERE router IN (${routers.map(() => '?').join(',')})
-			AND timestamp >= ? 
-			AND timestamp < ?
+				${metricSelects.join(',\n\t\t\t\t')}
+			FROM ${tableName} 
+			WHERE ${sourceColumn} IN (${placeholders(routers)})
+			AND ${timeColumn} >= ? 
+			AND ${timeColumn} < ?
 			GROUP BY bucketStart
 			ORDER BY bucketStart
 		`;
@@ -70,26 +133,11 @@ export const GET: RequestHandler = async ({ url }) => {
 		const params = [...routers, startDate, endDate];
 
 		const stmt = db.prepare(query);
-		const rows = stmt.all(...params) as NetflowStatsResult[];
-		const result: NetflowStatsResult[] = rows.map((row) => ({
-			bucketStart: row.bucketStart,
-			flows: row.flows ?? 0,
-			flowsTcp: row.flowsTcp ?? 0,
-			flowsUdp: row.flowsUdp ?? 0,
-			flowsIcmp: row.flowsIcmp ?? 0,
-			flowsOther: row.flowsOther ?? 0,
-			packets: row.packets ?? 0,
-			packetsTcp: row.packetsTcp ?? 0,
-			packetsUdp: row.packetsUdp ?? 0,
-			packetsIcmp: row.packetsIcmp ?? 0,
-			packetsOther: row.packetsOther ?? 0,
-			bytes: row.bytes ?? 0,
-			bytesTcp: row.bytesTcp ?? 0,
-			bytesUdp: row.bytesUdp ?? 0,
-			bytesIcmp: row.bytesIcmp ?? 0,
-			bytesOther: row.bytesOther ?? 0
-		}));
-		return json({ result });
+		const rows = stmt.all(...params) as Record<string, number | null>[];
+		const result = rows.map(normalizeRow);
+		const availableIpFamilies: NetflowIpFamily[] =
+			schema === 'v2' ? ['all', 'ipv4', 'ipv6'] : ['all'];
+		return json({ result, availableIpFamilies } satisfies NetflowStatsResponse);
 	} catch (error) {
 		console.error('Database error:', error);
 		return json({ error: 'Database query failed' }, { status: 500 });
