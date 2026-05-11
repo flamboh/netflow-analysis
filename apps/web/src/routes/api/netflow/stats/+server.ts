@@ -12,7 +12,9 @@ import { NETFLOW_DATA_OPTION_FIELDS } from '$lib/components/netflow/constants';
 import {
 	getBucketStartQuery,
 	getNetflowSchemaVersion,
+	groupByToGranularity,
 	parseSourceIds,
+	parseTimestamp,
 	placeholders
 } from '$lib/server/netflow-v2';
 
@@ -101,22 +103,39 @@ export const GET: RequestHandler = async ({ url }) => {
 	const endDate = url.searchParams.get('endDate') || '';
 	const groupBy = url.searchParams.get('groupBy') || 'date';
 	const routers = parseSourceIds(url.searchParams.get('routers'));
+	const start = parseTimestamp(startDate);
+	const end = parseTimestamp(endDate);
 
 	if (routers.length === 0) {
 		return json({ error: 'No routers selected' }, { status: 400 });
 	}
 
+	if (start === null || end === null) {
+		return json({ error: 'Invalid start or end time' }, { status: 400 });
+	}
+
+	if (start >= end) {
+		return json({ error: 'Start time must be before end time' }, { status: 400 });
+	}
+
 	try {
 		const db = getDatasetDb(dataset);
 		const schema = getNetflowSchemaVersion(db);
+		const granularity = groupByToGranularity(groupBy);
+		const useV2Aggregate = schema === 'v2' && granularity !== '5m';
 		const timeColumn = schema === 'v2' ? 'bucket_start' : 'timestamp';
 		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
-		const tableName = schema === 'v2' ? 'netflow_stats_v2' : 'netflow_stats';
-		const bucketStartQuery = getBucketStartQuery(timeColumn, groupBy);
+		const tableName = useV2Aggregate
+			? 'netflow_stats_aggregate_v2'
+			: schema === 'v2'
+				? 'netflow_stats_v2'
+				: 'netflow_stats';
+		const bucketStartQuery = useV2Aggregate ? timeColumn : getBucketStartQuery(timeColumn, groupBy);
 		const metricSelects = getBaseMetricSelects();
 		if (schema === 'v2') {
 			metricSelects.push(...getFamilyMetricSelects('ipv4'), ...getFamilyMetricSelects('ipv6'));
 		}
+		const granularityClause = useV2Aggregate ? 'AND granularity = ?' : '';
 
 		const query = `
 			SELECT 
@@ -124,13 +143,16 @@ export const GET: RequestHandler = async ({ url }) => {
 				${metricSelects.join(',\n\t\t\t\t')}
 			FROM ${tableName} 
 			WHERE ${sourceColumn} IN (${placeholders(routers)})
+			${granularityClause}
 			AND ${timeColumn} >= ? 
 			AND ${timeColumn} < ?
 			GROUP BY bucketStart
 			ORDER BY bucketStart
 		`;
 
-		const params = [...routers, startDate, endDate];
+		const params = useV2Aggregate
+			? [...routers, granularity, start, end]
+			: [...routers, start, end];
 
 		const stmt = db.prepare(query);
 		const rows = stmt.all(...params) as Record<string, number | null>[];

@@ -75,6 +75,7 @@ def build_nfcapd_bucket_payload(path: str, source_id: str) -> dict:
             'protocols_ipv6': sorted(protocols_ipv6),
             'maad_source_ipv4': sorted(source_ipv4),
             'maad_destination_ipv4': sorted(destination_ipv4),
+            'netflow_rows': [strip_internal_keys(netflow_ipv4), strip_internal_keys(netflow_ipv6)],
         },
     }
 

@@ -11,9 +11,27 @@ from collections import defaultdict
 
 from normalized_rows_v2 import NormalizedRow
 
+NETFLOW_METRIC_COLUMNS = (
+    'flows',
+    'flows_tcp',
+    'flows_udp',
+    'flows_icmp',
+    'flows_other',
+    'packets',
+    'packets_tcp',
+    'packets_udp',
+    'packets_icmp',
+    'packets_other',
+    'bytes',
+    'bytes_tcp',
+    'bytes_udp',
+    'bytes_icmp',
+    'bytes_other',
+)
+
 
 def init_netflow_stats_v2_table(conn: sqlite3.Connection) -> None:
-    """Create the netflow_stats_v2 table if it does not exist."""
+    """Create netflow v2 5m and rollup tables if they do not exist."""
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS netflow_stats_v2 (
@@ -41,6 +59,46 @@ def init_netflow_stats_v2_table(conn: sqlite3.Connection) -> None:
         ) WITHOUT ROWID
         """
     )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_netflow_stats_v2_bucket_source
+        ON netflow_stats_v2(bucket_start, source_id, ip_version)
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS netflow_stats_aggregate_v2 (
+            source_id TEXT NOT NULL,
+            granularity TEXT NOT NULL CHECK (granularity IN ('30m', '1h', '1d')),
+            bucket_start INTEGER NOT NULL,
+            bucket_end INTEGER NOT NULL,
+            ip_version INTEGER NOT NULL CHECK (ip_version IN (4, 6)),
+            flows INTEGER NOT NULL,
+            flows_tcp INTEGER NOT NULL,
+            flows_udp INTEGER NOT NULL,
+            flows_icmp INTEGER NOT NULL,
+            flows_other INTEGER NOT NULL,
+            packets INTEGER NOT NULL,
+            packets_tcp INTEGER NOT NULL,
+            packets_udp INTEGER NOT NULL,
+            packets_icmp INTEGER NOT NULL,
+            packets_other INTEGER NOT NULL,
+            bytes INTEGER NOT NULL,
+            bytes_tcp INTEGER NOT NULL,
+            bytes_udp INTEGER NOT NULL,
+            bytes_icmp INTEGER NOT NULL,
+            bytes_other INTEGER NOT NULL,
+            processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (source_id, granularity, bucket_start, ip_version)
+        ) WITHOUT ROWID
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_netflow_stats_aggregate_v2_granularity_bucket_source
+        ON netflow_stats_aggregate_v2(granularity, bucket_start, source_id, ip_version)
+        """
+    )
     conn.commit()
 
 
@@ -62,6 +120,12 @@ def init_ip_stats_v2_table(conn: sqlite3.Connection) -> None:
         ) WITHOUT ROWID
         """
     )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_ip_stats_v2_granularity_bucket_source
+        ON ip_stats_v2(granularity, bucket_start, source_id)
+        """
+    )
     conn.commit()
 
 
@@ -81,6 +145,12 @@ def init_protocol_stats_v2_table(conn: sqlite3.Connection) -> None:
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (source_id, granularity, bucket_start)
         ) WITHOUT ROWID
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_protocol_stats_v2_granularity_bucket_source
+        ON protocol_stats_v2(granularity, bucket_start, source_id)
         """
     )
     conn.commit()
@@ -213,6 +283,45 @@ def insert_netflow_stats_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> 
         [
             (
                 row['source_id'],
+                row['bucket_start'],
+                row['bucket_end'],
+                row['ip_version'],
+                row['flows'],
+                row['flows_tcp'],
+                row['flows_udp'],
+                row['flows_icmp'],
+                row['flows_other'],
+                row['packets'],
+                row['packets_tcp'],
+                row['packets_udp'],
+                row['packets_icmp'],
+                row['packets_other'],
+                row['bytes'],
+                row['bytes_tcp'],
+                row['bytes_udp'],
+                row['bytes_icmp'],
+                row['bytes_other'],
+            )
+            for row in rows
+        ],
+    )
+
+
+def insert_netflow_stats_aggregate_v2_rows(conn: sqlite3.Connection, rows: list[dict]) -> None:
+    """Insert or replace coarser netflow_stats_aggregate_v2 rows without committing."""
+    conn.executemany(
+        """
+        INSERT OR REPLACE INTO netflow_stats_aggregate_v2 (
+            source_id, granularity, bucket_start, bucket_end, ip_version,
+            flows, flows_tcp, flows_udp, flows_icmp, flows_other,
+            packets, packets_tcp, packets_udp, packets_icmp, packets_other,
+            bytes, bytes_tcp, bytes_udp, bytes_icmp, bytes_other
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                row['source_id'],
+                row['granularity'],
                 row['bucket_start'],
                 row['bucket_end'],
                 row['ip_version'],

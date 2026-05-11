@@ -377,6 +377,12 @@ def init_structure_stats_v2_table(conn: sqlite3.Connection) -> None:
         ) WITHOUT ROWID
         """
     )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_structure_stats_v2_granularity_bucket_source
+        ON structure_stats_v2(granularity, bucket_start, source_id, ip_version)
+        """
+    )
     conn.commit()
 
 
@@ -399,6 +405,12 @@ def init_spectrum_stats_v2_table(conn: sqlite3.Connection) -> None:
         ) WITHOUT ROWID
         """
     )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_spectrum_stats_v2_granularity_bucket_source
+        ON spectrum_stats_v2(granularity, bucket_start, source_id, ip_version)
+        """
+    )
     conn.commit()
 
 
@@ -419,6 +431,12 @@ def init_dimension_stats_v2_table(conn: sqlite3.Connection) -> None:
             processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (source_id, granularity, bucket_start, ip_version)
         ) WITHOUT ROWID
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_dimension_stats_v2_granularity_bucket_source
+        ON dimension_stats_v2(granularity, bucket_start, source_id, ip_version)
         """
     )
     conn.commit()

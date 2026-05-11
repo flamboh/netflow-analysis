@@ -270,6 +270,50 @@ def test_process_input_specs_uses_nfdump_adapter_for_nfcapd(monkeypatch) -> None
                 'protocols_ipv6': ['58'],
                 'maad_source_ipv4': ['192.0.2.1'],
                 'maad_destination_ipv4': ['198.51.100.9'],
+                'netflow_rows': [
+                    {
+                        'source_id': 'oh_ir1_gw',
+                        'bucket_start': 1744733100,
+                        'bucket_end': 1744733400,
+                        'ip_version': 4,
+                        'flows': 1,
+                        'flows_tcp': 1,
+                        'flows_udp': 0,
+                        'flows_icmp': 0,
+                        'flows_other': 0,
+                        'packets': 10,
+                        'packets_tcp': 10,
+                        'packets_udp': 0,
+                        'packets_icmp': 0,
+                        'packets_other': 0,
+                        'bytes': 1000,
+                        'bytes_tcp': 1000,
+                        'bytes_udp': 0,
+                        'bytes_icmp': 0,
+                        'bytes_other': 0,
+                    },
+                    {
+                        'source_id': 'oh_ir1_gw',
+                        'bucket_start': 1744733100,
+                        'bucket_end': 1744733400,
+                        'ip_version': 6,
+                        'flows': 1,
+                        'flows_tcp': 0,
+                        'flows_udp': 0,
+                        'flows_icmp': 1,
+                        'flows_other': 0,
+                        'packets': 3,
+                        'packets_tcp': 0,
+                        'packets_udp': 0,
+                        'packets_icmp': 3,
+                        'packets_other': 0,
+                        'bytes': 300,
+                        'bytes_tcp': 0,
+                        'bytes_udp': 0,
+                        'bytes_icmp': 300,
+                        'bytes_other': 0,
+                    },
+                ],
             },
         }
 
@@ -1257,6 +1301,13 @@ def test_process_input_specs_writes_v1_granularity_aggregates_for_csv(monkeypatc
         ORDER BY granularity, bucket_start
         """
     ).fetchall()
+    netflow_aggregate_stats = conn.execute(
+        """
+        SELECT granularity, bucket_start, ip_version, flows, flows_tcp, flows_udp, packets, bytes
+        FROM netflow_stats_aggregate_v2
+        ORDER BY granularity, bucket_start, ip_version
+        """
+    ).fetchall()
     maad_30m = conn.execute(
         """
         SELECT json_extract(metadata_json_sa, '$.totalAddrs'),
@@ -1279,6 +1330,11 @@ def test_process_input_specs_writes_v1_granularity_aggregates_for_csv(monkeypatc
         ('30m', 1744732800, 2, '17,6'),
         ('5m', 1744732800, 1, '6'),
         ('5m', 1744733100, 1, '17'),
+    ]
+    assert netflow_aggregate_stats == [
+        ('1d', 1744700400, 4, 2, 1, 1, 30, 3000),
+        ('1h', 1744732800, 4, 2, 1, 1, 30, 3000),
+        ('30m', 1744732800, 4, 2, 1, 1, 30, 3000),
     ]
     assert maad_30m == (2, 2)
 
