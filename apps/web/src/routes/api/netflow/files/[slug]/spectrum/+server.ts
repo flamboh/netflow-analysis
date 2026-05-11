@@ -2,7 +2,6 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import type { SpectrumData, SpectrumPoint } from '$lib/types/types';
 import { getDatasetFromRequest, getDb, slugToBucketStart } from '../utils';
-import { getNetflowSchemaVersion } from '$lib/server/netflow-v2';
 
 const FIVE_MINUTES = '5m';
 
@@ -11,9 +10,9 @@ type SpectrumRow = {
 	spectrumJsonDa: string | null;
 };
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, platform }) => {
 	const { slug } = params;
-	const dataset = getDatasetFromRequest(url);
+	await getDatasetFromRequest(url, platform);
 	const router = url.searchParams.get('router');
 	const sourceParam = url.searchParams.get('source');
 
@@ -40,23 +39,19 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	}
 
 	try {
-		const db = getDb(dataset);
-		const schema = getNetflowSchemaVersion(db);
-		const tableName = schema === 'v2' ? 'spectrum_stats_v2' : 'spectrum_stats';
-		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
-		const row = db
-			.prepare(
-				`SELECT
-					spectrum_json_sa AS spectrumJsonSa,
-					spectrum_json_da AS spectrumJsonDa
-				FROM ${tableName}
-				WHERE ${sourceColumn} = ?
-					AND granularity = ?
-					AND bucket_start = ?
-					AND ip_version = 4
-				LIMIT 1`
-			)
-			.get(router, FIVE_MINUTES, bucketStart) as SpectrumRow | undefined;
+		const db = await getDb(platform);
+		const row = await db.get<SpectrumRow>(
+			`SELECT
+				spectrum_json_sa AS spectrumJsonSa,
+				spectrum_json_da AS spectrumJsonDa
+			FROM spectrum_stats_v2
+			WHERE source_id = ?
+				AND granularity = ?
+				AND bucket_start = ?
+				AND ip_version = 4
+			LIMIT 1`,
+			[router, FIVE_MINUTES, bucketStart]
+		);
 
 		if (!row) {
 			return json(

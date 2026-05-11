@@ -2,10 +2,10 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getRequestedDataset, listDatasetSources } from '$lib/server/datasets';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, platform }) => {
 	try {
-		const dataset = getRequestedDataset(url);
-		const routers = listDatasetSources(dataset);
+		const dataset = await getRequestedDataset(url, platform);
+		const routers = await listDatasetSources(dataset, platform);
 		if (routers.length === 0) {
 			return json({ error: `No routers available for dataset '${dataset}'` }, { status: 404 });
 		}

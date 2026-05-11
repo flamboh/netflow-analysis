@@ -11,7 +11,6 @@ import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
 import { NETFLOW_DATA_OPTION_FIELDS } from '$lib/components/netflow/constants';
 import {
 	getBucketStartQuery,
-	getNetflowSchemaVersion,
 	groupByToGranularity,
 	parseSourceIds,
 	parseTimestamp,
@@ -97,8 +96,8 @@ function normalizeRow(row: Record<string, number | null>): NetflowStatsResult {
 	};
 }
 
-export const GET: RequestHandler = async ({ url }) => {
-	const dataset = getRequestedDataset(url);
+export const GET: RequestHandler = async ({ url, platform }) => {
+	await getRequestedDataset(url, platform);
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
 	const groupBy = url.searchParams.get('groupBy') || 'date';
@@ -119,23 +118,16 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const db = getDatasetDb(dataset);
-		const schema = getNetflowSchemaVersion(db);
+		const db = await getDatasetDb(platform);
 		const granularity = groupByToGranularity(groupBy);
-		const useV2Aggregate = schema === 'v2' && granularity !== '5m';
-		const timeColumn = schema === 'v2' ? 'bucket_start' : 'timestamp';
-		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
-		const tableName = useV2Aggregate
-			? 'netflow_stats_aggregate_v2'
-			: schema === 'v2'
-				? 'netflow_stats_v2'
-				: 'netflow_stats';
-		const bucketStartQuery = useV2Aggregate ? timeColumn : getBucketStartQuery(timeColumn, groupBy);
+		const useAggregate = granularity !== '5m';
+		const timeColumn = 'bucket_start';
+		const sourceColumn = 'source_id';
+		const tableName = useAggregate ? 'netflow_stats_aggregate_v2' : 'netflow_stats_v2';
+		const bucketStartQuery = useAggregate ? timeColumn : getBucketStartQuery(timeColumn, groupBy);
 		const metricSelects = getBaseMetricSelects();
-		if (schema === 'v2') {
-			metricSelects.push(...getFamilyMetricSelects('ipv4'), ...getFamilyMetricSelects('ipv6'));
-		}
-		const granularityClause = useV2Aggregate ? 'AND granularity = ?' : '';
+		metricSelects.push(...getFamilyMetricSelects('ipv4'), ...getFamilyMetricSelects('ipv6'));
+		const granularityClause = useAggregate ? 'AND granularity = ?' : '';
 
 		const query = `
 			SELECT 
@@ -150,15 +142,11 @@ export const GET: RequestHandler = async ({ url }) => {
 			ORDER BY bucketStart
 		`;
 
-		const params = useV2Aggregate
-			? [...routers, granularity, start, end]
-			: [...routers, start, end];
+		const params = useAggregate ? [...routers, granularity, start, end] : [...routers, start, end];
 
-		const stmt = db.prepare(query);
-		const rows = stmt.all(...params) as Record<string, number | null>[];
+		const rows = await db.all<Record<string, number | null>>(query, params);
 		const result = rows.map(normalizeRow);
-		const availableIpFamilies: NetflowIpFamily[] =
-			schema === 'v2' ? ['all', 'ipv4', 'ipv6'] : ['all'];
+		const availableIpFamilies: NetflowIpFamily[] = ['all', 'ipv4', 'ipv6'];
 		return json({ result, availableIpFamilies } satisfies NetflowStatsResponse);
 	} catch (error) {
 		console.error('Database error:', error);

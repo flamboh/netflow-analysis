@@ -24,8 +24,8 @@ vi.mock('$lib/server/netflow-v2', async () => {
 
 describe('aggregate API routes', () => {
 	it('lists routers for a dataset and returns 404 when none exist', async () => {
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(listDatasetSources).mockReturnValueOnce(['r1', 'r2']).mockReturnValueOnce([]);
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
+		vi.mocked(listDatasetSources).mockResolvedValueOnce(['r1', 'r2']).mockResolvedValueOnce([]);
 
 		const okResponse = await getRouters({
 			url: new URL('http://localhost/api/routers?dataset=alpha')
@@ -42,7 +42,7 @@ describe('aggregate API routes', () => {
 	});
 
 	it('validates ip stats requests and returns grouped data', async () => {
-		const all = vi.fn().mockReturnValue([
+		const all = vi.fn().mockResolvedValue([
 			{
 				router: 'r1',
 				bucketStart: 100,
@@ -54,9 +54,9 @@ describe('aggregate API routes', () => {
 				processedAt: 'now'
 			}
 		]);
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare: vi.fn().mockReturnValue({ all })
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
+		vi.mocked(getDatasetDb).mockResolvedValue({
+			all
 		} as never);
 
 		const badResponse = await getIpStats({
@@ -89,7 +89,7 @@ describe('aggregate API routes', () => {
 	});
 
 	it('maps protocol unknown-dataset errors to 400', async () => {
-		vi.mocked(getRequestedDataset).mockImplementation(() => {
+		vi.mocked(getRequestedDataset).mockImplementation(async () => {
 			throw new Error("Unknown dataset 'bad'");
 		});
 
@@ -104,7 +104,7 @@ describe('aggregate API routes', () => {
 	it('parses spectrum and structure json payloads, tolerating bad json', async () => {
 		const all = vi
 			.fn()
-			.mockReturnValueOnce([
+			.mockResolvedValueOnce([
 				{
 					router: 'r1',
 					bucketStart: 100,
@@ -112,7 +112,7 @@ describe('aggregate API routes', () => {
 					spectrumJsonDa: 'not-json'
 				}
 			])
-			.mockReturnValueOnce([
+			.mockResolvedValueOnce([
 				{
 					router: 'r1',
 					bucketStart: 100,
@@ -120,9 +120,9 @@ describe('aggregate API routes', () => {
 					structureJsonDa: 'not-json'
 				}
 			]);
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare: vi.fn().mockReturnValue({ all })
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
+		vi.mocked(getDatasetDb).mockResolvedValue({
+			all
 		} as never);
 
 		const spectrumResponse = await getSpectrumStats({

@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatasetFromRequest, getDb, slugToBucketStart } from '../utils';
-import { getNetflowSchemaVersion } from '$lib/server/netflow-v2';
 
 const FIVE_MINUTES = '5m';
 
@@ -12,9 +11,9 @@ type IpCountRow = {
 	daIpv6Count: number;
 };
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, platform }) => {
 	const { slug } = params;
-	const dataset = getDatasetFromRequest(url);
+	await getDatasetFromRequest(url, platform);
 	const router = url.searchParams.get('router');
 	const sourceParam = url.searchParams.get('source');
 
@@ -41,24 +40,20 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	}
 
 	try {
-		const db = getDb(dataset);
-		const schema = getNetflowSchemaVersion(db);
-		const tableName = schema === 'v2' ? 'ip_stats_v2' : 'ip_stats';
-		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
-		const row = db
-			.prepare(
-				`SELECT
-					sa_ipv4_count AS saIpv4Count,
-					da_ipv4_count AS daIpv4Count,
-					sa_ipv6_count AS saIpv6Count,
-					da_ipv6_count AS daIpv6Count
-				FROM ${tableName}
-				WHERE ${sourceColumn} = ?
-					AND granularity = ?
-					AND bucket_start = ?
-				LIMIT 1`
-			)
-			.get(router, FIVE_MINUTES, bucketStart) as IpCountRow | undefined;
+		const db = await getDb(platform);
+		const row = await db.get<IpCountRow>(
+			`SELECT
+				sa_ipv4_count AS saIpv4Count,
+				da_ipv4_count AS daIpv4Count,
+				sa_ipv6_count AS saIpv6Count,
+				da_ipv6_count AS daIpv6Count
+			FROM ip_stats_v2
+			WHERE source_id = ?
+				AND granularity = ?
+				AND bucket_start = ?
+			LIMIT 1`,
+			[router, FIVE_MINUTES, bucketStart]
+		);
 
 		if (!row) {
 			return json(

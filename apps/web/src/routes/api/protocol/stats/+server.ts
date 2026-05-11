@@ -7,12 +7,7 @@ import {
 	type ProtocolStatsResponse
 } from '$lib/types/types';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
-import {
-	getNetflowSchemaVersion,
-	parseSourceIds,
-	parseTimestamp,
-	placeholders
-} from '$lib/server/netflow-v2';
+import { parseSourceIds, parseTimestamp, placeholders } from '$lib/server/netflow-v2';
 
 const VALID_GRANULARITIES = new Set<string>(IP_GRANULARITIES);
 
@@ -24,7 +19,7 @@ function parseGranularity(param: string | null): IpGranularity | null {
 	return null;
 }
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, platform }) => {
 	const routers = parseSourceIds(url.searchParams.get('routers'));
 	const granularity =
 		parseGranularity(url.searchParams.get('granularity')) ?? (IP_GRANULARITIES[2] as IpGranularity); // default 1h
@@ -44,11 +39,10 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const dataset = getRequestedDataset(url);
-		const db = getDatasetDb(dataset);
-		const schema = getNetflowSchemaVersion(db);
-		const tableName = schema === 'v2' ? 'protocol_stats_v2' : 'protocol_stats';
-		const sourceColumn = schema === 'v2' ? 'source_id' : 'router';
+		await getRequestedDataset(url, platform);
+		const db = await getDatasetDb(platform);
+		const tableName = 'protocol_stats_v2';
+		const sourceColumn = 'source_id';
 		const params = [granularity, ...routers, start, end];
 
 		const query = `
@@ -69,8 +63,7 @@ export const GET: RequestHandler = async ({ url }) => {
 			ORDER BY ${sourceColumn} ASC, bucket_start ASC
 		`;
 
-		const stmt = db.prepare(query);
-		const rows = stmt.all(...params) as ProtocolStatsBucket[];
+		const rows = await db.all<ProtocolStatsBucket>(query, params);
 		const response: ProtocolStatsResponse = {
 			buckets: rows.map((row) => ({
 				...row,

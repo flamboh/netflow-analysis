@@ -2,3 +2,5 @@
 vendor/burstify
 vendor/maad
 apps/landing/dist
+apps/landing/.astro
+apps/web/drizzle/*.sql

@@ -8,7 +8,7 @@ vi.mock('$lib/server/datasets', () => ({
 
 describe('/api/datasets GET', () => {
 	it('returns dataset summaries in a stable envelope', async () => {
-		vi.mocked(listDatasetSummaries).mockReturnValue([
+		vi.mocked(listDatasetSummaries).mockResolvedValue([
 			{
 				datasetId: 'uoregon',
 				label: 'UONet-in',
@@ -38,7 +38,7 @@ describe('/api/datasets GET', () => {
 	});
 
 	it('returns a 500 envelope when dataset summary loading fails', async () => {
-		vi.mocked(listDatasetSummaries).mockImplementation(() => {
+		vi.mocked(listDatasetSummaries).mockImplementation(async () => {
 			throw new Error('boom');
 		});
 
