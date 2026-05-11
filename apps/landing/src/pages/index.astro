@@ -8,11 +8,13 @@ const description =
 const links = {
 	onrg: "https://onrg.gitlab.io/",
 	github: "https://github.com/flamboh/atlantis",
+	demo: "https://atlantis.oliver-boorstein.workers.dev/"
 } as const;
 
 const externalRel = "noopener noreferrer";
 
 const destinations = [
+	{ label: "Demo", href: links.demo, title: "UGR16 Demo deployment" },
 	{ label: "ONRG", href: links.onrg, title: "Oregon Networking Research Group" },
 	{
 		label: "GitHub",
