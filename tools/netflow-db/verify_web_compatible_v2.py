@@ -161,6 +161,7 @@ def main() -> None:
     parser.add_argument('--require-data', action='store_true')
     parser.add_argument('--require-maad-data', action='store_true')
     parser.add_argument('--require-processed', action='store_true')
+    parser.add_argument('--require-rollup-parity', action='store_true')
     parser.add_argument('--require-no-raw-ip', action='store_true')
     args = parser.parse_args()
 
@@ -170,6 +171,7 @@ def main() -> None:
         require_data=args.require_data,
         require_maad_data=args.require_maad_data,
         require_processed=args.require_processed,
+        require_rollup_parity=args.require_rollup_parity,
         require_no_raw_ip=args.require_no_raw_ip,
     )
 
@@ -181,6 +183,7 @@ def verify_database(
     require_data: bool,
     require_maad_data: bool = False,
     require_processed: bool = False,
+    require_rollup_parity: bool = False,
     require_no_raw_ip: bool = False,
 ) -> None:
     if not db_path.is_file():
@@ -197,7 +200,12 @@ def verify_database(
 
         row_counts = table_row_counts(conn)
         if require_data:
-            for table_name in ('netflow_stats_v2', 'ip_stats_v2', 'protocol_stats_v2'):
+            for table_name in (
+                'netflow_stats_v2',
+                'netflow_stats_aggregate_v2',
+                'ip_stats_v2',
+                'protocol_stats_v2',
+            ):
                 if row_counts[table_name] == 0:
                     raise SystemExit(f'{table_name} has no rows.')
         if require_maad_data:
@@ -211,6 +219,9 @@ def verify_database(
             ).fetchone()[0]
             if pending_count:
                 raise SystemExit(f'processed_inputs_v2 has {pending_count} unprocessed rows.')
+
+        if require_processed or require_rollup_parity:
+            assert_netflow_rollup_parity(conn)
 
         bucket_start, bucket_end = select_query_window(conn, source)
         assert_netflow_stats_query(conn, source, bucket_start, bucket_end)
@@ -332,8 +343,9 @@ def assert_netflow_stats_query(
                SUM(bytes) AS bytes,
                SUM(CASE WHEN ip_version = 4 THEN flows ELSE 0 END) AS flowsIpv4,
                SUM(CASE WHEN ip_version = 6 THEN flows ELSE 0 END) AS flowsIpv6
-        FROM netflow_stats_v2
+        FROM netflow_stats_aggregate_v2
         WHERE source_id IN (?)
+          AND granularity = '1h'
           AND bucket_start >= ?
           AND bucket_start < ?
         GROUP BY bucketStart
@@ -344,6 +356,92 @@ def assert_netflow_stats_query(
     ).fetchone()
     if row is None or row['flows'] is None:
         raise SystemExit('Web netflow stats query returned no rows.')
+
+
+def assert_netflow_rollup_parity(conn: sqlite3.Connection) -> None:
+    """Fail when stored netflow rollups differ from raw 5m rows."""
+    mismatch_rows = conn.execute(
+        """
+        WITH expected AS (
+            SELECT
+                calendar.source_id,
+                calendar.granularity,
+                calendar.bucket_start,
+                calendar.bucket_end,
+                ns.ip_version,
+                SUM(ns.flows) AS flows,
+                SUM(ns.flows_tcp) AS flows_tcp,
+                SUM(ns.flows_udp) AS flows_udp,
+                SUM(ns.flows_icmp) AS flows_icmp,
+                SUM(ns.flows_other) AS flows_other,
+                SUM(ns.packets) AS packets,
+                SUM(ns.packets_tcp) AS packets_tcp,
+                SUM(ns.packets_udp) AS packets_udp,
+                SUM(ns.packets_icmp) AS packets_icmp,
+                SUM(ns.packets_other) AS packets_other,
+                SUM(ns.bytes) AS bytes,
+                SUM(ns.bytes_tcp) AS bytes_tcp,
+                SUM(ns.bytes_udp) AS bytes_udp,
+                SUM(ns.bytes_icmp) AS bytes_icmp,
+                SUM(ns.bytes_other) AS bytes_other
+            FROM (
+                SELECT source_id, granularity, bucket_start, bucket_end
+                FROM ip_stats_v2
+                WHERE granularity IN ('30m', '1h', '1d')
+            ) AS calendar
+            JOIN netflow_stats_v2 AS ns
+              ON ns.source_id = calendar.source_id
+             AND ns.bucket_start >= calendar.bucket_start
+             AND ns.bucket_start < calendar.bucket_end
+            GROUP BY calendar.source_id, calendar.granularity, calendar.bucket_start, calendar.bucket_end, ns.ip_version
+        ),
+        actual AS (
+            SELECT
+                source_id,
+                granularity,
+                bucket_start,
+                bucket_end,
+                ip_version,
+                flows,
+                flows_tcp,
+                flows_udp,
+                flows_icmp,
+                flows_other,
+                packets,
+                packets_tcp,
+                packets_udp,
+                packets_icmp,
+                packets_other,
+                bytes,
+                bytes_tcp,
+                bytes_udp,
+                bytes_icmp,
+                bytes_other
+            FROM netflow_stats_aggregate_v2
+        ),
+        missing_or_changed AS (
+            SELECT * FROM expected
+            EXCEPT
+            SELECT * FROM actual
+        ),
+        extra_or_changed AS (
+            SELECT * FROM actual
+            EXCEPT
+            SELECT * FROM expected
+        )
+        SELECT 'missing_or_changed' AS kind, COUNT(*) AS count FROM missing_or_changed
+        UNION ALL
+        SELECT 'extra_or_changed' AS kind, COUNT(*) AS count FROM extra_or_changed
+        """
+    ).fetchall()
+    mismatches = {row['kind']: row['count'] for row in mismatch_rows}
+    total_mismatches = sum(mismatches.values())
+    if total_mismatches:
+        raise SystemExit(
+            'netflow_stats_aggregate_v2 parity failed: '
+            f"missing_or_changed={mismatches.get('missing_or_changed', 0)}, "
+            f"extra_or_changed={mismatches.get('extra_or_changed', 0)}"
+        )
 
 
 def assert_ip_stats_query(
