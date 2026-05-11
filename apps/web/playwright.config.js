@@ -26,6 +26,11 @@ export default defineConfig({
 	webServer: shouldManageServer
 		? {
 				command: 'bun run preview --host 127.0.0.1 --port 4173',
+				env: {
+					...process.env,
+					ATLANTIS_DB_DRIVER: 'sqlite',
+					LOCAL_SQLITE_PATH: ':memory:'
+				},
 				port: 4173,
 				reuseExistingServer: !process.env.CI,
 				timeout: 120_000

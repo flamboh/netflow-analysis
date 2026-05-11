@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import { localSchemaSql } from '$lib/server/db/local-schema';
 import type { DatasetSummary } from '$lib/types/types';
 
 type QueryParam = string | number | boolean | null | Uint8Array;
@@ -69,15 +70,8 @@ async function createLocalDb(): Promise<ReadonlyDatasetDb> {
 	const drizzleDb = drizzle(sqlite, { schema });
 	const client = drizzleDb.$client;
 
+	client.exec(localSchemaSql);
 	client.exec(`
-		CREATE TABLE IF NOT EXISTS datasets (
-			id TEXT PRIMARY KEY NOT NULL,
-			label TEXT NOT NULL,
-			default_start_date TEXT NOT NULL,
-			source_mode TEXT DEFAULT 'static' NOT NULL,
-			discovery_mode TEXT DEFAULT 'static' NOT NULL,
-			sort_order INTEGER DEFAULT 0 NOT NULL
-		);
 		INSERT INTO datasets (
 			id,
 			label,
