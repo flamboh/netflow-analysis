@@ -1,26 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GET } from '../../src/routes/api/netflow/stats/+server';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
-import { getNetflowSchemaVersion } from '$lib/server/netflow-v2';
 
 vi.mock('$lib/server/datasets', () => ({
 	getDatasetDb: vi.fn(),
 	getRequestedDataset: vi.fn()
 }));
 
-vi.mock('$lib/server/netflow-v2', async () => {
-	const actual =
-		await vi.importActual<typeof import('$lib/server/netflow-v2')>('$lib/server/netflow-v2');
-	return {
-		...actual,
-		assertNetflowV2Database: vi.fn(),
-		getNetflowSchemaVersion: vi.fn(() => 'v2')
-	};
-});
-
 describe('/api/netflow/stats GET', () => {
 	it('returns 400 when no routers are selected', async () => {
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
 
 		const response = await GET({
 			url: new URL('http://localhost/api/netflow/stats?startDate=1&endDate=2')
@@ -31,7 +20,7 @@ describe('/api/netflow/stats GET', () => {
 	});
 
 	it('returns normalized bucket rows from the database', async () => {
-		const all = vi.fn().mockReturnValue([
+		const all = vi.fn().mockResolvedValue([
 			{
 				bucketStart: 100,
 				flows: 1,
@@ -81,10 +70,9 @@ describe('/api/netflow/stats GET', () => {
 				bytesOtherIpv6: 44
 			}
 		]);
-		const prepare = vi.fn().mockReturnValue({ all });
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
+		vi.mocked(getDatasetDb).mockResolvedValue({
+			all
 		} as never);
 
 		const response = await GET({
@@ -147,20 +135,28 @@ describe('/api/netflow/stats GET', () => {
 			],
 			availableIpFamilies: ['all', 'ipv4', 'ipv6']
 		});
-		expect(all).toHaveBeenCalledWith('r1', 'r2', '1h', 1, 2);
-		expect(prepare).toHaveBeenCalledWith(
-			expect.stringContaining('FROM netflow_stats_aggregate_v2')
+		expect(all).toHaveBeenCalledWith(expect.stringContaining('FROM netflow_stats_aggregate_v2'), [
+			'r1',
+			'r2',
+			'1h',
+			1,
+			2
+		]);
+		expect(all).toHaveBeenCalledWith(
+			expect.stringContaining('AND granularity = ?'),
+			expect.any(Array)
 		);
-		expect(prepare).toHaveBeenCalledWith(expect.stringContaining('AND granularity = ?'));
-		expect(prepare).toHaveBeenCalledWith(expect.stringContaining('CASE WHEN ip_version = 4'));
+		expect(all).toHaveBeenCalledWith(
+			expect.stringContaining('CASE WHEN ip_version = 4'),
+			expect.any(Array)
+		);
 	});
 
 	it('uses raw v2 stats for 5-minute requests', async () => {
-		const all = vi.fn().mockReturnValue([{ bucketStart: 100, flows: 1 }]);
-		const prepare = vi.fn().mockReturnValue({ all });
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare
+		const all = vi.fn().mockResolvedValue([{ bucketStart: 100, flows: 1 }]);
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
+		vi.mocked(getDatasetDb).mockResolvedValue({
+			all
 		} as never);
 
 		const response = await GET({
@@ -170,43 +166,21 @@ describe('/api/netflow/stats GET', () => {
 		} as never);
 
 		expect(response.status).toBe(200);
-		expect(all).toHaveBeenCalledWith('r1', 1, 2);
-		expect(prepare).toHaveBeenCalledWith(expect.stringContaining('FROM netflow_stats_v2'));
-		expect(prepare).not.toHaveBeenCalledWith(
-			expect.stringContaining('FROM netflow_stats_aggregate_v2')
+		expect(all).toHaveBeenCalledWith(expect.stringContaining('FROM netflow_stats_v2'), [
+			'r1',
+			1,
+			2
+		]);
+		expect(all).not.toHaveBeenCalledWith(
+			expect.stringContaining('FROM netflow_stats_aggregate_v2'),
+			expect.any(Array)
 		);
 	});
 
-	it('returns all-only family options for v1 datasets', async () => {
-		vi.mocked(getNetflowSchemaVersion).mockReturnValueOnce('v1');
-		const all = vi.fn().mockReturnValue([{ bucketStart: 100, flows: 1 }]);
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare: vi.fn().mockReturnValue({ all })
-		} as never);
-
-		const response = await GET({
-			url: new URL('http://localhost/api/netflow/stats?routers=r1&startDate=1&endDate=2')
-		} as never);
-
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toMatchObject({
-			result: [
-				expect.objectContaining({
-					bucketStart: 100,
-					flows: 1,
-					flowsIpv4: 0,
-					flowsIpv6: 0
-				})
-			],
-			availableIpFamilies: ['all']
-		});
-	});
-
 	it('returns 500 when the database query fails', async () => {
-		vi.mocked(getRequestedDataset).mockReturnValue('alpha');
-		vi.mocked(getDatasetDb).mockReturnValue({
-			prepare: vi.fn(() => {
+		vi.mocked(getRequestedDataset).mockResolvedValue('alpha');
+		vi.mocked(getDatasetDb).mockResolvedValue({
+			all: vi.fn(() => {
 				throw new Error('boom');
 			})
 		} as never);

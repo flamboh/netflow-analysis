@@ -1,6 +1,5 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import fs from 'fs';
 import type {
 	FileIpCounts,
 	NetflowFileDetailsResponse,
@@ -12,7 +11,7 @@ import type {
 	StructureFunctionPoint
 } from '$lib/types/types';
 import { getDatasetFromRequest, getDb, slugToBucketStart } from '../utils';
-import { getNetflowSchemaVersion, normalizeStructurePoints } from '$lib/server/netflow-v2';
+import { normalizeStructurePoints } from '$lib/server/netflow-v2';
 
 const FIVE_MINUTES = '5m';
 
@@ -121,9 +120,9 @@ function buildIpCounts(ipv4Count: number | null, ipv6Count: number | null): File
 	};
 }
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, platform }) => {
 	const { slug } = params;
-	const dataset = getDatasetFromRequest(url);
+	await getDatasetFromRequest(url, platform);
 
 	if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
 		return json({ error: 'Invalid slug format' }, { status: 400 });
@@ -135,140 +134,86 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	}
 
 	try {
-		const db = getDb(dataset);
-		const schema = getNetflowSchemaVersion(db);
-		const rows =
-			schema === 'v2'
-				? (db
-						.prepare(
-							`SELECT
-								ns.*,
-								pi.input_locator AS file_path,
-								pi.input_kind,
-								pi.status AS input_status,
-								pi.error_message AS input_error_message,
-								COALESCE(ns.processed_at, pi.processed_at, pi.discovered_at) AS processed_at,
-								ip.sa_ipv4_count AS saIpv4Count,
-								ip.da_ipv4_count AS daIpv4Count,
-								ip.sa_ipv6_count AS saIpv6Count,
-								ip.da_ipv6_count AS daIpv6Count,
-								st.structure_json_sa AS structureJsonSa,
-								st.structure_json_da AS structureJsonDa,
-								sp.spectrum_json_sa AS spectrumJsonSa,
-								sp.spectrum_json_da AS spectrumJsonDa
-							FROM (
-								SELECT
-									source_id AS router,
-									bucket_start,
-									MAX(bucket_end) AS bucket_end,
-									SUM(flows) AS flows,
-									SUM(flows_tcp) AS flows_tcp,
-									SUM(flows_udp) AS flows_udp,
-									SUM(flows_icmp) AS flows_icmp,
-									SUM(flows_other) AS flows_other,
-									SUM(packets) AS packets,
-									SUM(packets_tcp) AS packets_tcp,
-									SUM(packets_udp) AS packets_udp,
-									SUM(packets_icmp) AS packets_icmp,
-									SUM(packets_other) AS packets_other,
-									SUM(bytes) AS bytes,
-									SUM(bytes_tcp) AS bytes_tcp,
-									SUM(bytes_udp) AS bytes_udp,
-									SUM(bytes_icmp) AS bytes_icmp,
-									SUM(bytes_other) AS bytes_other,
-									NULL AS first_timestamp,
-									NULL AS last_timestamp,
-									NULL AS msec_first,
-									NULL AS msec_last,
-									NULL AS sequence_failures,
-									MAX(processed_at) AS processed_at
-								FROM netflow_stats_v2
-								WHERE bucket_start = ?
-								GROUP BY source_id, bucket_start
-							) ns
-							LEFT JOIN (
-								SELECT
-									source_id,
-									bucket_start,
-									MIN(input_locator) AS input_locator,
-									MIN(input_kind) AS input_kind,
-									MAX(status) AS status,
-									MAX(error_message) AS error_message,
-									MAX(discovered_at) AS discovered_at,
-									MAX(processed_at) AS processed_at
-								FROM processed_inputs_v2
-								WHERE bucket_start = ?
-								GROUP BY source_id, bucket_start
-							) pi
-								ON pi.source_id = ns.router
-								AND pi.bucket_start = ns.bucket_start
-							LEFT JOIN ip_stats_v2 ip
-								ON ip.source_id = ns.router
-								AND ip.granularity = ?
-								AND ip.bucket_start = ns.bucket_start
-							LEFT JOIN structure_stats_v2 st
-								ON st.source_id = ns.router
-								AND st.granularity = ?
-								AND st.bucket_start = ns.bucket_start
-								AND st.ip_version = 4
-							LEFT JOIN spectrum_stats_v2 sp
-								ON sp.source_id = ns.router
-								AND sp.granularity = ?
-								AND sp.bucket_start = ns.bucket_start
-								AND sp.ip_version = 4
-							ORDER BY ns.router`
-						)
-						.all(
-							bucketStart,
-							bucketStart,
-							FIVE_MINUTES,
-							FIVE_MINUTES,
-							FIVE_MINUTES
-						) as FileDetailsRow[])
-				: (db
-						.prepare(
-							`SELECT
-								ns.*,
-								ns.timestamp AS bucket_start,
-								ns.timestamp + 300 AS bucket_end,
-								'nfcapd' AS input_kind,
-								'legacy' AS input_status,
-								NULL AS input_error_message,
-								ip.sa_ipv4_count AS saIpv4Count,
-								ip.da_ipv4_count AS daIpv4Count,
-								ip.sa_ipv6_count AS saIpv6Count,
-								ip.da_ipv6_count AS daIpv6Count,
-								st.structure_json_sa AS structureJsonSa,
-								st.structure_json_da AS structureJsonDa,
-								sp.spectrum_json_sa AS spectrumJsonSa,
-								sp.spectrum_json_da AS spectrumJsonDa
-							FROM netflow_stats ns
-							LEFT JOIN ip_stats ip
-								ON ip.router = ns.router
-								AND ip.granularity = ?
-								AND ip.bucket_start = ?
-							LEFT JOIN structure_stats st
-								ON st.router = ns.router
-								AND st.granularity = ?
-								AND st.bucket_start = ?
-								AND st.ip_version = 4
-							LEFT JOIN spectrum_stats sp
-								ON sp.router = ns.router
-								AND sp.granularity = ?
-								AND sp.bucket_start = ?
-								AND sp.ip_version = 4
-							WHERE ns.file_path LIKE '%' || ?
-							ORDER BY ns.router`
-						)
-						.all(
-							FIVE_MINUTES,
-							bucketStart,
-							FIVE_MINUTES,
-							bucketStart,
-							FIVE_MINUTES,
-							bucketStart,
-							`nfcapd.${slug}`
-						) as FileDetailsRow[]);
+		const db = await getDb(platform);
+		const rows = await db.all<FileDetailsRow>(
+			`SELECT
+				ns.*,
+				pi.input_locator AS file_path,
+				pi.input_kind,
+				pi.status AS input_status,
+				pi.error_message AS input_error_message,
+				COALESCE(ns.processed_at, pi.processed_at, pi.discovered_at) AS processed_at,
+				ip.sa_ipv4_count AS saIpv4Count,
+				ip.da_ipv4_count AS daIpv4Count,
+				ip.sa_ipv6_count AS saIpv6Count,
+				ip.da_ipv6_count AS daIpv6Count,
+				st.structure_json_sa AS structureJsonSa,
+				st.structure_json_da AS structureJsonDa,
+				sp.spectrum_json_sa AS spectrumJsonSa,
+				sp.spectrum_json_da AS spectrumJsonDa
+			FROM (
+				SELECT
+					source_id AS router,
+					bucket_start,
+					MAX(bucket_end) AS bucket_end,
+					SUM(flows) AS flows,
+					SUM(flows_tcp) AS flows_tcp,
+					SUM(flows_udp) AS flows_udp,
+					SUM(flows_icmp) AS flows_icmp,
+					SUM(flows_other) AS flows_other,
+					SUM(packets) AS packets,
+					SUM(packets_tcp) AS packets_tcp,
+					SUM(packets_udp) AS packets_udp,
+					SUM(packets_icmp) AS packets_icmp,
+					SUM(packets_other) AS packets_other,
+					SUM(bytes) AS bytes,
+					SUM(bytes_tcp) AS bytes_tcp,
+					SUM(bytes_udp) AS bytes_udp,
+					SUM(bytes_icmp) AS bytes_icmp,
+					SUM(bytes_other) AS bytes_other,
+					NULL AS first_timestamp,
+					NULL AS last_timestamp,
+					NULL AS msec_first,
+					NULL AS msec_last,
+					NULL AS sequence_failures,
+					MAX(processed_at) AS processed_at
+				FROM netflow_stats_v2
+				WHERE bucket_start = ?
+				GROUP BY source_id, bucket_start
+			) ns
+			LEFT JOIN (
+				SELECT
+					source_id,
+					bucket_start,
+					MIN(input_locator) AS input_locator,
+					MIN(input_kind) AS input_kind,
+					MAX(status) AS status,
+					MAX(error_message) AS error_message,
+					MAX(discovered_at) AS discovered_at,
+					MAX(processed_at) AS processed_at
+				FROM processed_inputs_v2
+				WHERE bucket_start = ?
+				GROUP BY source_id, bucket_start
+			) pi
+				ON pi.source_id = ns.router
+				AND pi.bucket_start = ns.bucket_start
+			LEFT JOIN ip_stats_v2 ip
+				ON ip.source_id = ns.router
+				AND ip.granularity = ?
+				AND ip.bucket_start = ns.bucket_start
+			LEFT JOIN structure_stats_v2 st
+				ON st.source_id = ns.router
+				AND st.granularity = ?
+				AND st.bucket_start = ns.bucket_start
+				AND st.ip_version = 4
+			LEFT JOIN spectrum_stats_v2 sp
+				ON sp.source_id = ns.router
+				AND sp.granularity = ?
+				AND sp.bucket_start = ns.bucket_start
+				AND sp.ip_version = 4
+			ORDER BY ns.router`,
+			[bucketStart, bucketStart, FIVE_MINUTES, FIVE_MINUTES, FIVE_MINUTES]
+		);
 
 		if (rows.length === 0) {
 			return json({ error: `No data found for bucket: ${slug}` }, { status: 404 });
@@ -284,7 +229,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 				summary: {
 					router: row.router,
 					file_path: row.file_path,
-					file_exists_on_disk: row.file_path ? fs.existsSync(row.file_path) : false,
+					file_exists_on_disk: false,
 					input_kind: row.input_kind,
 					input_status: row.input_status,
 					input_error_message: row.input_error_message,

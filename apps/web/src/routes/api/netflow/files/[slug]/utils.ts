@@ -1,14 +1,13 @@
 import { createDateFromPSTComponents } from '$lib/utils/timezone';
 import { getDatasetDb, getRequestedDataset } from '$lib/server/datasets';
-import { getNetflowSchemaVersion } from '$lib/server/netflow-v2';
 
 export interface NetflowRecord {
 	router: string;
 	input_locator: string;
 }
 
-export function getDb(dataset: string) {
-	return getDatasetDb(dataset);
+export function getDb(platform?: App.Platform) {
+	return getDatasetDb(platform);
 }
 
 export function slugToBucketStart(slug: string): number | null {
@@ -37,7 +36,7 @@ export function slugToBucketStart(slug: string): number | null {
 }
 
 export async function getNetflowFilePath(
-	dataset: string,
+	platform: App.Platform | undefined,
 	slug: string,
 	router: string
 ): Promise<string | null> {
@@ -52,27 +51,12 @@ export async function getNetflowFilePath(
 		LIMIT 1
 	`;
 
-	const database = getDb(dataset);
-	const schema = getNetflowSchemaVersion(database);
-	if (schema === 'v2') {
-		const result = database.prepare(query).get(router, bucketStart) as NetflowRecord | undefined;
-		return result?.input_locator || null;
-	}
-
-	const filePattern = `nfcapd.${slug}`;
-	const result = database
-		.prepare(
-			`
-			SELECT file_path AS input_locator FROM netflow_stats
-			WHERE file_path LIKE '%' || ? AND router = ?
-			LIMIT 1
-		`
-		)
-		.get(filePattern, router) as NetflowRecord | undefined;
+	const database = await getDb(platform);
+	const result = await database.get<NetflowRecord>(query, [router, bucketStart]);
 
 	return result?.input_locator || null;
 }
 
-export function getDatasetFromRequest(url: URL): string {
-	return getRequestedDataset(url);
+export function getDatasetFromRequest(url: URL, platform?: App.Platform): Promise<string> {
+	return getRequestedDataset(url, platform);
 }
