@@ -28,6 +28,7 @@ NETFLOW_METRIC_COLUMNS = (
     'bytes_icmp',
     'bytes_other',
 )
+NETFLOW_AGGREGATE_GRANULARITIES = ('30m', '1h', '1d')
 
 
 def init_netflow_stats_v2_table(conn: sqlite3.Connection) -> None:
@@ -343,6 +344,39 @@ def insert_netflow_stats_aggregate_v2_rows(conn: sqlite3.Connection, rows: list[
             )
             for row in rows
         ],
+    )
+
+
+def backfill_netflow_stats_aggregate_v2_rows(conn: sqlite3.Connection) -> None:
+    """Backfill netflow rollups from existing 5m rows and the aggregate calendar."""
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO netflow_stats_aggregate_v2 (
+            source_id, granularity, bucket_start, bucket_end, ip_version,
+            flows, flows_tcp, flows_udp, flows_icmp, flows_other,
+            packets, packets_tcp, packets_udp, packets_icmp, packets_other,
+            bytes, bytes_tcp, bytes_udp, bytes_icmp, bytes_other
+        )
+        SELECT
+            calendar.source_id,
+            calendar.granularity,
+            calendar.bucket_start,
+            calendar.bucket_end,
+            ns.ip_version,
+            SUM(ns.flows), SUM(ns.flows_tcp), SUM(ns.flows_udp), SUM(ns.flows_icmp), SUM(ns.flows_other),
+            SUM(ns.packets), SUM(ns.packets_tcp), SUM(ns.packets_udp), SUM(ns.packets_icmp), SUM(ns.packets_other),
+            SUM(ns.bytes), SUM(ns.bytes_tcp), SUM(ns.bytes_udp), SUM(ns.bytes_icmp), SUM(ns.bytes_other)
+        FROM (
+            SELECT source_id, granularity, bucket_start, bucket_end
+            FROM ip_stats_v2
+            WHERE granularity IN ('30m', '1h', '1d')
+        ) AS calendar
+        JOIN netflow_stats_v2 AS ns
+          ON ns.source_id = calendar.source_id
+         AND ns.bucket_start >= calendar.bucket_start
+         AND ns.bucket_start < calendar.bucket_end
+        GROUP BY calendar.source_id, calendar.granularity, calendar.bucket_start, calendar.bucket_end, ns.ip_version
+        """
     )
 
 
