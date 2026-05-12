@@ -97,7 +97,7 @@ function normalizeRow(row: Record<string, number | null>): NetflowStatsResult {
 }
 
 export const GET: RequestHandler = async ({ url, platform }) => {
-	await getRequestedDataset(url, platform);
+	const dataset = await getRequestedDataset(url, platform);
 	const startDate = url.searchParams.get('startDate') || '';
 	const endDate = url.searchParams.get('endDate') || '';
 	const groupBy = url.searchParams.get('groupBy') || 'date';
@@ -118,7 +118,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 	}
 
 	try {
-		const db = await getDatasetDb(platform);
+		const db = await getDatasetDb(dataset, platform);
 		const granularity = groupByToGranularity(groupBy);
 		const useAggregate = granularity !== '5m';
 		const timeColumn = 'bucket_start';

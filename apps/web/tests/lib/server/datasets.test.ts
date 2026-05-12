@@ -1,5 +1,6 @@
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -48,7 +49,10 @@ function createSqliteFixture(): string {
 }
 
 describe('dataset server helpers', () => {
+	const originalCwd = process.cwd();
+
 	afterEach(() => {
+		process.chdir(originalCwd);
 		vi.unstubAllEnvs();
 	});
 
@@ -81,4 +85,73 @@ describe('dataset server helpers', () => {
 
 		await expect(datasets.getDatasetConfig('missing')).rejects.toThrow(/Unknown dataset 'missing'/);
 	});
+
+	it('discovers local sqlite datasets from data directories', async () => {
+		const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'datasets-scan-'));
+		const alphaDir = path.join(workspace, 'data', 'alpha');
+		const betaDir = path.join(workspace, 'data', 'beta');
+		fs.mkdirSync(alphaDir, { recursive: true });
+		fs.mkdirSync(betaDir, { recursive: true });
+		seedDatasetDb(path.join(alphaDir, 'netflow.sqlite'), 'alpha', 'Alpha', 'router-a');
+		seedDatasetDb(path.join(betaDir, 'netflow.sqlite'), 'beta', 'Beta', 'router-b');
+		process.chdir(workspace);
+
+		const datasets = await loadDatasetsModule();
+
+		await expect(datasets.listDatasetSummaries()).resolves.toEqual([
+			{
+				datasetId: 'alpha',
+				label: 'Alpha',
+				defaultStartDate: '2025-03-01',
+				discoveryMode: 'static',
+				sourceCount: 1,
+				isDefault: true
+			},
+			{
+				datasetId: 'beta',
+				label: 'Beta',
+				defaultStartDate: '2025-03-01',
+				discoveryMode: 'static',
+				sourceCount: 1,
+				isDefault: false
+			}
+		]);
+		await expect(datasets.listDatasetSources('beta')).resolves.toEqual(['router-b']);
+	});
 });
+
+function seedDatasetDb(dbPath: string, datasetId: string, label: string, sourceId: string): void {
+	const seedResult = spawnSync(
+		'sqlite3',
+		[
+			dbPath,
+			`
+				CREATE TABLE datasets (
+					id TEXT PRIMARY KEY NOT NULL,
+					label TEXT NOT NULL,
+					default_start_date TEXT NOT NULL,
+					source_mode TEXT DEFAULT 'static' NOT NULL,
+					discovery_mode TEXT DEFAULT 'static' NOT NULL,
+					sort_order INTEGER DEFAULT 0 NOT NULL
+				);
+				CREATE TABLE netflow_stats_v2 (
+					source_id TEXT NOT NULL,
+					bucket_start INTEGER NOT NULL,
+					ip_version INTEGER NOT NULL
+				);
+				INSERT INTO datasets (
+					id,
+					label,
+					default_start_date,
+					source_mode,
+					discovery_mode,
+					sort_order
+				) VALUES ('${datasetId}', '${label}', '2025-03-01', 'static', 'static', 0);
+				INSERT INTO netflow_stats_v2 (source_id, bucket_start, ip_version)
+				VALUES ('${sourceId}', 1740823200, 4);
+			`
+		],
+		{ encoding: 'utf-8' }
+	);
+	expect(seedResult.status, seedResult.stderr).toBe(0);
+}

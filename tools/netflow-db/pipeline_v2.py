@@ -45,6 +45,7 @@ from csv_inputs_v2 import (
     iter_headerless_csv_values,
     is_tar_archive,
 )
+from datasets_metadata import init_datasets_table, upsert_dataset_metadata
 from maad_v2 import (
     MaadTimeoutError,
     MaadJsonResult,
@@ -258,6 +259,10 @@ def load_pipeline_v2_config(path: str | Path) -> dict:
 
 def process_pipeline_v2_config(conn: sqlite3.Connection, config: dict) -> None:
     """Process a v2 config, including canonical nfcapd tree inputs."""
+    init_datasets_table(conn)
+    for dataset in config.get('datasets', []):
+        upsert_dataset_metadata(conn, dataset)
+
     maad_bin = config.get('maad_bin', DEFAULT_MAAD_BIN)
     maad_backend = str(config.get('maad_backend', 'subprocess'))
     maad_workers = int(config.get('maad_workers', 1))
@@ -503,6 +508,7 @@ def build_dataset_tree_config(
         'database_path': str(db_path),
         'maad_bin': str(maad_bin),
         'max_workers': max_workers,
+        'datasets': [dataset],
         'inputs': [tree_input],
     }
 

@@ -13,7 +13,7 @@ type IpCountRow = {
 
 export const GET: RequestHandler = async ({ params, url, platform }) => {
 	const { slug } = params;
-	await getDatasetFromRequest(url, platform);
+	const dataset = await getDatasetFromRequest(url, platform);
 	const router = url.searchParams.get('router');
 	const sourceParam = url.searchParams.get('source');
 
@@ -40,7 +40,7 @@ export const GET: RequestHandler = async ({ params, url, platform }) => {
 	}
 
 	try {
-		const db = await getDb(platform);
+		const db = await getDb(dataset, platform);
 		const row = await db.get<IpCountRow>(
 			`SELECT
 				sa_ipv4_count AS saIpv4Count,

@@ -1,6 +1,8 @@
 # `datasets.json` setup
 
-`datasets.json` defines which NetFlow datasets the pipeline and web app know about.
+`datasets.json` defines local pipeline inputs: roots, source discovery, and
+SQLite output paths. The web app does not read this file directly; it reads the
+`datasets` table inside SQLite/D1.
 
 The file is not meant to be committed with machine-specific paths. Start from
 `datasets.json.example` and create your own local `datasets.json` in the repo root.
@@ -10,7 +12,8 @@ The file is not meant to be committed with machine-specific paths. Start from
 1. Copy `datasets.json.example` to `datasets.json`
 2. Update the dataset paths for your machine
 3. Make sure each dataset has a unique `dataset_id`
-4. Set `DEFAULT_DATASET` in `.env` if you want one dataset to be used by default
+4. Run the pipeline; new v2 SQLite databases are seeded with a `datasets` row
+5. Set `DEFAULT_DATASET` in `.env` if you want one dataset to be used by default
 
 ## Example
 
@@ -43,3 +46,5 @@ The file is not meant to be committed with machine-specific paths. Start from
 - `db_path` can be relative to the repo root
 - `root_path` is usually absolute
 - if you want to store the config somewhere else, point `DATASETS_CONFIG_PATH` in `.env` at that file
+- local web discovery scans `data/*/netflow.sqlite` and reads each database's
+  `datasets` table

@@ -122,7 +122,7 @@ function buildIpCounts(ipv4Count: number | null, ipv6Count: number | null): File
 
 export const GET: RequestHandler = async ({ params, url, platform }) => {
 	const { slug } = params;
-	await getDatasetFromRequest(url, platform);
+	const dataset = await getDatasetFromRequest(url, platform);
 
 	if (!slug || slug.length !== 12 || !/^\d{12}$/.test(slug)) {
 		return json({ error: 'Invalid slug format' }, { status: 400 });
@@ -134,7 +134,7 @@ export const GET: RequestHandler = async ({ params, url, platform }) => {
 	}
 
 	try {
-		const db = await getDb(platform);
+		const db = await getDb(dataset, platform);
 		const rows = await db.all<FileDetailsRow>(
 			`SELECT
 				ns.*,
