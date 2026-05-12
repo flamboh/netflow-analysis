@@ -16,7 +16,7 @@ function parseGranularity(param: string | null): IpGranularity | null {
 }
 
 export const GET: RequestHandler = async ({ url, platform }) => {
-	await getRequestedDataset(url, platform);
+	const dataset = await getRequestedDataset(url, platform);
 	const routers = parseSourceIds(url.searchParams.get('routers'));
 	const granularity =
 		parseGranularity(url.searchParams.get('granularity')) ?? (IP_GRANULARITIES[2] as IpGranularity); // default 1h
@@ -36,7 +36,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 	}
 
 	try {
-		const db = await getDatasetDb(platform);
+		const db = await getDatasetDb(dataset, platform);
 		const tableName = 'ip_stats_v2';
 		const sourceColumn = 'source_id';
 		const params = [granularity, ...routers, start, end];

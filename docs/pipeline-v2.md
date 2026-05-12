@@ -12,6 +12,7 @@ v2 ingest contract, not an optional side path.
 
 Pipeline v2 currently writes:
 
+- `datasets`
 - `processed_inputs_v2`
 - `netflow_stats_v2`
 - `ip_stats_v2`
@@ -46,6 +47,10 @@ pipeline processes this tree one calendar day at a time into
 `./data/<dataset>-v2/netflow.sqlite`, keeping memory bounded. Reruns skip days
 where every discovered nfcapd file is already marked `processed`; partial days
 are rebuilt as a full day so aggregate rows stay coherent.
+
+The generated SQLite database also gets a `datasets` metadata row copied from
+`datasets.json`. Local web discovery scans `data/*/netflow.sqlite`, reads those
+metadata rows, and opens the selected dataset's SQLite file for API queries.
 
 Explicit json configs are still supported for csv inputs and unusual file
 layouts:

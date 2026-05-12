@@ -665,6 +665,60 @@ def test_csv_tree_discovers_ugr16_archives_and_extracted_files(monkeypatch, tmp_
     ]
 
 
+def test_process_pipeline_v2_config_writes_dataset_metadata() -> None:
+    pipeline_v2, _ = load_modules()
+    conn = sqlite3.connect(':memory:')
+
+    pipeline_v2.process_pipeline_v2_config(
+        conn,
+        {
+            'datasets': [
+                {
+                    'dataset_id': 'alpha',
+                    'label': 'Alpha Dataset',
+                    'default_start_date': '2025-03-01',
+                    'source_mode': 'subdirs',
+                    'discovery_mode': 'live',
+                    'sort_order': 3,
+                }
+            ],
+            'inputs': [],
+        },
+    )
+
+    assert conn.execute(
+        """
+        SELECT id, label, default_start_date, source_mode, discovery_mode, sort_order
+        FROM datasets
+        """
+    ).fetchall() == [('alpha', 'Alpha Dataset', '2025-03-01', 'subdirs', 'live', 3)]
+
+
+def test_build_dataset_tree_config_includes_dataset_metadata(monkeypatch, tmp_path: Path) -> None:
+    pipeline_v2, _ = load_modules()
+    common = importlib.import_module('common')
+    dataset = {
+        'dataset_id': 'alpha',
+        'label': 'Alpha Dataset',
+        'root_path': str(tmp_path / 'raw'),
+        'db_path': str(tmp_path / 'netflow.sqlite'),
+        'default_start_date': '2025-03-01',
+        'source_mode': 'subdirs',
+        'discovery_mode': 'live',
+        'source_ids': ['router-a'],
+    }
+    monkeypatch.setattr(common, 'get_dataset_config', lambda dataset_id: dataset)
+    monkeypatch.setattr(common, 'list_dataset_sources', lambda dataset_id: ['router-a'])
+
+    config = pipeline_v2.build_dataset_tree_config(
+        dataset_id='alpha',
+        start_date='2025-03-01',
+        database_path=tmp_path / 'out.sqlite',
+    )
+
+    assert config['datasets'] == [dataset]
+
+
 def test_discover_nfcapd_tree_specs_uses_canonical_layout(tmp_path: Path) -> None:
     pipeline_v2, _ = load_modules()
     root = tmp_path / 'uoregon'

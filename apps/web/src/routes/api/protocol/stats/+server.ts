@@ -39,8 +39,8 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 	}
 
 	try {
-		await getRequestedDataset(url, platform);
-		const db = await getDatasetDb(platform);
+		const dataset = await getRequestedDataset(url, platform);
+		const db = await getDatasetDb(dataset, platform);
 		const tableName = 'protocol_stats_v2';
 		const sourceColumn = 'source_id';
 		const params = [granularity, ...routers, start, end];

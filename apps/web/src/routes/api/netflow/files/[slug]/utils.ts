@@ -6,8 +6,8 @@ export interface NetflowRecord {
 	input_locator: string;
 }
 
-export function getDb(platform?: App.Platform) {
-	return getDatasetDb(platform);
+export function getDb(datasetOrPlatform?: string | App.Platform, platform?: App.Platform) {
+	return getDatasetDb(datasetOrPlatform, platform);
 }
 
 export function slugToBucketStart(slug: string): number | null {
