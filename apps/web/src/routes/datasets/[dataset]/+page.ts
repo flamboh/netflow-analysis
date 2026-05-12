@@ -22,7 +22,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			routersResponse.status,
 			typeof routersPayload?.error === 'string'
 				? routersPayload.error
-				: 'Failed to load router metadata'
+				: 'Failed to load source metadata'
 		);
 	}
 
@@ -30,7 +30,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		!Array.isArray(routersPayload) ||
 		!routersPayload.every((router): router is string => typeof router === 'string')
 	) {
-		throw error(500, 'Invalid router metadata response');
+		throw error(500, 'Invalid source metadata response');
 	}
 
 	return {

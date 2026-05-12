@@ -769,7 +769,7 @@
 		currentGranularity = filters.granularity;
 
 		if (selectedRouters.length === 0) {
-			error = 'Select at least one router to view protocol statistics';
+			error = 'Select at least one source to view protocol statistics';
 			buckets = [];
 			destroyChart();
 			lastFiltersKey = JSON.stringify({ ...filters, selectedRouters });
