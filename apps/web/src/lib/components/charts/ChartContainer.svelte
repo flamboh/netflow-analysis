@@ -56,10 +56,12 @@
 	let { results, groupBy, chartType, dataOptions, onDrillDown, onNavigateToFile }: Props = $props();
 
 	const CHART_ID = 'netflow';
+	const COMPACT_CHART_WIDTH = 560;
 
 	let chartCanvas: HTMLCanvasElement;
 	let chart: Chart | null = null;
 	let resizeObserver: ResizeObserver | null = null;
+	let compactChartMode: boolean | null = null;
 	let rangeDrag = $state(createRangeDragState());
 	let selectionLeft = $derived(Math.min(rangeDrag.dragStartX, rangeDrag.dragCurrentX));
 	let selectionWidth = $derived(Math.abs(rangeDrag.dragCurrentX - rangeDrag.dragStartX));
@@ -377,6 +379,11 @@
 		};
 	}
 
+	function isCompactChart(): boolean {
+		const width = chartCanvas.parentElement?.clientWidth ?? chartCanvas.clientWidth;
+		return width < COMPACT_CHART_WIDTH;
+	}
+
 	function getLabelPSTFromLabels(
 		labels: (string | number | null | undefined)[],
 		idx: number
@@ -398,6 +405,7 @@
 		const getLabelPST = (idx: number): PSTDateComponents | null =>
 			getLabelPSTFromLabels(labels, idx);
 		const xAxisTitle = getXAxisTitle(groupBy);
+		const compactChart = isCompactChart();
 
 		// Use manual chart type selection - matches original logic
 		const isStackedChart = chartType === 'stacked';
@@ -483,15 +491,16 @@
 		const scales: Record<string, object> = {
 			x: {
 				title: {
-					display: true,
+					display: !compactChart,
 					text: xAxisTitle,
 					color: textColor
 				},
 				ticks: {
 					color: textColor,
-					autoSkip: false,
-					maxRotation: 45,
-					minRotation: 45,
+					autoSkip: compactChart,
+					maxRotation: compactChart ? 0 : 45,
+					maxTicksLimit: compactChart ? 4 : undefined,
+					minRotation: compactChart ? 0 : 45,
 					callback: (_val: string | number, idx: number) =>
 						formatTickLabel(getLabelPST(Number(idx)), groupBy, Number(idx))
 				},
@@ -512,10 +521,10 @@
 						stacked: true,
 						beginAtZero: true,
 						afterFit(axis: { width: number }) {
-							axis.width = Y_AXIS_WIDTH;
+							axis.width = compactChart ? 56 : Y_AXIS_WIDTH;
 						},
 						title: {
-							display: true,
+							display: !compactChart,
 							text: 'Value',
 							color: textColor
 						},
@@ -532,10 +541,10 @@
 						type: 'linear',
 						beginAtZero: true,
 						afterFit(axis: { width: number }) {
-							axis.width = Y_AXIS_WIDTH;
+							axis.width = compactChart ? 56 : Y_AXIS_WIDTH;
 						},
 						title: {
-							display: true,
+							display: !compactChart,
 							text: 'Value',
 							color: textColor
 						},
@@ -566,7 +575,7 @@
 				scales: scales,
 				plugins: {
 					legend: {
-						display: true,
+						display: !compactChart,
 						position: 'top' as const,
 						labels: { color: textColor }
 					},
@@ -747,6 +756,17 @@
 		const container = chartCanvas.parentElement;
 		if (container) {
 			resizeObserver = new ResizeObserver(() => {
+				const nextCompactChartMode = isCompactChart();
+				if (chart && results.length > 0 && nextCompactChartMode !== compactChartMode) {
+					const config = createChartConfig();
+					chart.data = config.data;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					chart.options = config.options as any;
+					compactChartMode = nextCompactChartMode;
+					chart.update('none');
+					return;
+				}
+				compactChartMode = nextCompactChartMode;
 				chart?.resize();
 			});
 			resizeObserver.observe(container);
@@ -779,6 +799,7 @@
 			chart.data = config.data;
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			chart.options = config.options as any;
+			compactChartMode = isCompactChart();
 			chart.update();
 		}
 	});
@@ -789,6 +810,7 @@
 			const config = createChartConfig();
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			chart.options = config.options as any;
+			compactChartMode = isCompactChart();
 			chart.update('none');
 		}
 	});

@@ -959,7 +959,7 @@
 		currentGranularity = filters.granularity;
 
 		if (filters.routers.length === 0) {
-			error = 'Select at least one router to view spectrum statistics';
+			error = 'Select at least one source to view spectrum statistics';
 			buckets = [];
 			destroyChart();
 			lastFiltersKey = JSON.stringify(filters);

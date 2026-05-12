@@ -250,7 +250,7 @@
 		}
 
 		if (selectedRouters.length === 0) {
-			error = 'Select at least one router to view NetFlow statistics';
+			error = 'Select at least one source to view NetFlow statistics';
 			rawResults = [];
 			loading = false;
 			return;
@@ -299,7 +299,7 @@
 		/>
 
 		<div
-			class="dark:border-dark-border dark:bg-dark-subtle/60 h-[320px] min-h-[240px] resize-y overflow-auto rounded-md border border-gray-200 bg-white/60"
+			class="dark:border-dark-border dark:bg-dark-subtle/60 h-[380px] min-h-[280px] resize-none overflow-hidden rounded-md border border-gray-200 bg-white/60 md:h-[320px] md:min-h-[240px] md:resize-y md:overflow-auto"
 		>
 			{#if loading}
 				<div class="flex h-full items-center justify-center">

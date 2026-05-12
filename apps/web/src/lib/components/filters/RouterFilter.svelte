@@ -19,7 +19,7 @@
 </script>
 
 <div class="router-filter flex flex-wrap items-center gap-3">
-	<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Routers:</span>
+	<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Sources:</span>
 
 	<div class="flex min-h-0 flex-wrap items-center gap-3">
 		{#if routerNames.length === 0}
